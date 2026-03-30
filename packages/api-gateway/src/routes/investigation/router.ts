@@ -1,0 +1,333 @@
+// Investigation API router - all /investigations endpoints
+
+import { Router } from 'express';
+import type { Request, Response, NextFunction } from 'express';
+import { randomUUID } from 'crypto';
+
+import type { AuthenticatedRequest } from '../../middleware/auth.js';
+import { authMiddleware } from '../../middleware/auth.js';
+import { requirePermission } from '../../middleware/rbac.js';
+import { investigationOpenApiSpec } from './openapi.js';
+import { defaultInvestigationStore } from './store.js';
+import type { CreateInvestigationBody, FollowUpBody, FeedbackBody } from './types.js';
+import { initSse, sendSseEvent, sendSseKeepAlive, closeSse } from './sse.js';
+import { defaultFeedStore as defaultFeed } from '../feed-store.js';
+import { LiveOrchestratorRunner } from './live-orchestrator-runner.js';
+import type { OrchestratorRunner } from './orchestrator-runner.js';
+import { defaultShareStore } from './share-store.js';
+import type { IGatewayInvestigationStore, IGatewayFeedStore, IGatewayShareStore } from '../../repositories/types.js';
+import type { SharePermission } from './share-store.js';
+
+interface InvestigationRouterDeps {
+  store?: IGatewayInvestigationStore;
+  feed?: IGatewayFeedStore;
+  orchestrator?: OrchestratorRunner;
+  shareRepo?: IGatewayShareStore;
+}
+
+export function createInvestigationRouter(
+  deps: InvestigationRouterDeps = {},
+): Router {
+  const store: IGatewayInvestigationStore = deps.store ?? defaultInvestigationStore;
+  const feed: IGatewayFeedStore = deps.feed ?? defaultFeed;
+  const orchestrator: OrchestratorRunner = deps.orchestrator ?? new LiveOrchestratorRunner(store, feed);
+  const shareRepo: IGatewayShareStore = deps.shareRepo ?? defaultShareStore;
+
+  const router = Router();
+
+  // All investigation routes require authentication
+  router.use(authMiddleware);
+
+  // -- POST /investigations
+
+  router.post('/', requirePermission('investigation:create'), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const body = req.body as CreateInvestigationBody;
+
+      if (!body?.question || typeof body.question !== 'string' || body.question.trim() === '') {
+        res.status(400).json({ code: 'INVALID_INPUT', message: 'question is required and must be a non-empty string' });
+        return;
+      }
+
+      const authReq = req as AuthenticatedRequest;
+      const investigation = await store.create({
+        question: body.question.trim(),
+        sessionId: body.sessionId ?? `ses_${Date.now()}`,
+        userId: authReq.auth?.sub ?? 'anonymous',
+        entity: body.entity,
+        timeRange: body.timeRange,
+      });
+
+      // Async orchestration - does not block the HTTP response
+      orchestrator.run({
+        investigationId: investigation.id,
+        question: investigation.intent,
+        sessionId: investigation.sessionId,
+        userId: investigation.userId,
+      });
+
+      res.status(201).json(investigation);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // -- GET /investigations/archived
+  // Must be registered before /:id to avoid shadowing
+
+  router.get('/archived', requirePermission('investigation:read'), async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.json(await store.getArchived());
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // -- POST /investigations/archived/:id/restore
+
+  router.post('/archived/:id/restore', requirePermission('investigation:write'), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const inv = await store.restoreFromArchive(req.params['id'] ?? '');
+      if (!inv) {
+        res.status(404).json({ code: 'NOT_FOUND', message: 'Archived investigation not found' });
+        return;
+      }
+      res.json(inv);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // -- GET /investigations
+
+  router.get('/', requirePermission('investigation:read'), async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const all = (await store.findAll()).map((inv) => ({
+        id: inv.id,
+        status: inv.status,
+        intent: inv.intent,
+        sessionId: inv.sessionId,
+        userId: inv.userId,
+        createdAt: inv.createdAt,
+        updatedAt: inv.updatedAt,
+      }));
+      res.json(all);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // -- GET /investigations/:id
+
+  router.get('/:id', requirePermission('investigation:read'), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const inv = await store.findById(req.params['id'] ?? '');
+      if (!inv) {
+        res.status(404).json({ code: 'NOT_FOUND', message: 'Investigation not found' });
+        return;
+      }
+      res.json(inv);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // -- GET /investigations/:id/plan
+
+  router.get('/:id/plan', requirePermission('investigation:read'), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const inv = await store.findById(req.params['id'] ?? '');
+      if (!inv) {
+        res.status(404).json({ code: 'NOT_FOUND', message: 'Investigation not found' });
+        return;
+      }
+      res.json({ investigationId: inv.id, plan: inv.plan });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // -- POST /investigations/:id/follow-up
+
+  router.post('/:id/follow-up', requirePermission('investigation:create'), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const inv = await store.findById(id);
+      if (!inv) {
+        res.status(404).json({ code: 'NOT_FOUND', message: 'Investigation not found' });
+        return;
+      }
+
+      const body = req.body as FollowUpBody;
+      if (!body?.question || typeof body.question !== 'string' || body.question.trim() === '') {
+        res.status(400).json({ code: 'INVALID_INPUT', message: 'question is required' });
+        return;
+      }
+
+      const record = await store.addFollowUp(id, body.question.trim());
+      res.status(201).json(record);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // -- POST /investigations/:id/feedback
+
+  router.post('/:id/feedback', requirePermission('investigation:read'), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const inv = await store.findById(id);
+      if (!inv) {
+        res.status(404).json({ code: 'NOT_FOUND', message: 'Investigation not found' });
+        return;
+      }
+
+      const body = req.body as FeedbackBody;
+      if (typeof body?.helpful !== 'boolean') {
+        res.status(400).json({ code: 'INVALID_INPUT', message: 'helpful (boolean) is required' });
+        return;
+      }
+
+      await store.addFeedback(id, body);
+      res.json({ received: true, investigationId: id });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // -- GET /investigations/:id/conclusion
+
+  router.get('/:id/conclusion', requirePermission('investigation:read'), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const inv = await store.findById(id);
+      if (!inv) {
+        res.status(404).json({ code: 'NOT_FOUND', message: 'Investigation not found' });
+        return;
+      }
+
+      const conclusion = await store.getConclusion(id);
+      if (!conclusion) {
+        res.status(404).json({ code: 'NOT_FOUND', message: 'Conclusion not yet available' });
+        return;
+      }
+
+      res.json({ investigationId: id, conclusion });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // -- POST /investigations/:id/share
+
+  router.post('/:id/share', requirePermission('investigation:write'), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const id = req.params['id'] ?? '';
+      const inv = await store.findById(id);
+      if (!inv) {
+        res.status(404).json({ code: 'NOT_FOUND', message: 'Investigation not found' });
+        return;
+      }
+
+      const body = req.body as { permission?: SharePermission; expiresInMs?: number } | undefined;
+      const link = await shareRepo.create({
+        investigationId: id,
+        createdBy: authReq.auth?.sub ?? 'unknown',
+        permission: body?.permission ?? 'view_only',
+        expiresInMs: body?.expiresInMs,
+      });
+
+      res.status(201).json({
+        token: link.token,
+        shareUrl: `/api/shared/${link.token}`,
+        permission: link.permission,
+        expiresAt: link.expiresAt,
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // -- GET /investigations/:id/shares
+
+  router.get('/:id/shares', requirePermission('investigation:read'), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const inv = await store.findById(id);
+      if (!inv) {
+        res.status(404).json({ code: 'NOT_FOUND', message: 'Investigation not found' });
+        return;
+      }
+
+      const links = await shareRepo.findByInvestigation(id);
+      res.json({ shares: links });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // -- GET /investigations/:id/stream (SSE)
+
+  router.get('/:id/stream', requirePermission('investigation:read'), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const inv = await store.findById(id);
+      if (!inv) {
+        res.status(404).json({ code: 'NOT_FOUND', message: 'Investigation not found' });
+        return;
+      }
+
+      initSse(res);
+
+      // Emit current state immediately
+      sendSseEvent(res, { type: 'investigation:status', data: { id: inv.id, status: inv.status } });
+
+      // If investigation already completed/failed, emit final event and close
+      if (inv.status === 'completed' || inv.status === 'failed') {
+        sendSseEvent(res, { type: 'investigation:complete', data: inv });
+        closeSse(res);
+        return;
+      }
+
+      // Keep connection alive until client disconnects or investigation completes
+      const keepalive = setInterval(() => {
+        void store.findById(id).then((latest) => {
+          if (!latest) {
+            clearInterval(keepalive);
+            closeSse(res);
+            return;
+          }
+
+          sendSseKeepAlive(res);
+
+          if (latest.status === 'completed' || latest.status === 'failed') {
+            clearInterval(keepalive);
+            sendSseEvent(res, { type: 'investigation:complete', data: latest });
+            closeSse(res);
+          }
+        }).catch(() => {
+          clearInterval(keepalive);
+          closeSse(res);
+        });
+      }, 5000);
+
+      req.on('close', () => {
+        clearInterval(keepalive);
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  return router;
+}
+
+// Default router instance using the module-level store
+export const InvestigationRouter = createInvestigationRouter();
+
+// OpenAPI spec endpoint (no auth required)
+export const openApiRouter = Router();
+openApiRouter.get('/', (_req: Request, res: Response) => {
+  res.json(investigationOpenApiSpec);
+});
