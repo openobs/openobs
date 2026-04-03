@@ -311,8 +311,8 @@ export default function Alerts() {
     const params = new URLSearchParams();
     if (stateFilter !== 'all') params.set('state', stateFilter);
     const qs = params.toString() ? `?${params.toString()}` : '';
-    const res = await apiClient.get<{ rules: AlertRule[]; total: number }>(`/alert-rules${qs}`);
-    if (!res.error) setRules(res.data.rules ?? []);
+    const res = await apiClient.get<{ list: AlertRule[]; total: number }>(`/alert-rules${qs}`);
+    if (!res.error) setRules(res.data.list ?? []);
     setLoading(false);
   }, [stateFilter]);
 
