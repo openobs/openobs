@@ -93,14 +93,15 @@ interface QueryResult {
 }
 
 function transformQueryResult(data: RangeResponse, pq: PanelQuery): QueryResult {
+  const results = data?.data?.result ?? [];
   return {
     refIds: pq.refId,
     legendFormat: pq.legendFormat,
-    series: data.data.result.map((r) => ({
+    series: results.map((r) => ({
       labels: r.metric,
-      points: r.values.map(([ts, val]) => ({ ts: ts * 1000, value: Number.parseFloat(val) })),
+      points: (r.values ?? []).map(([ts, val]) => ({ ts: ts * 1000, value: Number.parseFloat(val) })),
     })),
-    totalSeries: data.data.result.length,
+    totalSeries: results.length,
   };
 }
 
