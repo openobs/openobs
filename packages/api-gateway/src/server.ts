@@ -17,6 +17,7 @@ import { metaRouter } from './routes/meta.js';
 import { createApprovalRouter } from './routes/approval.js';
 import { metricsRouter } from './routes/metrics.js';
 import { createWebhookRouter } from './routes/webhooks.js';
+import { createInvestigationReportRouter } from './routes/investigation-reports.js';
 import { createSetupRouter } from './routes/setup.js';
 import { datasourcesRouter } from './routes/datasources.js';
 import { createAuthRouter } from './routes/auth.js';
@@ -90,6 +91,7 @@ export function createApp(): Application {
   app.use('/api/metrics', metricsRouter);
   app.use('/api/notifications', notificationsRouter);
   app.use('/api/intent', createIntentRouter(stores.dashboards));
+  app.use('/api/investigation-reports', createInvestigationReportRouter());
   // /api/schedules is mounted by startServer() when a real ScheduleInvestigation instance is provided
   // Serve frontend static assets (production: built Vite output)
   const webDistCandidates = [
