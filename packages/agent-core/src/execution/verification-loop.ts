@@ -1,6 +1,6 @@
 import type { LLMGateway } from '@agentic-obs/llm-gateway';
 import type { ExecutionResult } from './types.js';
-import { LLMUnavailableError } from '@agentic-obs/common';
+import { DEFAULT_LLM_MODEL, LLMUnavailableError } from '@agentic-obs/common';
 
 export interface VerificationOutcome {
   outcome: 'resolved' | 'improved' | 'unchanged' | 'degraded';
@@ -46,7 +46,7 @@ export class VerificationLoop {
           content: this.buildVerificationPrompt(executionResult, preExecutionMetrics, postExecutionMetrics),
         },
       ], {
-        model: 'claude-sonnet-4-6',
+        model: DEFAULT_LLM_MODEL,
         temperature: 0.1,
         maxTokens: 1024,
         responseFormat: 'json',

@@ -1,5 +1,5 @@
 // ExecutionAgent - LLM-classified recommended action generator (with rule-based fallback)
-import type { Evidence } from '@agentic-obs/common';
+import { DEFAULT_LLM_MODEL, type Evidence } from '@agentic-obs/common';
 import type { LLMGateway } from '@agentic-obs/llm-gateway';
 import { DEFAULT_RULES, criticalNotifyRule, classifyAndRecommendActions } from './rules.js';
 import type { ActionRule, ExecutionInput, ExecutionOutput } from './types.js';
@@ -20,7 +20,7 @@ export class ExecutionAgent {
     this.rules = options.rules ?? DEFAULT_RULES;
     this.maxActions = options.maxActions ?? 5;
     this.gateway = options.gateway;
-    this.model = options.model ?? 'claude-sonnet-4-6';
+    this.model = options.model ?? DEFAULT_LLM_MODEL;
   }
 
   async propose(input: ExecutionInput): Promise<ExecutionOutput> {

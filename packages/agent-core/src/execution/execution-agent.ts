@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { LLMUnavailableError } from '@agentic-obs/common';
+import { DEFAULT_LLM_MODEL, LLMUnavailableError } from '@agentic-obs/common';
 import type { LLMGateway } from '@agentic-obs/llm-gateway';
 import type { ActionGuard, CredentialResolver } from '@agentic-obs/guardrails';
 import type { AdapterRegistry } from './adapter-registry.js';
@@ -67,7 +67,7 @@ export class LLMExecutionAgent {
     this.adapterRegistry = config.adapterRegistry;
     this.actionGuard = config.actionGuard;
     this.credentialResolver = config.credentialResolver;
-    this.model = config.model ?? 'claude-sonnet-4-6';
+    this.model = config.model ?? DEFAULT_LLM_MODEL;
     this.temperature = config.temperature ?? 0.1;
   }
 

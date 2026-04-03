@@ -6,7 +6,7 @@
 
 import { randomUUID } from 'node:crypto';
 import type { LLMGateway } from '@agentic-obs/llm-gateway';
-import { LLMUnavailableError } from '@agentic-obs/common';
+import { DEFAULT_LLM_MODEL, LLMUnavailableError } from '@agentic-obs/common';
 import type {
   PostMortemReport,
   PostMortemInput,
@@ -60,7 +60,7 @@ export class PostMortemGenerator {
           },
         ],
         {
-          model: 'claude-sonnet-4-5',
+          model: DEFAULT_LLM_MODEL,
           temperature: 0.2,
           maxTokens: 3000,
           responseFormat: 'json',

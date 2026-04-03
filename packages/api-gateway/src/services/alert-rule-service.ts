@@ -1,4 +1,4 @@
-import type { AlertRule } from '@agentic-obs/common';
+import { DEFAULT_LLM_MODEL, type AlertRule } from '@agentic-obs/common';
 import { defaultAlertRuleStore } from '@agentic-obs/data-layer';
 import { AlertRuleAgent } from '@agentic-obs/agent-core';
 import { getSetupConfig } from '../routes/setup.js';
@@ -21,7 +21,7 @@ export class AlertRuleService {
     }
 
     const gateway = createLlmGateway(config.llm);
-    const model = config.llm.model || 'claude-sonnet-4-6';
+    const model = config.llm.model || DEFAULT_LLM_MODEL;
 
     const prom = resolvePrometheusDatasource(config.datasources);
     const prometheusUrl = prom?.url;

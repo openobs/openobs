@@ -4,6 +4,7 @@ import { promises as fs } from 'fs';
 import { execSync } from 'child_process';
 import { homedir } from 'os';
 import { join } from 'path';
+import { DEFAULT_LLM_MODEL } from '@agentic-obs/common';
 import {
   AnthropicProvider,
   OpenAIProvider,
@@ -119,7 +120,7 @@ async function testLlmConnection(cfg: LlmConfig): Promise<{ ok: boolean; message
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model: cfg.model || 'claude-sonnet-4-6',
+          model: cfg.model || DEFAULT_LLM_MODEL,
           messages: [{ role: 'user', content: 'Say "ok".' }],
           max_tokens: 5,
         }),

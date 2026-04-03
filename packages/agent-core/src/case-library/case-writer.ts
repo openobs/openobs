@@ -6,6 +6,7 @@
 // 3. Dedup: if retriever.search() returns a hit with score > 0.8 -> skip (return null).
 // 4. On pass, add the record via caseStore and return it.
 
+import { DEFAULT_LLM_MODEL } from '@agentic-obs/common';
 import type { LLMGateway } from '@agentic-obs/llm-gateway';
 import type { CaseRecord, CaseRetriever, ICaseStore } from './types.js';
 import type { InvestigationOutput } from '../investigation/types.js';
@@ -47,7 +48,7 @@ export class CaseWriter {
     this.llm = config.llm;
     this.caseStore = config.caseStore;
     this.retriever = config.retriever;
-    this.model = config.model ?? 'claude-sonnet-4-6';
+    this.model = config.model ?? DEFAULT_LLM_MODEL;
     this.temperature = config.temperature ?? 0.1;
     this.dedupThreshold = config.dedupThreshold ?? 0.8;
   }
