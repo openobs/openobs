@@ -23,13 +23,12 @@ function stripCodeFences(raw: string): string {
 }
 
 export interface ExplanationAgentOptions {
-  model?: string;
+  model: string;
   temperature?: number;
   maxTokens?: number;
 }
 
-const DEFAULT_OPTIONS: Required<ExplanationAgentOptions> = {
-  model: 'claude-sonnet-4-6',
+const DEFAULT_OPTIONS: Omit<Required<ExplanationAgentOptions>, 'model'> = {
   temperature: 0.1,
   maxTokens: 2048,
 };
@@ -76,7 +75,7 @@ export class ExplanationAgent implements Agent<ExplanationInput, StructuredConcl
   private readonly gateway: LLMGateway;
   private readonly options: Required<ExplanationAgentOptions>;
 
-  constructor(gateway: LLMGateway, options: ExplanationAgentOptions = {}) {
+  constructor(gateway: LLMGateway, options: ExplanationAgentOptions) {
     this.gateway = gateway;
     this.options = { ...DEFAULT_OPTIONS, ...options };
   }

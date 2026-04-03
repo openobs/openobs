@@ -26,8 +26,10 @@ const DEFAULT_CONFIG: Required<InvestigationConfig> = {
 export interface InvestigationAgentDeps {
   adapter?: DataAdapter;
   config?: InvestigationConfig;
-  /** Optional LLM gateway for hypothesis synthesis. When omitted, falls back to rule-based. */
+  /** Optional LLM gateway for hypothesis synthesis. When omitted, returns empty hypotheses. */
   llm?: LLMGateway;
+  /** LLM model identifier. Required when llm is provided. */
+  model?: string;
   /** Optional case retriever. When provided, similar past cases are injected into the LLM prompt. */
   caseRetriever?: CaseRetriever;
   /** Toggle case library injection. Defaults to true. Set to false to skip case retrieval entirely. */
@@ -39,6 +41,7 @@ export class InvestigationAgent implements Agent<InvestigationInput, Investigati
   private readonly adapter?: DataAdapter;
   private readonly config: Required<InvestigationConfig>;
   private readonly llm?: LLMGateway;
+  private readonly model?: string;
   private readonly caseRetriever?: CaseRetriever;
   private readonly useCaseLibrary: boolean;
 
@@ -46,6 +49,7 @@ export class InvestigationAgent implements Agent<InvestigationInput, Investigati
     this.adapter = deps.adapter;
     this.config = { ...DEFAULT_CONFIG, ...(deps.config ?? {}) };
     this.llm = deps.llm;
+    this.model = deps.model;
     this.caseRetriever = deps.caseRetriever;
     this.useCaseLibrary = deps.useCaseLibrary ?? true;
   }
@@ -135,7 +139,7 @@ export class InvestigationAgent implements Agent<InvestigationInput, Investigati
 
         const partialHypotheses =
           this.llm !== undefined
-            ? await generateHypotheses(investigationId, findings, this.llm)
+            ? await generateHypotheses(investigationId, findings, this.llm, [], this.model)
             : [];
 
         if (
@@ -169,6 +173,7 @@ export class InvestigationAgent implements Agent<InvestigationInput, Investigati
       findings,
       this.llm,
       historicalCases,
+      this.model,
     );
 
     return {

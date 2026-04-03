@@ -2,11 +2,10 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import type { AlertRule, AlertSilence, NotificationPolicy } from '@agentic-obs/common';
 import { defaultAlertRuleStore } from '@agentic-obs/data-layer';
-import { createLlmGateway } from './llm-factory.js';
-import { AlertRuleAgent } from '@agentic-obs/agent-core';
-import { getSetupConfig } from './setup.js';
+import { AlertRuleService } from '../services/alert-rule-service.js';
 
 const router = Router();
+const alertRuleService = new AlertRuleService();
 
 // -- POST /api/alert-rules/generate - NL -> alert rule (no dashboard needed)
 // IMPORTANT: must be before /:id routes
@@ -19,43 +18,13 @@ router.post('/generate', async (req: Request, res: Response, next: NextFunction)
       return;
     }
 
-    const config = getSetupConfig();
-    if (!config.llm) {
-      res.status(503).json({ code: 'LLM_NOT_CONFIGURED', message: 'LLM not configured - complete Setup Wizard first' });
+    const { rule } = await alertRuleService.generateFromPrompt(body.prompt.trim());
+    res.status(201).json(rule);
+  } catch (err: any) {
+    if (err?.message?.includes('LLM not configured')) {
+      res.status(503).json({ code: 'LLM_NOT_CONFIGURED', message: err.message });
       return;
     }
-
-    const gateway = createLlmGateway(config.llm);
-    const model = config.llm.model || 'claude-sonnet-4-6';
-
-    const promDs = config.datasources.find((d) => d.type === 'prometheus' || d.type === 'victoria-metrics');
-    const prometheusUrl = promDs?.url;
-    const prometheusHeaders: Record<string, string> = {};
-
-    if (promDs?.username && promDs?.password) {
-      prometheusHeaders['Authorization'] = `Basic ${Buffer.from(`${promDs.username}:${promDs.password}`).toString('base64')}`;
-    } else if (promDs?.apiKey) {
-      prometheusHeaders['Authorization'] = `Bearer ${promDs.apiKey}`;
-    }
-
-    const agent = new AlertRuleAgent({ gateway, model, prometheusUrl, prometheusHeaders });
-    const generated = await agent.generate(body.prompt.trim());
-
-    const rule = defaultAlertRuleStore.create({
-      name: generated.name,
-      description: generated.description,
-      originalPrompt: body.prompt.trim(),
-      condition: generated.condition,
-      evaluationIntervalSec: generated.evaluationIntervalSec,
-      severity: generated.severity,
-      labels: generated.labels,
-      createdBy: 'llm',
-      notificationPolicyId: undefined,
-      autoInvestigate: generated.autoInvestigate,
-    } as unknown as Omit<AlertRule, 'id' | 'createdAt' | 'updatedAt' | 'fireCount' | 'state' | 'stateChangedAt'>);
-
-    res.status(201).json(rule);
-  } catch (err) {
     next(err);
   }
 });

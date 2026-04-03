@@ -24,7 +24,7 @@ export class LiveDashboardGenerator implements DashboardGenerator {
       }
 
       const gateway = this.createGateway(config.llm)
-      const model = config.llm.model || 'claude-sonnet-4-5'
+      const model = config.llm.model
       const promDatasource = config.datasources.find((d) => d.type === 'prometheus' || d.type === 'victoria-metrics')
 
       // -- Phase 1: Research (web search)

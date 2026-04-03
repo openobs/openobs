@@ -85,7 +85,7 @@ export class DashboardService {
     });
 
     const gateway = createLlmGateway(config.llm);
-    const model = config.llm.model || 'claude-sonnet-4-5';
+    const model = config.llm.model;
     const prom = resolvePrometheusDatasource(config.datasources);
 
     const orchestrator = new OrchestratorAgent({

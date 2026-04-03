@@ -5,13 +5,12 @@ import { INTENT_SYSTEM_PROMPT, buildPromptMessage } from './prompts.js';
 import { parseAndValidate, IntentValidationError } from './schema.js';
 
 export interface IntentAgentOptions {
-  model?: string;
+  model: string;
   temperature?: number;
   maxTokens?: number;
 }
 
-const DEFAULT_OPTIONS: Required<IntentAgentOptions> = {
-  model: 'gpt-4o-mini',
+const DEFAULT_OPTIONS: Omit<Required<IntentAgentOptions>, 'model'> = {
   temperature: 0,
   maxTokens: 512,
 };
@@ -22,7 +21,7 @@ export class IntentAgent {
   private readonly gateway: LLMGateway;
   private readonly options: Required<IntentAgentOptions>;
 
-  constructor(gateway: LLMGateway, options: IntentAgentOptions = {}) {
+  constructor(gateway: LLMGateway, options: IntentAgentOptions) {
     this.gateway = gateway;
     this.options = { ...DEFAULT_OPTIONS, ...options };
   }

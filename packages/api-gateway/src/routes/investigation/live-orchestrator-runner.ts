@@ -54,7 +54,7 @@ export class LiveOrchestratorRunner implements OrchestratorRunner {
       }
 
       const gateway = this.createGateway(config.llm);
-      const model = config.llm.model || 'claude-sonnet-4';
+      const model = config.llm.model;
       const promDatasources = config.datasources.filter((d) => d.type === 'prometheus' || d.type === 'victoria-metrics');
 
       await this.store.updateStatus(investigationId, 'planning');

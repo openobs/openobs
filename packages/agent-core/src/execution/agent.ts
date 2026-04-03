@@ -1,23 +1,77 @@
-// ExecutionAgent - rule-based recommended action generator (Phase 0: suggest only)
+// ExecutionAgent - LLM-classified recommended action generator (with rule-based fallback)
 import type { Evidence } from '@agentic-obs/common';
-import { DEFAULT_RULES, criticalNotifyRule } from './rules.js';
+import type { LLMGateway } from '@agentic-obs/llm-gateway';
+import { DEFAULT_RULES, criticalNotifyRule, classifyAndRecommendActions } from './rules.js';
 import type { ActionRule, ExecutionInput, ExecutionOutput } from './types.js';
 
-/**
- * @deprecated Rule-based fallback only. LLMExecutionAgent (execution-agent.ts) is the primary
- * execution path. This class should not be used for new integrations.
- */
 export class ExecutionAgent {
   readonly name = 'execution';
   private readonly rules: ActionRule[];
   private readonly maxActions: number;
+  private readonly gateway?: LLMGateway;
+  private readonly model: string;
 
-  constructor(options: { rules?: ActionRule[]; maxActions?: number } = {}) {
+  constructor(options: {
+    rules?: ActionRule[];
+    maxActions?: number;
+    gateway?: LLMGateway;
+    model?: string;
+  } = {}) {
     this.rules = options.rules ?? DEFAULT_RULES;
     this.maxActions = options.maxActions ?? 5;
+    this.gateway = options.gateway;
+    this.model = options.model ?? 'claude-sonnet-4-6';
   }
 
   async propose(input: ExecutionInput): Promise<ExecutionOutput> {
+    const { conclusion, context } = input;
+
+    // ---- Primary path: LLM-based classification ----
+    if (this.gateway) {
+      const hypotheses = conclusion.hypotheses
+        .filter((h) => h.hypothesis.status !== 'refuted')
+        .map((ranked) => ({
+          hypothesis: ranked.hypothesis,
+          evidence: [] as Evidence[],
+        }));
+
+      let actions = await classifyAndRecommendActions(
+        hypotheses,
+        context.entity,
+        this.gateway,
+        this.model,
+      );
+
+      // Enforce max actions
+      actions = actions.slice(0, this.maxActions);
+
+      // Add critical notify if needed and not already present
+      const seenTypes = new Set(actions.map((a) => a.type));
+      if (conclusion.impact.severity === 'critical' && !seenTypes.has('notify')) {
+        const notifyHypothesis = conclusion.hypotheses[0]?.hypothesis;
+        if (notifyHypothesis) {
+          const notify = criticalNotifyRule.buildAction(notifyHypothesis, [], context.entity);
+          actions.push(notify);
+        }
+      }
+
+      // Append any conclusion-recommended actions not already covered
+      for (const rec of conclusion.recommendedActions) {
+        if (actions.length >= this.maxActions) break;
+        if (seenTypes.has(rec.action.type)) continue;
+        seenTypes.add(rec.action.type);
+        actions.push({ ...rec.action, status: 'proposed' as const });
+      }
+
+      const summary = this.buildSummary(actions, context.entity);
+      return { actions, summary };
+    }
+
+    // ---- Fallback path: legacy rule-based matching ----
+    return this.proposeLegacy(input);
+  }
+
+  private async proposeLegacy(input: ExecutionInput): Promise<ExecutionOutput> {
     const actions = [];
     const seenTypes = new Set<string>();
     const { conclusion, context } = input;

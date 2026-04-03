@@ -1,10 +1,8 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { getSetupConfig } from './setup.js';
-import { createLlmGateway } from './llm-factory.js';
-import { AlertRuleAgent } from '@agentic-obs/agent-core';
-import { defaultAlertRuleStore } from '@agentic-obs/data-layer';
 import type { IGatewayDashboardStore } from '../repositories/types.js';
+import { IntentService } from '../services/intent-service.js';
 
 // SSE-streaming intent endpoint.
 //
@@ -17,6 +15,7 @@ import type { IGatewayDashboardStore } from '../repositories/types.js';
 
 export function createIntentRouter(dashboardStore: IGatewayDashboardStore): Router {
   const router = Router();
+  const intentService = new IntentService(dashboardStore);
 
   router.post('/', async (req: Request, res: Response, _next: NextFunction) => {
     const body = req.body as { message?: string };
@@ -45,108 +44,11 @@ export function createIntentRouter(dashboardStore: IGatewayDashboardStore): Rout
     };
 
     try {
-      const gateway = createLlmGateway(config.llm);
-      const model = config.llm.model || 'claude-sonnet-4-6';
-
-      // -- Step 1: classify intent
-      send('thinking', { content: 'Understanding your request...' });
-
-      const classifyResp = await gateway.complete([
-        {
-          role: 'system',
-          content:
-            `You are an intent classifier for an observability platform. Classify the user's message into exactly one intent.\n\n`
-            + `Return JSON: { "intent": "<intent>" }\n\n`
-            + `Possible intents:\n`
-            + `- "alert": The user wants to set up an alert, be notified, or monitor a condition with a threshold.\n`
-            + `- "dashboard": The user wants to create or view a monitoring dashboard to visualize metrics.\n`
-            + `- "investigate": The user is asking about a problem, wants to diagnose an issue, or is troubleshooting.\n\n`
-            + `Classify based on the user's actual goal, not surface-level keywords.`,
-        },
-        { role: 'user', content: message },
-      ], {
-        model,
-        maxTokens: 64,
-        temperature: 0,
-        responseFormat: 'json',
+      const result = await intentService.processMessage(message, (progress) => {
+        send(progress.type, progress.data);
       });
 
-      const cleaned = classifyResp.content.replace(/```json\n?/g, '').replace(/```/g, '').trim();
-      let intent: string;
-      try {
-        const parsed = JSON.parse(cleaned) as { intent?: string };
-        intent = parsed.intent ?? 'dashboard';
-      } catch {
-        intent = 'dashboard';
-      }
-
-      console.log(`[Intent] message="${message.slice(0, 80)}" -> intent="${intent}"`);
-      send('intent', { intent });
-
-      // -- Step 2: Execute based on intent
-      if (intent === 'alert') {
-        send('thinking', { content: 'Creating alert rule...' });
-
-        const promDs = config.datasources.find(
-          (d) => d.type === 'prometheus' || d.type === 'victoria-metrics',
-        );
-        const prometheusUrl = promDs?.url;
-        const prometheusHeaders: Record<string, string> = {};
-        if (promDs?.username && promDs?.password) {
-          prometheusHeaders['Authorization']
-            = `Basic ${Buffer.from(`${promDs.username}:${promDs.password}`).toString('base64')}`;
-        }
-        else if (promDs?.apiKey) {
-          prometheusHeaders['Authorization'] = `Bearer ${promDs.apiKey}`;
-        }
-
-        const agent = new AlertRuleAgent({ gateway, model, prometheusUrl, prometheusHeaders });
-        const generated = await agent.generate(message);
-
-        send('thinking', { content: `Validating PromQL: ${generated.condition.query}` });
-
-        const rule = defaultAlertRuleStore.create({
-          name: generated.name,
-          description: generated.description,
-          originalPrompt: message,
-          condition: generated.condition,
-          evaluationIntervalSec: generated.evaluationIntervalSec,
-          severity: generated.severity,
-          labels: generated.labels,
-          createdBy: 'llm',
-        } as any);
-
-        send('done', {
-          intent: 'alert',
-          alertRuleId: rule.id,
-          summary: `Alert "${rule.name}" created: ${rule.condition.query} ${rule.condition.operator} ${rule.condition.threshold}`,
-          navigate: '/alerts',
-        });
-      }
-      else {
-        // dashboard or investigate -> create workspace
-        const title = intent === 'investigate' ? 'Investigation' : 'Untitled Dashboard';
-        send('thinking', {
-          content: intent === 'investigate'
-            ? 'Starting investigation...'
-            : 'Setting up dashboard workspace...',
-        });
-
-        const dashboard = await dashboardStore.create({
-          title,
-          description: '',
-          prompt: message,
-          userId: 'anonymous',
-          datasourceIds: [],
-          useExistingMetrics: true,
-        });
-
-        send('done', {
-          intent,
-          dashboardId: dashboard.id,
-          navigate: `/dashboards/${dashboard.id}`,
-        });
-      }
+      send('done', result);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       send('error', { message: msg });

@@ -209,47 +209,13 @@ export class InvestigationAgent {
       ? `\n## Available Metrics in This Prometheus Instance\nThese are the ACTUAL metrics available. ONLY use metrics from this list in your queries:\n${allMetrics.join('\n')}\n`
       : ''
 
-    const systemPrompt = `You are a senior SRE investigating a production issue. Given the user's question, plan a systematic investigation by deciding what Prometheus queries to run.
+    const systemPrompt = `You are a senior SRE investigating a production issue. Given the user's question, plan a systematic investigation by deciding what PromQL queries to run.
 ${existingContext}${metricsContext}
-
-## SRE Investigation Knowledge Base
-
-When investigating common issues, use these patterns:
-
-### Prometheus Latency / Performance
-- Query engine duration: prometheus_engine_query_duration_seconds, prometheus_engine_query_duration_histogram_seconds
-- Scrape performance: scrape_duration_seconds, prometheus_target_scrape_duration_seconds
-- Storage: prometheus_tsdb_head_series, prometheus_tsdb_compaction_duration_seconds, prometheus_tsdb_wal_fsync_duration_seconds
-- Resource usage: process_cpu_seconds_total, process_resident_memory_bytes, go_memstats_alloc_bytes
-- Target health: up, scrape_samples_scraped
-
-### CPU Issues
-- Node CPU: node_cpu_seconds_total (use rate + mode filter), system_cpu_usage
-- Process CPU: process_cpu_seconds_total, container_cpu_usage_seconds_total
-- Load average: node_load1, node_load5, node_load15
-
-### Memory Issues
-- Node memory: node_memory_MemTotal_bytes, node_memory_MemAvailable_bytes, node_memory_MemFree_bytes
-- Process memory: process_resident_memory_bytes, process_virtual_memory_bytes
-- Go runtime: go_memstats_alloc_bytes, go_memstats_heap_inuse_bytes, go_goroutines
-
-### HTTP / API Latency
-- Request duration: http_request_duration_seconds, prometheus_http_request_duration_seconds
-- Request rate: http_requests_total, prometheus_http_requests_total
-- Error rate: http_requests_total{code=~"5.."}
-
-### Disk / Storage
-- Disk usage: node_filesystem_avail_bytes, node_filesystem_size_bytes
-- TSDB size: prometheus_tsdb_storage_blocks_bytes, prometheus_tsdb_wal_storage_size_bytes
-
-## Critical Rules
-1. **ONLY use metrics that exist in the Available Metrics list above** - do NOT guess metric names
-2. If the user describes a general symptom, map it to the most relevant metrics from the list
-3. Plan 3-8 targeted PromQL queries to gather evidence
-4. Each query should test a specific aspect of the hypothesis
-5. Use rate() on counters, histogram_quantile() on _bucket metrics for latency percentiles
-6. Include both instant queries (for current state) and range queries (for trends)
-7. If a standard metric (e.g. node_cpu_seconds_total) doesn't exist, find the closest match from the list
+## Rules
+1. **ONLY use metrics that exist in the Available Metrics list above** - do NOT guess or invent metric names
+2. Based on the user's question, select the most relevant metrics from the list and plan 3-8 targeted PromQL queries to gather evidence
+3. Each query should test a specific aspect of the hypothesis
+4. Include both instant queries (for current state) and range queries (for trends)
 
 ## Output (JSON only, no markdown)
 {
