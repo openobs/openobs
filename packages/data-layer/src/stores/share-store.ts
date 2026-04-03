@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import type { Persistable } from '../../persistence.js';
-import { markDirty } from '../../persistence.js';
+import type { Persistable } from './persistence.js';
+import { markDirty } from './persistence.js';
 
 export type SharePermission = 'view_only' | 'can_comment';
 

@@ -13,6 +13,48 @@ export * from './postmortem/index.js';
 export * from './scheduled/index.js';
 export * from './alerting/index.js';
 
+// Dashboard agents are exported under a namespace-style prefix to avoid name conflicts
+// with domain-level agents (e.g. InvestigationAgent exists in both).
+// Import specific items: import { OrchestratorAgent, AlertRuleAgent } from '@agentic-obs/agent-core/dashboard-agents'
+// Or use the barrel: import { DashboardOrchestratorAgent } from '@agentic-obs/agent-core'
+export {
+  OrchestratorAgent as DashboardOrchestratorAgent,
+  type OrchestratorDeps as DashboardOrchestratorDeps,
+  DashboardGeneratorAgent,
+  PanelAdderAgent,
+  type PanelAdderInput,
+  type PanelAdderOutput,
+  PanelBuilderAgent,
+  type PanelBuilderInput,
+  type PanelBuilderOutput,
+  InvestigationAgent as DashboardInvestigationAgent,
+  type InvestigationDeps as DashboardInvestigationDeps,
+  type InvestigationInput as DashboardInvestigationInput,
+  type InvestigationOutput as DashboardInvestigationOutput,
+  AlertRuleAgent,
+  type AlertRuleContext,
+  ResearchAgent,
+  type ResearchResult,
+  DiscoveryAgent,
+  type DiscoveryResult,
+  ActionExecutor,
+  type IDashboardAgentStore,
+  type IConversationStore as IDashboardConversationStore,
+  type IInvestigationReportStore,
+  type IAlertRuleStore as IDashboardAlertRuleStore,
+  type DatasourceConfig as DashboardDatasourceConfig,
+  type DashboardPlan,
+  type PanelGroup,
+  type PanelSpec,
+  type VariableSuggestion,
+  type CriticFeedback,
+  type CriticIssue,
+  type RawPanelSpec,
+  type GeneratorDeps,
+  type GenerateInput,
+  type GenerateOutput,
+} from './dashboard-agents/index.js';
+
 export type { Investigation, InvestigationPlan, InvestigationStatus } from '@agentic-obs/common';
 
 export interface AgentContext {

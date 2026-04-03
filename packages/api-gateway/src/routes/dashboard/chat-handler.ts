@@ -2,9 +2,10 @@ import { randomUUID } from 'crypto'
 import type { Request, Response } from 'express'
 import type { DashboardSseEvent } from '@agentic-obs/common'
 import type { IGatewayDashboardStore, IConversationStore } from '../../repositories/types.js'
+import { defaultInvestigationReportStore, defaultAlertRuleStore } from '@agentic-obs/data-layer'
 import { getSetupConfig } from '../setup.js'
 import { createLlmGateway } from '../llm-factory.js'
-import { OrchestratorAgent } from './agents/orchestrator-agent.js'
+import { DashboardOrchestratorAgent as OrchestratorAgent } from '@agentic-obs/agent-core'
 
 function sendEvent(res: Response, event: DashboardSseEvent): void {
   res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)
@@ -101,10 +102,12 @@ export async function handleChatMessage(
         model,
         store,
         conversationStore,
+        investigationReportStore: defaultInvestigationReportStore,
+        alertRuleStore: defaultAlertRuleStore,
         prometheusUrl,
         prometheusHeaders,
         allDatasources: config.datasources,
-        sendEvent: (event) => { if (!closed) sendEvent(res, event) },
+        sendEvent: (event: DashboardSseEvent) => { if (!closed) sendEvent(res, event) },
       })
 
       console.log(`[ChatHandler] Starting orchestrator for dashboard=${dashboardId} message="${message.slice(0, 80)}"`)

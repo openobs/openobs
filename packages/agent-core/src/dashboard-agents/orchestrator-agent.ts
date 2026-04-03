@@ -10,23 +10,28 @@ import type {
   Dashboard,
   DashboardVariable,
 } from '@agentic-obs/common'
-import type { DatasourceConfig } from '../../setup.js'
-import { defaultInvestigationReportStore } from '../investigation-report-store.js'
-import type { IGatewayDashboardStore, IConversationStore } from '../../../repositories/types.js'
+import type {
+  IDashboardAgentStore,
+  IConversationStore,
+  IInvestigationReportStore,
+  IAlertRuleStore,
+  DatasourceConfig,
+} from './types.js'
 import { DashboardGeneratorAgent } from './dashboard-generator-agent.js'
 import { PanelAdderAgent } from './panel-adder-agent.js'
 import { InvestigationAgent } from './investigation-agent.js'
-import { ActionExecutor } from '../action-executor.js'
+import { ActionExecutor } from './action-executor.js'
 import { AlertRuleAgent } from './alert-rule-agent.js'
-import { defaultAlertRuleStore } from '../../alert-rule-store.js'
 
 const MAX_ITERATIONS = 15
 
 export interface OrchestratorDeps {
   gateway: LLMGateway
   model: string
-  store: IGatewayDashboardStore
+  store: IDashboardAgentStore
   conversationStore: IConversationStore
+  investigationReportStore: IInvestigationReportStore
+  alertRuleStore: IAlertRuleStore
   prometheusUrl: string | undefined
   prometheusHeaders: Record<string, string>
   /** All configured datasources - used to inform the LLM about available environments */
@@ -293,7 +298,7 @@ export class OrchestratorAgent {
             this.deps.sendEvent({ type: 'investigation_report', report: result.report })
 
             // Persist the report so it can be retrieved later via API
-            defaultInvestigationReportStore.save({
+            this.deps.investigationReportStore.save({
               id: randomUUID(),
               dashboardId,
               goal,
@@ -459,7 +464,7 @@ export class OrchestratorAgent {
             })
 
             // Save to store - include dashboard context in labels
-            const rule = defaultAlertRuleStore.create({
+            const rule = this.deps.alertRuleStore.create({
               name: generated.name,
               description: generated.description,
               originalPrompt: prompt,

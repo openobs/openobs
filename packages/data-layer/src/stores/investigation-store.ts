@@ -1,10 +1,9 @@
 // In-memory store for investigations, follow-ups, and feedback
 
 import type { Investigation, InvestigationStatus, Hypothesis, Evidence } from '@agentic-obs/common';
-import type { ExplanationResult } from '@agentic-obs/agent-core';
-import type { FollowUpRecord, FeedbackBody } from './types.js';
-import type { Persistable } from '../../persistence.js';
-import { markDirty } from '../../persistence.js';
+import type { ExplanationResult } from '@agentic-obs/common';
+import type { Persistable } from './persistence.js';
+import { markDirty } from './persistence.js';
 
 function uid(): string {
   return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -12,6 +11,36 @@ function uid(): string {
 
 function emptyPlan(entity = '', objective = ''): Investigation['plan'] {
   return { entity, objective, steps: [], stopConditions: [] };
+}
+
+// -- Types re-exported for consumers
+
+export interface FollowUpRecord {
+  id: string;
+  investigationId: string;
+  question: string;
+  createdAt: string;
+}
+
+export interface FeedbackBody {
+  /** Whether the investigation result was useful */
+  helpful: boolean;
+  /** Optional free-text comment from the user */
+  comment?: string;
+  /** Explicit verdict on the identified root cause */
+  rootCauseVerdict?: 'correct' | 'wrong' | 'partially_correct';
+  /** Per-hypothesis verdicts (replaces single hypothesisId for multi-hypothesis feedback) */
+  hypothesisFeedbacks?: Array<{
+    hypothesisId: string;
+    verdict: 'correct' | 'wrong';
+    comment?: string;
+  }>;
+  /** Per-action verdicts */
+  actionFeedbacks?: Array<{
+    actionId: string;
+    helpful: boolean;
+    comment?: string;
+  }>;
 }
 
 export interface StoredFeedback extends FeedbackBody {

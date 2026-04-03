@@ -7,7 +7,7 @@
  * The `forDuration` on each rule prevents transient spikes from triggering alerts.
  */
 
-import { createLogger } from '@agentic-obs/common';
+import { createLogger, type AlertRuleProvider } from '@agentic-obs/common';
 import type { AlertRule, AlertRuleState, AlertHistoryEntry } from '@agentic-obs/common';
 
 const log = createLogger('alert-evaluator');
@@ -31,14 +31,7 @@ export interface PromQLEvaluator {
   evaluate(query: string): Promise<number | undefined>;
 }
 
-export interface AlertRuleProvider {
-  /** Get all enabled (non-disabled) rules */
-  getActiveRules(): AlertRule[];
-  /** Transition a rule's state */
-  transition(id: string, newState: AlertRuleState, value?: number): AlertRule | undefined;
-  /** Update lastEvaluatedAt */
-  markEvaluated(id: string): void;
-}
+export type { AlertRuleProvider };
 
 export interface AlertEvaluatorConfig {
   /** Default evaluation interval in ms (used when rule doesn't specify) */

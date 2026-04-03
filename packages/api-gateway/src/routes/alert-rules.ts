@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import type { AlertRule, AlertSilence, NotificationPolicy } from '@agentic-obs/common';
-import { defaultAlertRuleStore } from './alert-rule-store.js';
+import { defaultAlertRuleStore } from '@agentic-obs/data-layer';
 import { createLlmGateway } from './llm-factory.js';
-import { AlertRuleAgent } from './dashboard/agents/alert-rule-agent.js';
+import { AlertRuleAgent } from '@agentic-obs/agent-core';
 import { getSetupConfig } from './setup.js';
 
 const router = Router();
@@ -181,8 +181,8 @@ router.post('/:id/investigate', async (req: Request, res: Response, next: NextFu
       return;
     }
 
-    const dashboardStoreModule = await import('./dashboard/store.js');
-    const dashboard = dashboardStoreModule.defaultDashboardStore.create({
+    const { defaultDashboardStore } = await import('@agentic-obs/data-layer');
+    const dashboard = defaultDashboardStore.create({
       title: `Investigation for alert ${rule.name}`,
       description: `Investigation for alert: ${rule.condition.query} ${rule.condition.operator} ${rule.condition.threshold}`,
       prompt: '',

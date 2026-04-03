@@ -7,13 +7,22 @@
 // Future extension: when DATABASE_URL is set, return repository-backed
 // adapters that delegate to the Postgres implementations in @agentic-obs/data-layer.
 
-import { InvestigationStore, defaultInvestigationStore } from '../routes/investigation/store.js'
-import { IncidentStore, incidentStore } from '../routes/incident-store.js'
-import { FeedStore, feedStore } from '../routes/feed-store.js'
-import { ApprovalStore, approvalStore } from '../routes/approval-store.js'
-import { ShareStore, defaultShareStore } from '../routes/investigation/share-store.js'
-import { DashboardStore, defaultDashboardStore } from '../routes/dashboard/store.js'
-import { ConversationStore, defaultConversationStore } from '../routes/dashboard/conversation-store.js'
+import {
+  InvestigationStore,
+  defaultInvestigationStore,
+  IncidentStore,
+  incidentStore,
+  FeedStore,
+  feedStore,
+  ApprovalStore,
+  approvalStore,
+  ShareStore,
+  defaultShareStore,
+  DashboardStore,
+  defaultDashboardStore,
+  ConversationStore,
+  defaultConversationStore,
+} from '@agentic-obs/data-layer'
 import type { GatewayStores } from './types.js'
 
 /** Create a set of in-memory stores (default mode, no external dependencies). */

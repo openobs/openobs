@@ -25,8 +25,7 @@ import type {
   AlertEvent,
 } from '@agentic-obs/agent-core';
 import type { TopologyStore } from '@agentic-obs/data-layer';
-import type { FeedStore } from './routes/feed-store.js';
-import type { IncidentStore } from './routes/incident-store.js';
+import type { FeedStore, IncidentStore } from '@agentic-obs/data-layer';
 import { createLogger } from '@agentic-obs/common';
 
 const log = createLogger('proactive-pipeline');

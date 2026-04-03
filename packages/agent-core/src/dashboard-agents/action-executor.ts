@@ -1,9 +1,9 @@
 import type { DashboardAction, DashboardSseEvent, PanelConfig } from '@agentic-obs/common'
-import type { IGatewayDashboardStore } from '../../repositories/types.js'
+import type { IDashboardAgentStore } from './types.js'
 
 export class ActionExecutor {
   constructor(
-    private store: IGatewayDashboardStore,
+    private store: IDashboardAgentStore,
     private sendEvent: (event: DashboardSseEvent) => void,
   ) {}
 

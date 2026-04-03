@@ -171,3 +171,10 @@ export interface AlertGroup {
 
 // Enhanced Silence
 export type SilenceStatus = 'active' | 'expired' | 'pending';
+
+// Alert Rule Provider interface - used by alert evaluator and data stores
+export interface AlertRuleProvider {
+  getActiveRules(): AlertRule[];
+  transition(id: string, newState: AlertRuleState, value?: number): AlertRule | undefined;
+  markEvaluated(id: string): void;
+}

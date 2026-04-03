@@ -5,11 +5,11 @@ import { authMiddleware } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
 import {
   incidentStore,
+  defaultInvestigationStore,
+  postMortemStore as postmortemStore,
   type CreateIncidentParams,
   type UpdateIncidentParams,
-} from './incident-store.js';
-import { defaultInvestigationStore } from './investigation/store.js';
-import { postMortemStore as postmortemStore } from './post-mortem-store.js';
+} from '@agentic-obs/data-layer';
 import type { PostMortemInput, PostMortemReport } from '@agentic-obs/agent-core';
 import type { IGatewayIncidentStore } from '../repositories/types.js';
 

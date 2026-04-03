@@ -4,7 +4,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { InMemoryShareRepository } from '@agentic-obs/data-layer';
 import type { IShareRepository } from '@agentic-obs/data-layer';
-import type { InvestigationStore } from './investigation/store.js';
+import type { InvestigationStore } from '@agentic-obs/data-layer';
 import type { IGatewayInvestigationStore } from '../repositories/types.js';
 import { authMiddleware } from '../middleware/auth.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';

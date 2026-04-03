@@ -2,8 +2,8 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { getSetupConfig } from './setup.js';
 import { createLlmGateway } from './llm-factory.js';
-import { AlertRuleAgent } from './dashboard/agents/alert-rule-agent.js';
-import { defaultAlertRuleStore } from './alert-rule-store.js';
+import { AlertRuleAgent } from '@agentic-obs/agent-core';
+import { defaultAlertRuleStore } from '@agentic-obs/data-layer';
 import type { IGatewayDashboardStore } from '../repositories/types.js';
 
 // SSE-streaming intent endpoint.

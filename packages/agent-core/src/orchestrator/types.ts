@@ -3,6 +3,7 @@ import type {
   Hypothesis,
   Evidence,
   InvestigationStatus,
+  ExplanationResult,
 } from '@agentic-obs/common';
 import type { SystemContext } from '../context/types.js';
 import type { InvestigationOutput } from '../investigation/types.js';
@@ -83,12 +84,7 @@ export interface OrchestratorOutput {
   durationMs: number;
 }
 
-export interface ExplanationResult {
-  summary: string;
-  rootCause: string | null;
-  confidence: number;
-  recommendedActions: string[];
-}
+export type { ExplanationResult };
 
 export interface CoverageReport {
   covered: string[];

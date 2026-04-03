@@ -93,3 +93,41 @@ export interface GenerateOutput {
   panels: PanelConfig[]
   variables: DashboardVariable[]
 }
+
+// -- Injected dependency interfaces for stores consumed by dashboard agents.
+// Concrete implementations live in api-gateway (or data-layer); agents depend
+// only on these narrow interfaces.
+
+export interface IDashboardAgentStore {
+  findById(id: string): import('@agentic-obs/common').Dashboard | Promise<import('@agentic-obs/common').Dashboard | undefined> | undefined
+  update(id: string, patch: Partial<Pick<import('@agentic-obs/common').Dashboard, 'type' | 'title' | 'description' | 'panels' | 'variables' | 'refreshIntervalSec' | 'folder'>>): unknown
+  updatePanels(id: string, panels: PanelConfig[]): unknown
+  updateVariables(id: string, variables: DashboardVariable[]): unknown
+}
+
+export interface IConversationStore {
+  addMessage(dashboardId: string, msg: import('@agentic-obs/common').DashboardMessage): import('@agentic-obs/common').DashboardMessage
+  getMessages(dashboardId: string): import('@agentic-obs/common').DashboardMessage[]
+  clearMessages(dashboardId: string): void
+  deleteConversation(dashboardId: string): void
+}
+
+export interface IInvestigationReportStore {
+  save(report: import('@agentic-obs/common').SavedInvestigationReport): void
+}
+
+export interface IAlertRuleStore {
+  create(data: Record<string, unknown>): { name: string, severity: string, evaluationIntervalSec: number, condition: { query: string, operator: string, threshold: number, forDurationSec: number } }
+}
+
+/** Minimal datasource descriptor passed to the orchestrator. */
+export interface DatasourceConfig {
+  id: string
+  type: string
+  name: string
+  url: string
+  environment?: string
+  cluster?: string
+  label?: string
+  isDefault?: boolean
+}

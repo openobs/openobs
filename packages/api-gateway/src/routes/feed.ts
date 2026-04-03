@@ -11,7 +11,7 @@ import {
   type FeedFeedback,
   type HypothesisFeedback,
   type ActionFeedback,
-} from './feed-store.js';
+} from '@agentic-obs/data-layer';
 import { initSse, sendSseEvent, sendSseKeepAlive } from './investigation/sse.js';
 import type { IGatewayFeedStore } from '../repositories/types.js';
 

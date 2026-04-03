@@ -373,7 +373,7 @@ ${evidenceSummary}
         "title": "CPU Usage - pod-xyz",
         "description": "Shows the CPU spike correlating with the latency increase",
         "visualization": "time_series",
-        "queries": [{ "refId": "A", "expr": "rate(container_cpu_usage_seconds_total{pod=\"pod-xyz\"}[5m])", "legendFormat": "{{container}}", "instant": false }],
+        "queries": [{ "refId": "A", "expr": "rate(container_cpu_usage_seconds_total{pod=\\"pod-xyz\\"}[5m])", "legendFormat": "{{container}}", "instant": false }],
         "width": 12,
         "height": 3,
         "unit": "percentunit"

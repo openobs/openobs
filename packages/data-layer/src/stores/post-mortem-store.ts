@@ -1,4 +1,4 @@
-import type { PostMortemReport } from '@agentic-obs/agent-core';
+import type { PostMortemReport } from '@agentic-obs/common';
 
 /**
  * Simple in-memory store for generated post-mortem reports, keyed by incidentId.

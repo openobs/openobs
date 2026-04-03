@@ -6,8 +6,8 @@ import type {
   MuteTiming,
   TimeInterval,
 } from '@agentic-obs/common';
-import type { Persistable } from '../persistence.js';
-import { markDirty } from '../persistence.js';
+import type { Persistable } from './persistence.js';
+import { markDirty } from './persistence.js';
 
 // -- Helpers
 

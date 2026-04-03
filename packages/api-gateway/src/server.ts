@@ -138,31 +138,7 @@ export function startServer(port = 3000): void {
       defaultInvestigationStore,
       defaultShareStore,
       defaultNotificationStore,
-    } = await Promise.all([
-      import('./routes/dashboard/store.js'),
-      import('./routes/alert-rule-store.js'),
-      import('./routes/dashboard/conversation-store.js'),
-      import('./routes/dashboard/investigation-report-store.js'),
-      import('./routes/investigation/store.js'),
-      import('./routes/investigation/share-store.js'),
-      import('./routes/notification-store.js'),
-    ]).then(([
-      dashboards,
-      alertRules,
-      conversations,
-      investigationReports,
-      investigations,
-      shares,
-      notifications,
-    ]) => ({
-      defaultDashboardStore: dashboards.defaultDashboardStore,
-      defaultAlertRuleStore: alertRules.defaultAlertRuleStore,
-      defaultConversationStore: conversations.defaultConversationStore,
-      defaultInvestigationReportStore: investigationReports.defaultInvestigationReportStore,
-      defaultInvestigationStore: investigations.defaultInvestigationStore,
-      defaultShareStore: shares.defaultShareStore,
-      defaultNotificationStore: notifications.defaultNotificationStore,
-    }));
+    } = await import('@agentic-obs/data-layer');
 
     registerStore('dashboards', defaultDashboardStore);
     registerStore('alertRules', defaultAlertRuleStore);

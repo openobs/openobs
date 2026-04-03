@@ -8,15 +8,12 @@ import type { AuthenticatedRequest } from '../../middleware/auth.js';
 import { authMiddleware } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import { investigationOpenApiSpec } from './openapi.js';
-import { defaultInvestigationStore } from './store.js';
+import { defaultInvestigationStore, feedStore as defaultFeed, defaultShareStore } from '@agentic-obs/data-layer';
+import type { SharePermission, IGatewayInvestigationStore, IGatewayFeedStore, IGatewayShareStore } from '@agentic-obs/data-layer';
 import type { CreateInvestigationBody, FollowUpBody, FeedbackBody } from './types.js';
 import { initSse, sendSseEvent, sendSseKeepAlive, closeSse } from './sse.js';
-import { feedStore as defaultFeed } from '../feed-store.js';
 import { LiveOrchestratorRunner } from './live-orchestrator-runner.js';
 import type { OrchestratorRunner } from './orchestrator-runner.js';
-import { defaultShareStore } from './share-store.js';
-import type { IGatewayInvestigationStore, IGatewayFeedStore, IGatewayShareStore } from '../../repositories/types.js';
-import type { SharePermission } from './share-store.js';
 
 interface InvestigationRouterDeps {
   store?: IGatewayInvestigationStore;
