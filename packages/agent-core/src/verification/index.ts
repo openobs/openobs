@@ -1,4 +1,6 @@
 export * from './types.js';
+export { testPrometheusQuery } from './prometheus-tester.js';
+export type { PrometheusTestResult } from './prometheus-tester.js';
 export { DashboardVerifier } from './dashboard-verifier.js';
 export type { DashboardVerifierInput } from './dashboard-verifier.js';
 export { InvestigationVerifier } from './investigation-verifier.js';

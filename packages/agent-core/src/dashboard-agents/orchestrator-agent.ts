@@ -269,23 +269,39 @@ export class OrchestratorAgent {
               if (panelIdsToRemove.length > 0) {
                 await this.actionExecutor.execute(dashboardId, [{ type: 'remove_panels', panelIds: panelIdsToRemove }])
               }
+              // Rollback title
+              if (result.title) {
+                await this.actionExecutor.execute(dashboardId, [{ type: 'set_title', title: currentDash.title }])
+              }
+              // Rollback variables — remove_variable action not yet supported, log warning
+              if (result.variables?.length) {
+                log.warn(
+                  { count: result.variables.length },
+                  'cannot rollback added variables — remove_variable action not implemented; variables may remain',
+                )
+              }
             }
           }
 
           let observationText: string
           if (verificationFailed) {
             observationText = `Generated ${result.panels.length} panels but verification FAILED — panels were rolled back. Issues found in generated queries or structure.`
+            this.deps.sendEvent({
+              type: 'tool_result',
+              tool: 'generate_dashboard',
+              summary: 'Dashboard generation rolled back due to verification failure',
+              success: false,
+            })
           } else {
             observationText = `Generated ${result.panels.length} panels`
               + (result.variables?.length ? ` and ${result.variables.length} variables` : '')
+            this.deps.sendEvent({
+              type: 'tool_result',
+              tool: 'generate_dashboard',
+              summary: observationText,
+              success: result.panels.length > 0,
+            })
           }
-
-          this.deps.sendEvent({
-            type: 'tool_result',
-            tool: 'generate_dashboard',
-            summary: observationText,
-            success: result.panels.length > 0,
-          })
           this.emitAgentEvent(this.makeAgentEvent('agent.tool_completed', { tool: 'generate_dashboard', summary: observationText }));
           return observationText
         }
@@ -324,15 +340,35 @@ export class OrchestratorAgent {
             }
           }
 
+          // Run verification on the updated dashboard
+          const updatedDashForPanels = await this.deps.store.findById(dashboardId)
+          let addPanelsVerificationFailed = false
+          if (updatedDashForPanels) {
+            const verificationReport = await this.verifierAgent.verify('dashboard', updatedDashForPanels, {
+              prometheusUrl: this.deps.prometheusUrl,
+              prometheusHeaders: this.deps.prometheusHeaders,
+            })
+            this.deps.sendEvent({ type: 'verification_report', report: verificationReport })
+            this.emitAgentEvent(this.makeAgentEvent('agent.artifact_verified', {
+              tool: 'add_panels',
+              status: verificationReport.status,
+              summary: verificationReport.summary,
+            }));
+            if (verificationReport.status === 'failed') {
+              addPanelsVerificationFailed = true
+            }
+          }
+
           const observationText
             = `Added ${result.panels.length} panel(s)`
             + (result.variables?.length ? ` and ${result.variables.length} variable(s)` : '')
+            + (addPanelsVerificationFailed ? ' (verification FAILED)' : '')
 
           this.deps.sendEvent({
             type: 'tool_result',
             tool: 'add_panels',
             summary: observationText,
-            success: result.panels.length > 0,
+            success: result.panels.length > 0 && !addPanelsVerificationFailed,
           })
           this.emitAgentEvent(this.makeAgentEvent('agent.tool_completed', { tool: 'add_panels', summary: observationText }));
           return observationText
@@ -373,6 +409,18 @@ export class OrchestratorAgent {
 
           this.deps.sendEvent({ type: 'investigation_report', report: result.report })
 
+          // Run verification on the investigation report
+          const verificationReport = await this.verifierAgent.verify('investigation_report', result.report, {
+            prometheusUrl: this.deps.prometheusUrl,
+            prometheusHeaders: this.deps.prometheusHeaders,
+          })
+          this.deps.sendEvent({ type: 'verification_report', report: verificationReport })
+          this.emitAgentEvent(this.makeAgentEvent('agent.artifact_verified', {
+            tool: 'investigate',
+            status: verificationReport.status,
+            summary: verificationReport.summary,
+          }));
+
           this.deps.investigationReportStore.save({
             id: randomUUID(),
             dashboardId,
@@ -387,7 +435,7 @@ export class OrchestratorAgent {
             type: 'tool_result',
             tool: 'investigate',
             summary: `Investigation complete - ${result.panels.length} evidence panels added`,
-            success: true,
+            success: !verificationReport || verificationReport.status !== 'failed',
           })
           this.emitAgentEvent(this.makeAgentEvent('agent.tool_completed', { tool: 'investigate', summary: observationText }));
           return observationText

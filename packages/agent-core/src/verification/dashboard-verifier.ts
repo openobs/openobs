@@ -1,5 +1,6 @@
 import type { Dashboard, PanelConfig, PanelQuery } from '@agentic-obs/common';
 import type { VerificationReport, VerificationIssue } from './types.js';
+import { testPrometheusQuery } from './prometheus-tester.js';
 
 export interface DashboardVerifierInput {
   dashboard: Dashboard;
@@ -106,7 +107,7 @@ export class DashboardVerifier {
           // Skip queries containing variable references - they can't be validated without substitution
           if (this.extractVariableRefs(q.expr).length > 0) continue;
 
-          const result = await this.testPrometheusQuery(
+          const result = await testPrometheusQuery(
             prometheusUrl,
             q.expr,
             prometheusHeaders,
@@ -202,40 +203,4 @@ export class DashboardVerifier {
     return name.startsWith('__');
   }
 
-  private async testPrometheusQuery(
-    prometheusUrl: string,
-    expr: string,
-    headers?: Record<string, string>,
-  ): Promise<{ ok: boolean; unreachable?: boolean; error?: string }> {
-    try {
-      const url = `${prometheusUrl}/api/v1/query?query=${encodeURIComponent(expr)}`;
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: headers ?? {},
-        signal: AbortSignal.timeout(5000),
-      });
-      if (!response.ok) {
-        const body = await response.text().catch(() => '');
-        return { ok: false, error: `HTTP ${response.status}: ${body.slice(0, 200)}` };
-      }
-      const json = (await response.json()) as { status: string; error?: string; errorType?: string };
-      if (json.status !== 'success') {
-        return { ok: false, error: json.error ?? 'Query returned non-success status' };
-      }
-      return { ok: true };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      // Network errors indicate Prometheus is unreachable
-      if (
-        message.includes('ECONNREFUSED') ||
-        message.includes('ENOTFOUND') ||
-        message.includes('ETIMEDOUT') ||
-        message.includes('timeout') ||
-        message.includes('fetch failed')
-      ) {
-        return { ok: false, unreachable: true, error: message };
-      }
-      return { ok: false, error: message };
-    }
-  }
 }
