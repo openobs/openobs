@@ -330,7 +330,19 @@ export class OrchestratorAgent {
                 this.deps.prometheusHeaders ?? {},
                 this.deps.sendEvent,
               )
-              const discovery = await discoveryAgent.discover([goal])
+              // Extract metric search keywords from goal using LLM
+              let searchPatterns: string[]
+              try {
+                const kwResp = await this.deps.gateway.complete([
+                  { role: 'system', content: 'Extract 3-5 short metric name keywords/prefixes from the user goal. Return ONLY a JSON array of strings like ["http", "request", "duration"]. No explanation.' },
+                  { role: 'user', content: goal },
+                ], { model: this.deps.model, maxTokens: 100, temperature: 0, responseFormat: 'json' })
+                const parsed = JSON.parse(kwResp.content.replace(/```json\n?/g, '').replace(/```/g, '').trim())
+                searchPatterns = Array.isArray(parsed) ? parsed : [goal]
+              } catch {
+                searchPatterns = goal.split(/\s+/).filter((w) => w.length > 3)
+              }
+              const discovery = await discoveryAgent.discover(searchPatterns)
               availableMetrics = discovery.metrics
               // Build label context with actual values from samples
               labelsByMetric = discovery.labelsByMetric

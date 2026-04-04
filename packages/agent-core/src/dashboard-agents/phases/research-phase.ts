@@ -67,11 +67,15 @@ export class ResearchPhase {
               this.deps.prometheusHeaders ?? {},
               sendEvent,
             )
-            // Use full discovery (metrics + labels + samples) so LLM knows real label values
-            const discoveryResult = await discoveryAgent.discover([input.goal])
-            const relevant = discoveryResult.metrics.length > 0
-              ? discoveryResult.metrics
-              : await this.selectRelevantMetrics(input.goal, await discoveryAgent.fetchAllMetricNames())
+            // First get all metric names, then use LLM to find relevant ones
+            const allMetrics = await discoveryAgent.fetchAllMetricNames()
+            const relevant = await this.selectRelevantMetrics(input.goal, allMetrics)
+            // Now discover labels/samples for the relevant metrics only
+            const searchPatterns = relevant.length > 0
+              ? relevant.slice(0, 10).map((m) => m.split('_').slice(0, 2).join('_'))
+              : input.goal.split(/\s+/).filter((w) => w.length > 3)
+            const uniquePatterns = [...new Set(searchPatterns)]
+            const discoveryResult = await discoveryAgent.discover(uniquePatterns)
 
             const result: DiscoveryResult = {
               metrics: relevant,

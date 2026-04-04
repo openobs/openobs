@@ -49,6 +49,13 @@ export class GenerationPhase {
       rawPanels = await this.generateGroup(group, input, research, discovery, startRow, feedback)
 
       this.deps.sendEvent?.({
+        type: 'tool_result',
+        tool: 'generate_group',
+        summary: `Generated ${rawPanels.length} panel(s) for "${group.label}"`,
+        success: rawPanels.length > 0,
+      })
+
+      this.deps.sendEvent?.({
         type: 'tool_call',
         tool: 'critic',
         args: { group: group.label, panelCount: rawPanels.length },
