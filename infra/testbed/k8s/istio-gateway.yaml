@@ -1,0 +1,58 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: testbed-gateway
+  namespace: agentic-obs-testbed
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - "*"
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: catalog-api
+  namespace: agentic-obs-testbed
+spec:
+  hosts:
+    - "*"
+  gateways:
+    - testbed-gateway
+  http:
+    - match:
+        - uri:
+            prefix: /api
+        - uri:
+            exact: /
+        - uri:
+            exact: /health
+      route:
+        - destination:
+            host: catalog-api
+            subset: v1
+          weight: 85
+        - destination:
+            host: catalog-api
+            subset: v2
+          weight: 15
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: catalog-api
+  namespace: agentic-obs-testbed
+spec:
+  host: catalog-api
+  subsets:
+    - name: v1
+      labels:
+        version: v1
+    - name: v2
+      labels:
+        version: v2

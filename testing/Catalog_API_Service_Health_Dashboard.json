@@ -1,0 +1,530 @@
+{
+  "id": "mnjumyxe-j26glc",
+  "type": "dashboard",
+  "title": "Catalog API Service Health Dashboard",
+  "description": "Comprehensive monitoring dashboard for catalog-api service health, focusing on request volume, error rate, latency, and inflight traffic using RED methodology.",
+  "prompt": "Build a service health dashboard for `catalog-api` with request volume, error rate, latency, and inflight traffic.",
+  "userId": "anonymous",
+  "status": "ready",
+  "panels": [
+    {
+      "id": "48066c9f-58c7-47e7-8da8-a5404a4bcf68",
+      "title": "Request Rate",
+      "description": "Current requests per second from http_requests_total metric",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_requests_total{service=\"catalog-api\"}[5m]))",
+          "instant": true
+        }
+      ],
+      "visualization": "stat",
+      "row": 0,
+      "col": 0,
+      "width": 3,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "reqps",
+      "decimals": 2,
+      "sectionId": "overview",
+      "sectionLabel": "Overview"
+    },
+    {
+      "id": "5c5ca725-bce4-42ee-bb45-4ef25f48ce85",
+      "title": "Error Rate %",
+      "description": "Percentage of requests with errors (4xx/5xx) relative to total requests",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_requests_total{service=\"catalog-api\", status_code=~\"4..|5..\"}[5m])) / sum(rate(http_requests_total{service=\"catalog-api\"}[5m])) * 100",
+          "instant": true
+        }
+      ],
+      "visualization": "stat",
+      "row": 0,
+      "col": 3,
+      "width": 3,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "percent",
+      "decimals": 2,
+      "sectionId": "overview",
+      "sectionLabel": "Overview"
+    },
+    {
+      "id": "786a9ae3-5d1e-45e8-9217-a5ecff6f4d83",
+      "title": "P95 Latency (ms)",
+      "description": "95th percentile latency from http_request_duration_seconds histogram",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service=\"catalog-api\"}[5m])) by (le)) * 1000",
+          "instant": true
+        }
+      ],
+      "visualization": "stat",
+      "row": 0,
+      "col": 6,
+      "width": 3,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "ms",
+      "decimals": 2,
+      "sectionId": "overview",
+      "sectionLabel": "Overview"
+    },
+    {
+      "id": "ba0ad46b-fe01-4e04-941a-5df79f507c75",
+      "title": "Inflight Requests",
+      "description": "Current number of requests in progress from http_requests_in_flight",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "sum(http_requests_in_flight{service=\"catalog-api\"})",
+          "instant": true
+        }
+      ],
+      "visualization": "stat",
+      "row": 0,
+      "col": 9,
+      "width": 3,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "short",
+      "decimals": 0,
+      "sectionId": "overview",
+      "sectionLabel": "Overview"
+    },
+    {
+      "id": "ab7c80fc-b047-48f4-a697-5e03b57023df",
+      "title": "CPU Usage",
+      "description": "CPU seconds consumed over time from process_cpu_seconds_total",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "rate(process_cpu_seconds_total{service=\"catalog-api\"}[5m])",
+          "legendFormat": "{{instance}}",
+          "instant": false
+        }
+      ],
+      "visualization": "time_series",
+      "row": 42,
+      "col": 0,
+      "width": 12,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "seconds",
+      "stackMode": "none",
+      "fillOpacity": 10,
+      "decimals": 2,
+      "thresholds": [],
+      "sectionId": "resource_metrics",
+      "sectionLabel": "Resource Metrics"
+    },
+    {
+      "id": "f1c335d0-66bf-4bab-9ce9-f8843e1dc88d",
+      "title": "Memory Usage",
+      "description": "Resident memory usage over time from process_resident_memory_bytes",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "process_resident_memory_bytes{service=\"catalog-api\"}",
+          "legendFormat": "{{instance}}",
+          "instant": false
+        }
+      ],
+      "visualization": "time_series",
+      "row": 45,
+      "col": 0,
+      "width": 12,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "bytes",
+      "stackMode": "none",
+      "fillOpacity": 10,
+      "decimals": 2,
+      "thresholds": [],
+      "sectionId": "resource_metrics",
+      "sectionLabel": "Resource Metrics"
+    },
+    {
+      "id": "85c26841-e52c-4812-a13e-d640f0e2b511",
+      "title": "File Descriptors",
+      "description": "Open file descriptors vs maximum from process_open_fds and process_max_fds",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "process_open_fds{service=\"catalog-api\"}",
+          "legendFormat": "Open FDs - {{instance}}",
+          "instant": false
+        },
+        {
+          "refId": "B",
+          "expr": "process_max_fds{service=\"catalog-api\"}",
+          "legendFormat": "Max FDs - {{instance}}",
+          "instant": false
+        }
+      ],
+      "visualization": "time_series",
+      "row": 48,
+      "col": 0,
+      "width": 12,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "short",
+      "stackMode": "none",
+      "fillOpacity": 10,
+      "decimals": 0,
+      "thresholds": [],
+      "sectionId": "resource_metrics",
+      "sectionLabel": "Resource Metrics"
+    },
+    {
+      "id": "cc1e3035-185e-4bc5-ae97-bd105ad71b91",
+      "title": "Request Rate Trend",
+      "description": "Requests per second over time from http_requests_total",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_requests_total{service=\"catalog-api\"}[5m])) by (route)",
+          "legendFormat": "{{route}}"
+        }
+      ],
+      "visualization": "time_series",
+      "row": 12,
+      "col": 0,
+      "width": 12,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "reqps",
+      "stackMode": "none",
+      "fillOpacity": 10,
+      "decimals": 2,
+      "thresholds": [],
+      "sectionId": "core_trends",
+      "sectionLabel": "Core Trends"
+    },
+    {
+      "id": "a78e4811-dce1-4168-b068-99fbd9a402e7",
+      "title": "Error Rate Trend",
+      "description": "Error rate percentage over time (4xx+5xx errors / total requests)",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_requests_total{service=\"catalog-api\", status_code=~\"4..|5..\"}[5m])) by (route) / sum(rate(http_requests_total{service=\"catalog-api\"}[5m])) by (route)",
+          "legendFormat": "{{route}}"
+        }
+      ],
+      "visualization": "time_series",
+      "row": 15,
+      "col": 0,
+      "width": 12,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "percentunit",
+      "stackMode": "none",
+      "fillOpacity": 10,
+      "decimals": 2,
+      "thresholds": [],
+      "sectionId": "core_trends",
+      "sectionLabel": "Core Trends"
+    },
+    {
+      "id": "1aeae6e4-2d07-429b-a18a-1a7c0a02e066",
+      "title": "Latency Percentiles",
+      "description": "Latency percentiles over time from http_request_duration_seconds histogram",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{service=\"catalog-api\"}[5m])) by (le, route))",
+          "legendFormat": "p50 {{route}}"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service=\"catalog-api\"}[5m])) by (le, route))",
+          "legendFormat": "p95 {{route}}"
+        },
+        {
+          "refId": "C",
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{service=\"catalog-api\"}[5m])) by (le, route))",
+          "legendFormat": "p99 {{route}}"
+        }
+      ],
+      "visualization": "time_series",
+      "row": 18,
+      "col": 0,
+      "width": 12,
+      "height": 4,
+      "refreshIntervalSec": 30,
+      "unit": "seconds",
+      "stackMode": "none",
+      "fillOpacity": 10,
+      "decimals": 3,
+      "thresholds": [],
+      "sectionId": "core_trends",
+      "sectionLabel": "Core Trends"
+    },
+    {
+      "id": "8ed84f06-8816-4768-9dec-9c9e69bb29f9",
+      "title": "Inflight Requests Trend",
+      "description": "Number of requests in progress over time from http_requests_in_flight",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "sum(http_requests_in_flight{service=\"catalog-api\"}) by (route)",
+          "legendFormat": "{{route}}"
+        }
+      ],
+      "visualization": "time_series",
+      "row": 21,
+      "col": 0,
+      "width": 12,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "short",
+      "stackMode": "none",
+      "fillOpacity": 10,
+      "decimals": 0,
+      "thresholds": [],
+      "sectionId": "core_trends",
+      "sectionLabel": "Core Trends"
+    },
+    {
+      "id": "b88e7adf-e34c-45e6-9ae2-fdd1ae2ea9fc",
+      "title": "4xx vs 5xx Error Distribution",
+      "description": "Proportion of 4xx vs 5xx errors from error metrics",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_requests_total{service=\"catalog-api\", status_code=~\"4..\"}[5m]))",
+          "legendFormat": "4xx Errors",
+          "instant": true
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(http_requests_total{service=\"catalog-api\", status_code=~\"5..\"}[5m]))",
+          "legendFormat": "5xx Errors",
+          "instant": true
+        }
+      ],
+      "visualization": "pie",
+      "row": 24,
+      "col": 0,
+      "width": 4,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "reqps",
+      "sectionId": "error_breakdown",
+      "sectionLabel": "Error Breakdown"
+    },
+    {
+      "id": "11afab2a-2165-48ba-81e8-dfbc82d59188",
+      "title": "Error Rate by Endpoint",
+      "description": "Error rate percentage per endpoint (if endpoint label exists)",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "sum by (route) (rate(http_requests_total{service=\"catalog-api\", status_code=~\"4..|5..\"}[5m])) / sum by (route) (rate(http_requests_total{service=\"catalog-api\"}[5m])) * 100",
+          "legendFormat": "{{route}}",
+          "instant": true
+        }
+      ],
+      "visualization": "bar",
+      "row": 24,
+      "col": 4,
+      "width": 6,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "percent",
+      "sectionId": "error_breakdown",
+      "sectionLabel": "Error Breakdown"
+    },
+    {
+      "id": "e23ed543-addf-451b-9dd9-323a8160fcbe",
+      "title": "Error Correlation with Request Rate",
+      "description": "Overlay of error count and request rate to identify correlations",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_requests_total{service=\"catalog-api\", status_code=~\"4..|5..\"}[5m]))",
+          "legendFormat": "Error Rate"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(http_requests_total{service=\"catalog-api\"}[5m]))",
+          "legendFormat": "Request Rate"
+        }
+      ],
+      "visualization": "time_series",
+      "row": 27,
+      "col": 0,
+      "width": 12,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "reqps",
+      "sectionId": "error_breakdown",
+      "sectionLabel": "Error Breakdown"
+    },
+    {
+      "id": "16d63686-e2a4-404b-8672-b666d855ecf9",
+      "title": "Error Count by Status Code",
+      "description": "Error count by specific status code (e.g., 404, 500) over time",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "sum by (status_code) (rate(http_requests_total{service=\"catalog-api\", status_code=~\"4..|5..\"}[5m]))",
+          "legendFormat": "{{status_code}}"
+        }
+      ],
+      "visualization": "time_series",
+      "row": 30,
+      "col": 0,
+      "width": 6,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "reqps",
+      "sectionId": "error_breakdown",
+      "sectionLabel": "Error Breakdown"
+    },
+    {
+      "id": "3223b280-dcc8-42a1-a689-cb458a2317d7",
+      "title": "Error Rate Percentage Over Time",
+      "description": "Error rate as a percentage of total requests over time",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_requests_total{service=\"catalog-api\", status_code=~\"4..|5..\"}[5m])) / sum(rate(http_requests_total{service=\"catalog-api\"}[5m])) * 100",
+          "legendFormat": "Error Rate %"
+        }
+      ],
+      "visualization": "time_series",
+      "row": 30,
+      "col": 6,
+      "width": 6,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "percent",
+      "sectionId": "error_breakdown",
+      "sectionLabel": "Error Breakdown"
+    },
+    {
+      "id": "014f8d39-22e2-4c67-a231-691a73f02ac8",
+      "title": "Latency Distribution Heatmap",
+      "description": "Distribution of request durations across buckets from http_request_duration_seconds_bucket",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_request_duration_seconds_bucket{service=\"catalog-api\"}[5m])) by (le)",
+          "legendFormat": "{{le}}"
+        }
+      ],
+      "visualization": "heatmap",
+      "row": 33,
+      "col": 0,
+      "width": 12,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "seconds",
+      "sectionId": "latency_analysis",
+      "sectionLabel": "Latency Analysis"
+    },
+    {
+      "id": "52c510fd-06ee-4212-89ee-f7f78af9f826",
+      "title": "Top Endpoints by P95 Latency",
+      "description": "Endpoints sorted by highest p95 latency (if endpoint label exists)",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service=\"catalog-api\", route!=\"\"}[5m])) by (le, route))",
+          "legendFormat": "{{route}}",
+          "instant": true
+        }
+      ],
+      "visualization": "bar",
+      "row": 36,
+      "col": 0,
+      "width": 6,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "seconds",
+      "sectionId": "latency_analysis",
+      "sectionLabel": "Latency Analysis"
+    },
+    {
+      "id": "adfe1231-883b-4311-939c-439b1931b3e4",
+      "title": "Latency vs Request Volume",
+      "description": "Scatter plot showing relationship between latency percentiles and request rate",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service=\"catalog-api\"}[5m])) by (le))",
+          "legendFormat": "P95 Latency"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(http_requests_total{service=\"catalog-api\"}[5m]))",
+          "legendFormat": "Request Rate"
+        }
+      ],
+      "visualization": "time_series",
+      "row": 36,
+      "col": 6,
+      "width": 6,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "seconds",
+      "stackMode": "none",
+      "fillOpacity": 0,
+      "sectionId": "latency_analysis",
+      "sectionLabel": "Latency Analysis"
+    },
+    {
+      "id": "f4d89f63-84cd-4878-8aca-74d0eaee75f3",
+      "title": "P50 Latency",
+      "description": "Median latency over time",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{service=\"catalog-api\"}[5m])) by (le))",
+          "legendFormat": "P50 Latency"
+        }
+      ],
+      "visualization": "time_series",
+      "row": 39,
+      "col": 0,
+      "width": 6,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "seconds",
+      "sectionId": "latency_analysis",
+      "sectionLabel": "Latency Analysis"
+    },
+    {
+      "id": "30183406-a922-42d6-a893-8611e68ae4d7",
+      "title": "Average Latency",
+      "description": "Average request duration over time",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "rate(http_request_duration_seconds_sum{service=\"catalog-api\"}[5m]) / rate(http_request_duration_seconds_count{service=\"catalog-api\"}[5m])",
+          "legendFormat": "Avg Latency"
+        }
+      ],
+      "visualization": "time_series",
+      "row": 39,
+      "col": 6,
+      "width": 6,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "seconds",
+      "sectionId": "latency_analysis",
+      "sectionLabel": "Latency Analysis"
+    }
+  ],
+  "variables": [],
+  "refreshIntervalSec": 30,
+  "datasourceIds": [],
+  "useExistingMetrics": true,
+  "createdAt": "2026-04-04T04:45:21.362Z",
+  "updatedAt": "2026-04-04T04:47:53.067Z"
+}

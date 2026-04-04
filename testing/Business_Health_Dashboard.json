@@ -1,0 +1,1083 @@
+{
+  "id": "mnjux6bl-textyu",
+  "type": "dashboard",
+  "title": "Business Health Dashboard",
+  "description": "Monitors business health through active users and business SLO scores, segmented by region and tenant, with technical reliability metrics for comprehensive observability.",
+  "prompt": "Build a business health dashboard with active users and business SLO score by region and tenant.",
+  "userId": "anonymous",
+  "status": "ready",
+  "panels": [
+    {
+      "id": "1653cf72-5cdf-44aa-b6a1-fde54bb37447",
+      "title": "Active Users Over Time",
+      "description": "Trend of active users segmented by region and tenant, limited to top 10 series to avoid high cardinality.",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "topk(10, sum by(region, tenant) (active_users))",
+          "legendFormat": "{{region}} - {{tenant}}"
+        }
+      ],
+      "visualization": "time_series",
+      "row": 2,
+      "col": 0,
+      "width": 12,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "short",
+      "stackMode": "normal",
+      "fillOpacity": 10,
+      "decimals": 0,
+      "thresholds": [],
+      "sectionId": "business_metrics",
+      "sectionLabel": "Business Metrics"
+    },
+    {
+      "id": "4f1f27c4-395f-4719-9f0c-f286bd9097e4",
+      "title": "Business SLO Score Trend",
+      "description": "Business SLO health score trend over time by region, with thresholds indicating compliance levels (green above 0.95, red below 0.85).",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "avg by(region) (business_slo_health_score)",
+          "legendFormat": "{{region}}"
+        }
+      ],
+      "visualization": "time_series",
+      "row": 5,
+      "col": 0,
+      "width": 12,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "percentunit",
+      "stackMode": "none",
+      "fillOpacity": 0,
+      "decimals": 2,
+      "thresholds": [
+        {
+          "color": "red",
+          "value": 0.85
+        },
+        {
+          "color": "green",
+          "value": 0.95
+        }
+      ],
+      "sectionId": "business_metrics",
+      "sectionLabel": "Business Metrics"
+    },
+    {
+      "id": "7fa63a09-0c3e-42a6-9bfa-9e17337c8527",
+      "title": "Top Tenants by Active Users",
+      "description": "Top 10 tenants ranked by active users, including region context for breakdown.",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "topk(10, sum by(region, tenant) (active_users))",
+          "instant": true
+        }
+      ],
+      "visualization": "table",
+      "row": 8,
+      "col": 0,
+      "width": 6,
+      "height": 4,
+      "refreshIntervalSec": 30,
+      "unit": "short",
+      "stackMode": "none",
+      "fillOpacity": 0,
+      "decimals": 0,
+      "thresholds": [],
+      "sectionId": "business_metrics",
+      "sectionLabel": "Business Metrics"
+    },
+    {
+      "id": "174567af-72d6-413a-8dc1-e75c78cef84d",
+      "title": "SLO Compliance by Region",
+      "description": "Business SLO health score by region as a bar chart, providing a real-time snapshot of compliance.",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "avg by(region) (business_slo_health_score)",
+          "instant": true
+        }
+      ],
+      "visualization": "time_series",
+      "row": 8,
+      "col": 6,
+      "width": 6,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "percentunit",
+      "stackMode": "none",
+      "fillOpacity": 0,
+      "decimals": 2,
+      "thresholds": [
+        {
+          "color": "red",
+          "value": 0.85
+        },
+        {
+          "color": "green",
+          "value": 0.95
+        }
+      ],
+      "sectionId": "business_metrics",
+      "sectionLabel": "Business Metrics"
+    },
+    {
+      "id": "05380d2d-0f2e-4d53-9c47-d8a70bd77c30",
+      "title": "Active Users by Region",
+      "description": "Active users segmented by region",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "active_users",
+          "instant": true
+        }
+      ],
+      "visualization": "pie",
+      "row": 38,
+      "col": 0,
+      "width": 4,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "short",
+      "sectionId": "breakdowns",
+      "sectionLabel": "Breakdowns"
+    },
+    {
+      "id": "9c159820-94cf-4aa5-8230-53331a22ec11",
+      "title": "Active Users by Tenant",
+      "description": "Active users segmented by tenant",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "active_users",
+          "instant": true
+        }
+      ],
+      "visualization": "pie",
+      "row": 38,
+      "col": 4,
+      "width": 4,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "short",
+      "sectionId": "breakdowns",
+      "sectionLabel": "Breakdowns"
+    },
+    {
+      "id": "4efc451e-fb09-4363-9ea2-c3c565fa9e8a",
+      "title": "Region Performance Table",
+      "description": "Table showing key metrics (active users, SLO score, availability, latency) by region",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "sum(active_users) by (region)",
+          "instant": true
+        },
+        {
+          "refId": "B",
+          "expr": "avg(business_slo_health_score) by (region)",
+          "instant": true
+        },
+        {
+          "refId": "C",
+          "expr": "sum(rate(requests_total{status=~\"2..|3..\"}[5m])) by (region) / sum(rate(requests_total[5m])) by (region)",
+          "instant": true
+        },
+        {
+          "refId": "D",
+          "expr": "histogram_quantile(0.95, sum(rate(request_duration_seconds_bucket[5m])) by (le, region))",
+          "instant": true
+        }
+      ],
+      "visualization": "table",
+      "row": 38,
+      "col": 8,
+      "width": 6,
+      "height": 6,
+      "refreshIntervalSec": 30,
+      "unit": "none",
+      "sectionId": "breakdowns",
+      "sectionLabel": "Breakdowns"
+    },
+    {
+      "id": "e1a37343-05e2-4aca-9d7a-5dfd33b899b7",
+      "title": "Tenant Performance Table",
+      "description": "Table showing key metrics (active users, error rate, success rate) by tenant",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "sum(active_users) by (tenant)",
+          "instant": true
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(requests_total{status=~\"4..|5..\"}[5m])) by (tenant) / sum(rate(requests_total[5m])) by (tenant)",
+          "instant": true
+        },
+        {
+          "refId": "C",
+          "expr": "sum(rate(requests_total{status=~\"2..|3..\"}[5m])) by (tenant) / sum(rate(requests_total[5m])) by (tenant)",
+          "instant": true
+        }
+      ],
+      "visualization": "table",
+      "row": 41,
+      "col": 0,
+      "width": 6,
+      "height": 6,
+      "refreshIntervalSec": 30,
+      "unit": "none",
+      "sectionId": "breakdowns",
+      "sectionLabel": "Breakdowns"
+    },
+    {
+      "id": "732fa9da-0c2c-477c-97dc-e7bef36e5977",
+      "title": "Active Users Trend by Tenant",
+      "description": "Trend of active users over time segmented by tenant",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "active_users",
+          "legendFormat": "{{tenant}}"
+        }
+      ],
+      "visualization": "time_series",
+      "row": 41,
+      "col": 6,
+      "width": 6,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "short",
+      "sectionId": "breakdowns",
+      "sectionLabel": "Breakdowns"
+    },
+    {
+      "id": "de5314bd-339d-4f16-a59f-9e63cee89f33",
+      "title": "Business SLO Score Trend by Region",
+      "description": "Trend of business SLO health score over time segmented by region",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "business_slo_health_score",
+          "legendFormat": "{{region}}"
+        }
+      ],
+      "visualization": "time_series",
+      "row": 44,
+      "col": 0,
+      "width": 6,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "none",
+      "sectionId": "breakdowns",
+      "sectionLabel": "Breakdowns"
+    },
+    {
+      "id": "b0c8e2ce-34cd-4d87-acc3-8725ef801db0",
+      "title": "Total Active Users",
+      "description": "Sum of active users across all regions and tenants",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "sum without(__name__)(active_users)",
+          "instant": true
+        }
+      ],
+      "visualization": "stat",
+      "row": 0,
+      "col": 0,
+      "width": 3,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "short",
+      "decimals": 0,
+      "sectionId": "overview",
+      "sectionLabel": "Overview"
+    },
+    {
+      "id": "9b75f5a8-42ef-4008-b543-3b3838f4d5f7",
+      "title": "Business SLO Health Score",
+      "description": "Average business SLO health score across all regions and tenants",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "avg without(__name__)(business_slo_health_score)",
+          "instant": true
+        }
+      ],
+      "visualization": "stat",
+      "row": 0,
+      "col": 3,
+      "width": 3,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "percentunit",
+      "decimals": 2,
+      "sectionId": "overview",
+      "sectionLabel": "Overview"
+    },
+    {
+      "id": "277a5876-7f3c-43e5-ba51-356605432f45",
+      "title": "Active Users by Region",
+      "description": "Breakdown of active users by region",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "sum by(region)(active_users)",
+          "legendFormat": "{{region}}",
+          "instant": true
+        }
+      ],
+      "visualization": "bar",
+      "row": 2,
+      "col": 0,
+      "width": 6,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "short",
+      "decimals": 0,
+      "sectionId": "overview",
+      "sectionLabel": "Overview"
+    },
+    {
+      "id": "e684ac0d-13fc-4566-8271-ab4632da8aa8",
+      "title": "Active Users by Tenant",
+      "description": "Breakdown of active users by tenant",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "sum by(tenant)(active_users)",
+          "legendFormat": "{{tenant}}",
+          "instant": true
+        }
+      ],
+      "visualization": "bar",
+      "row": 2,
+      "col": 6,
+      "width": 6,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "short",
+      "decimals": 0,
+      "sectionId": "overview",
+      "sectionLabel": "Overview"
+    },
+    {
+      "id": "01400e72-d5ca-46c6-a0d7-e17c04b91ec1",
+      "title": "Business SLO Health by Region",
+      "description": "Business SLO health score by region",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "avg by(region)(business_slo_health_score)",
+          "legendFormat": "{{region}}"
+        }
+      ],
+      "visualization": "time_series",
+      "row": 5,
+      "col": 0,
+      "width": 6,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "percentunit",
+      "decimals": 2,
+      "sectionId": "overview",
+      "sectionLabel": "Overview"
+    },
+    {
+      "id": "214ef1eb-b0a7-4a98-bfa8-a2112988e353",
+      "title": "Business SLO Health by Tenant",
+      "description": "Business SLO health score by tenant",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "avg by(tenant)(business_slo_health_score)",
+          "instant": true
+        }
+      ],
+      "visualization": "table",
+      "row": 5,
+      "col": 6,
+      "width": 6,
+      "height": 4,
+      "refreshIntervalSec": 30,
+      "unit": "percentunit",
+      "decimals": 2,
+      "sectionId": "overview",
+      "sectionLabel": "Overview"
+    },
+    {
+      "id": "0bf98f52-a215-4f56-97d5-31e2fb33a566",
+      "title": "SLO Compliance Trend",
+      "description": "SLO compliance percentage trend over the last 30 days (real-time 5m rates, not aggregated over 30d)",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "100 - (sum by (region, service) (rate(requests_total{status_code=~\"5..\"}[5m])) / sum by (region, service) (rate(requests_total[5m])) * 100)",
+          "legendFormat": "{{region}} - {{service}}"
+        }
+      ],
+      "visualization": "time_series",
+      "row": 26,
+      "col": 0,
+      "width": 12,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "percent",
+      "stackMode": "none",
+      "fillOpacity": 10,
+      "decimals": 2,
+      "thresholds": {
+        "steps": [
+          {
+            "color": "red",
+            "value": null
+          },
+          {
+            "color": "yellow",
+            "value": 95
+          },
+          {
+            "color": "green",
+            "value": 99
+          }
+        ]
+      },
+      "sectionId": "slo_management",
+      "sectionLabel": "SLO Management"
+    },
+    {
+      "id": "11e136fc-afea-45de-8057-363fd17ec7ed",
+      "title": "SLO Burn Rate (1h window)",
+      "description": "Burn rate for SLO error budget consumption over 1h window relative to 30d SLO (target 99%)",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "sum by (region) (rate(requests_total{status_code=~\"5..\"}[1h])) / sum by (region) (rate(requests_total[1h])) / (1 - 0.99)",
+          "legendFormat": "{{region}}"
+        }
+      ],
+      "visualization": "time_series",
+      "row": 29,
+      "col": 0,
+      "width": 6,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "none",
+      "stackMode": "none",
+      "fillOpacity": 10,
+      "decimals": 2,
+      "thresholds": {
+        "steps": [
+          {
+            "color": "green",
+            "value": null
+          },
+          {
+            "color": "yellow",
+            "value": 1
+          },
+          {
+            "color": "red",
+            "value": 10
+          }
+        ]
+      },
+      "sectionId": "slo_management",
+      "sectionLabel": "SLO Management"
+    },
+    {
+      "id": "c6c7baea-752a-45ab-8089-8e5ef92fc678",
+      "title": "SLO Burn Rate (6h window)",
+      "description": "Burn rate for SLO error budget consumption over 6h window relative to 30d SLO (target 99%)",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "sum by (region) (rate(requests_total{status_code=~\"5..\"}[6h])) / sum by (region) (rate(requests_total[6h])) / (1 - 0.99)",
+          "legendFormat": "{{region}}"
+        }
+      ],
+      "visualization": "time_series",
+      "row": 29,
+      "col": 6,
+      "width": 6,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "none",
+      "stackMode": "none",
+      "fillOpacity": 10,
+      "decimals": 2,
+      "thresholds": {
+        "steps": [
+          {
+            "color": "green",
+            "value": null
+          },
+          {
+            "color": "yellow",
+            "value": 1
+          },
+          {
+            "color": "red",
+            "value": 10
+          }
+        ]
+      },
+      "sectionId": "slo_management",
+      "sectionLabel": "SLO Management"
+    },
+    {
+      "id": "3f419cd0-9efa-4132-b6f7-c55c129cde75",
+      "title": "Error Budget Remaining",
+      "description": "Remaining error budget by region over the last 30 days (target 99% SLO)",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "max(0, (1 - 0.99) * sum by (region) (increase(requests_total[30d])) - sum by (region) (increase(requests_total{status_code=~\"5..\"}[30d])))",
+          "legendFormat": "{{region}}",
+          "instant": true
+        }
+      ],
+      "visualization": "time_series",
+      "row": 32,
+      "col": 0,
+      "width": 6,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "short",
+      "stackMode": "none",
+      "fillOpacity": 10,
+      "decimals": 0,
+      "thresholds": {
+        "steps": [
+          {
+            "color": "red",
+            "value": null
+          },
+          {
+            "color": "yellow",
+            "value": 1000
+          },
+          {
+            "color": "green",
+            "value": 10000
+          }
+        ]
+      },
+      "sectionId": "slo_management",
+      "sectionLabel": "SLO Management"
+    },
+    {
+      "id": "03ca53e1-2a70-4ef9-b6e0-3c1c2cc4ad4c",
+      "title": "Incident Impact on SLO Score",
+      "description": "Correlation of incidents with drops in business SLO health score",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "avg by (region) (business_slo_health_score) * 100",
+          "legendFormat": "SLO Score - {{region}}"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (region) (rate(requests_total{status_code=~\"5..\"}[5m])) / sum by (region) (rate(requests_total[5m])) * 100",
+          "legendFormat": "Error Rate - {{region}}"
+        }
+      ],
+      "visualization": "time_series",
+      "row": 32,
+      "col": 6,
+      "width": 6,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "percent",
+      "stackMode": "none",
+      "fillOpacity": 10,
+      "decimals": 2,
+      "thresholds": {
+        "steps": [
+          {
+            "color": "red",
+            "value": null
+          },
+          {
+            "color": "yellow",
+            "value": 95
+          },
+          {
+            "color": "green",
+            "value": 99
+          }
+        ]
+      },
+      "sectionId": "slo_management",
+      "sectionLabel": "SLO Management"
+    },
+    {
+      "id": "aa6b12ef-1aa2-4448-8568-6ac3437feac2",
+      "title": "Business SLO Score by Region",
+      "description": "Business SLO health score by region (from business_slo_health_score metric)",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "avg by (region) (business_slo_health_score) * 100",
+          "legendFormat": "{{region}}",
+          "instant": true
+        }
+      ],
+      "visualization": "stat",
+      "row": 35,
+      "col": 0,
+      "width": 3,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "percent",
+      "stackMode": "none",
+      "fillOpacity": 10,
+      "decimals": 2,
+      "thresholds": {
+        "steps": [
+          {
+            "color": "red",
+            "value": null
+          },
+          {
+            "color": "yellow",
+            "value": 95
+          },
+          {
+            "color": "green",
+            "value": 99
+          }
+        ]
+      },
+      "sectionId": "slo_management",
+      "sectionLabel": "SLO Management"
+    },
+    {
+      "id": "9e4669c9-51db-49dd-a306-4e0951c75f74",
+      "title": "Active Users by Region",
+      "description": "Active users by region (from active_users metric)",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "sum by (region) (active_users)",
+          "legendFormat": "{{region}}",
+          "instant": true
+        }
+      ],
+      "visualization": "stat",
+      "row": 35,
+      "col": 3,
+      "width": 3,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "short",
+      "stackMode": "none",
+      "fillOpacity": 10,
+      "decimals": 0,
+      "thresholds": null,
+      "sectionId": "slo_management",
+      "sectionLabel": "SLO Management"
+    },
+    {
+      "id": "f55bc04d-09e5-4330-9510-104bf4d45331",
+      "title": "Active Users by Tenant",
+      "description": "Active users by tenant (from active_users metric) - bar gauge for better comparison",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "sum by (tenant) (active_users)",
+          "legendFormat": "{{tenant}}",
+          "instant": true
+        }
+      ],
+      "visualization": "time_series",
+      "row": 35,
+      "col": 6,
+      "width": 6,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "short",
+      "stackMode": "none",
+      "fillOpacity": 10,
+      "decimals": 0,
+      "thresholds": null,
+      "sectionId": "slo_management",
+      "sectionLabel": "SLO Management"
+    },
+    {
+      "id": "175850bc-b2a4-497f-b492-430e81aa383f",
+      "title": "Request Rate and Error Rate",
+      "description": "Request rate and error rate over time by tenant",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "sum by (tenant) (rate(requests_total[5m]))",
+          "legendFormat": "{{tenant}} - Request Rate"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (tenant) (rate(requests_total{status=~\"5..\"}[5m])) / sum by (tenant) (rate(requests_total[5m]))",
+          "legendFormat": "{{tenant}} - Error Rate"
+        }
+      ],
+      "visualization": "time_series",
+      "row": 14,
+      "col": 0,
+      "width": 12,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "percentunit",
+      "stackMode": "none",
+      "fillOpacity": 10,
+      "decimals": 2,
+      "thresholds": {
+        "steps": [
+          {
+            "color": "green",
+            "value": null
+          },
+          {
+            "color": "red",
+            "value": 0.05
+          }
+        ]
+      },
+      "sectionId": "technical_reliability",
+      "sectionLabel": "Technical Reliability"
+    },
+    {
+      "id": "d827d48f-d2fb-4a47-a17d-bdee65acacdc",
+      "title": "Latency Distribution",
+      "description": "Request duration distribution across different regions",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "sum by (region, le) (rate(request_duration_seconds_bucket[5m]))",
+          "legendFormat": "{{region}}"
+        }
+      ],
+      "visualization": "heatmap",
+      "row": 17,
+      "col": 0,
+      "width": 12,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "seconds",
+      "stackMode": "none",
+      "fillOpacity": 10,
+      "decimals": 2,
+      "thresholds": null,
+      "sectionId": "technical_reliability",
+      "sectionLabel": "Technical Reliability"
+    },
+    {
+      "id": "8689e883-56e8-4eaa-9b43-05764d2c6320",
+      "title": "Availability Heatmap",
+      "description": "Availability percentage by region and time of day",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "avg by (region) (rate(requests_total{status!~\"5..\"}[5m])) / avg by (region) (rate(requests_total[5m]))",
+          "legendFormat": "{{region}}"
+        }
+      ],
+      "visualization": "heatmap",
+      "row": 20,
+      "col": 0,
+      "width": 12,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "percentunit",
+      "stackMode": "none",
+      "fillOpacity": 10,
+      "decimals": 2,
+      "thresholds": {
+        "steps": [
+          {
+            "color": "red",
+            "value": null
+          },
+          {
+            "color": "yellow",
+            "value": 0.99
+          },
+          {
+            "color": "green",
+            "value": 0.999
+          }
+        ]
+      },
+      "sectionId": "technical_reliability",
+      "sectionLabel": "Technical Reliability"
+    },
+    {
+      "id": "c386ed8e-d015-47e1-ad07-4538ce80d984",
+      "title": "User Journey Success Rate",
+      "description": "Success rate for critical user journeys by region",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "sum by (region) (rate(user_journey_success_total{journey=\"critical\"}[5m])) / sum by (region) (rate(user_journey_total{journey=\"critical\"}[5m]))",
+          "legendFormat": "{{region}}"
+        }
+      ],
+      "visualization": "time_series",
+      "row": 23,
+      "col": 0,
+      "width": 12,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "percentunit",
+      "stackMode": "none",
+      "fillOpacity": 10,
+      "decimals": 2,
+      "thresholds": {
+        "steps": [
+          {
+            "color": "green",
+            "value": null
+          },
+          {
+            "color": "red",
+            "value": 0.95
+          }
+        ]
+      },
+      "sectionId": "technical_reliability",
+      "sectionLabel": "Technical Reliability"
+    },
+    {
+      "id": "df2826d7-e4bb-41e4-b1de-455c07f02ea7",
+      "title": "Active Users by Region",
+      "description": "Active users breakdown by region",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "sum by (region) (active_users)",
+          "legendFormat": "{{region}}",
+          "instant": true
+        }
+      ],
+      "visualization": "pie",
+      "row": 14,
+      "col": 0,
+      "width": 4,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "short",
+      "stackMode": "none",
+      "fillOpacity": 10,
+      "decimals": 0,
+      "thresholds": null,
+      "sectionId": "technical_reliability",
+      "sectionLabel": "Technical Reliability"
+    },
+    {
+      "id": "60eb9833-97ad-4753-9bd6-b996a4297a9c",
+      "title": "Business SLO Health Score",
+      "description": "Business SLO health score by region and service",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "business_slo_health_score",
+          "legendFormat": "{{region}} - {{service}}"
+        }
+      ],
+      "visualization": "time_series",
+      "row": 14,
+      "col": 4,
+      "width": 8,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "percentunit",
+      "stackMode": "none",
+      "fillOpacity": 10,
+      "decimals": 2,
+      "thresholds": {
+        "steps": [
+          {
+            "color": "red",
+            "value": null
+          },
+          {
+            "color": "yellow",
+            "value": 0.9
+          },
+          {
+            "color": "green",
+            "value": 0.99
+          }
+        ]
+      },
+      "sectionId": "technical_reliability",
+      "sectionLabel": "Technical Reliability"
+    },
+    {
+      "id": "d762adbe-156b-4783-9f09-2af200738dae",
+      "title": "CPU Utilization",
+      "description": "CPU usage percentage across nodes by region",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "100 - (avg by (region) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+          "legendFormat": "{{region}}"
+        }
+      ],
+      "visualization": "time_series",
+      "row": 17,
+      "col": 0,
+      "width": 6,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "percent",
+      "stackMode": "none",
+      "fillOpacity": 10,
+      "decimals": 1,
+      "thresholds": {
+        "steps": [
+          {
+            "color": "green",
+            "value": null
+          },
+          {
+            "color": "yellow",
+            "value": 70
+          },
+          {
+            "color": "red",
+            "value": 90
+          }
+        ]
+      },
+      "sectionId": "technical_reliability",
+      "sectionLabel": "Technical Reliability"
+    },
+    {
+      "id": "90ab226b-54eb-447d-8ab2-b84c7ca1a081",
+      "title": "Memory Available",
+      "description": "Available memory across nodes by region",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "avg by (region) (node_memory_MemAvailable_bytes) / 1024 / 1024 / 1024",
+          "legendFormat": "{{region}}"
+        }
+      ],
+      "visualization": "time_series",
+      "row": 17,
+      "col": 6,
+      "width": 6,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "bytes",
+      "stackMode": "none",
+      "fillOpacity": 10,
+      "decimals": 1,
+      "thresholds": {
+        "steps": [
+          {
+            "color": "red",
+            "value": null
+          },
+          {
+            "color": "yellow",
+            "value": 2
+          },
+          {
+            "color": "green",
+            "value": 4
+          }
+        ]
+      },
+      "sectionId": "technical_reliability",
+      "sectionLabel": "Technical Reliability"
+    },
+    {
+      "id": "1e05eecf-2be2-4833-a091-4a365d785ac1",
+      "title": "Database Query Latency",
+      "description": "95th percentile database query latency by region",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (region, le) (rate(database_query_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{region}}"
+        }
+      ],
+      "visualization": "time_series",
+      "row": 20,
+      "col": 0,
+      "width": 6,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "seconds",
+      "stackMode": "none",
+      "fillOpacity": 10,
+      "decimals": 2,
+      "thresholds": {
+        "steps": [
+          {
+            "color": "green",
+            "value": null
+          },
+          {
+            "color": "yellow",
+            "value": 0.5
+          },
+          {
+            "color": "red",
+            "value": 1
+          }
+        ]
+      },
+      "sectionId": "technical_reliability",
+      "sectionLabel": "Technical Reliability"
+    },
+    {
+      "id": "7ecb28ab-0986-45d2-9e71-36a6c55a921c",
+      "title": "API Dependency Health",
+      "description": "Success rate for external API calls by region",
+      "queries": [
+        {
+          "refId": "A",
+          "expr": "sum by (region) (rate(api_calls_total{status=\"success\"}[5m])) / sum by (region) (rate(api_calls_total[5m]))",
+          "legendFormat": "{{region}}"
+        }
+      ],
+      "visualization": "time_series",
+      "row": 20,
+      "col": 6,
+      "width": 6,
+      "height": 3,
+      "refreshIntervalSec": 30,
+      "unit": "percentunit",
+      "stackMode": "none",
+      "fillOpacity": 10,
+      "decimals": 2,
+      "thresholds": {
+        "steps": [
+          {
+            "color": "green",
+            "value": null
+          },
+          {
+            "color": "red",
+            "value": 0.95
+          }
+        ]
+      },
+      "sectionId": "technical_reliability",
+      "sectionLabel": "Technical Reliability"
+    }
+  ],
+  "variables": [],
+  "refreshIntervalSec": 30,
+  "datasourceIds": [],
+  "useExistingMetrics": true,
+  "createdAt": "2026-04-04T04:53:17.505Z",
+  "updatedAt": "2026-04-04T04:56:49.875Z"
+}
