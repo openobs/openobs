@@ -22,6 +22,12 @@ export function createLlmProvider(cfg: LlmConfig): LLMProvider {
         baseUrl: cfg.baseUrl || undefined,
       });
 
+    case 'deepseek':
+      return new OpenAIProvider({
+        apiKey: cfg.apiKey ?? '',
+        baseUrl: cfg.baseUrl || 'https://api.deepseek.com',
+      });
+
     case 'gemini':
       return new GeminiProvider({
         apiKey: cfg.apiKey ?? '',

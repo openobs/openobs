@@ -18,7 +18,7 @@ import {
 // -- Types
 
 export interface LlmConfig {
-  provider: 'anthropic' | 'openai' | 'azure-openai' | 'aws-bedrock' | 'ollama' | 'gemini' | 'corporate-gateway';
+  provider: 'anthropic' | 'openai' | 'deepseek' | 'azure-openai' | 'aws-bedrock' | 'ollama' | 'gemini' | 'corporate-gateway';
   apiKey?: string;
   model: string;
   baseUrl?: string;
@@ -149,11 +149,14 @@ async function testLlmConnection(cfg: LlmConfig): Promise<{ ok: boolean; message
       return { ok: false, message: body.error?.message ?? `HTTP ${res.status}` };
     }
 
-    if (cfg.provider === 'openai') {
-      const key = cfg.apiKey ?? process.env['OPENAI_API_KEY'] ?? '';
+    if (cfg.provider === 'openai' || cfg.provider === 'deepseek') {
+      const key = cfg.apiKey ?? '';
       if (!key)
         return { ok: false, message: 'API key is required' };
-      const res = await fetch('https://api.openai.com/v1/models', {
+      const base = cfg.provider === 'deepseek'
+        ? (cfg.baseUrl || 'https://api.deepseek.com')
+        : (cfg.baseUrl || 'https://api.openai.com/v1');
+      const res = await fetch(`${base}/models`, {
         headers: { Authorization: `Bearer ${key}` },
       });
       if (res.ok)
@@ -240,8 +243,12 @@ async function fetchModels(cfg: { provider: string; apiKey?: string; baseUrl?: s
         const provider = new AnthropicProvider({ apiKey: cfg.apiKey ?? '' , baseUrl: cfg.baseUrl });
         return await provider.listModels();
       }
-      case 'openai': {
-        const provider = new OpenAIProvider({ apiKey: cfg.apiKey ?? '', baseUrl: cfg.baseUrl });
+      case 'openai':
+      case 'deepseek': {
+        const base = cfg.provider === 'deepseek'
+          ? (cfg.baseUrl || 'https://api.deepseek.com')
+          : cfg.baseUrl;
+        const provider = new OpenAIProvider({ apiKey: cfg.apiKey ?? '', baseUrl: base });
         return await provider.listModels();
       }
       case 'gemini': {

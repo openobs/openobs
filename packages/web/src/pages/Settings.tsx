@@ -3,7 +3,7 @@ import { apiClient } from '../api/client.js';
 
 // Types
 
-type LlmProvider = 'anthropic' | 'openai' | 'gemini' | 'azure-openai' | 'aws-bedrock' | 'ollama';
+type LlmProvider = 'anthropic' | 'openai' | 'deepseek' | 'gemini' | 'azure-openai' | 'aws-bedrock' | 'ollama';
 
 interface ModelInfo {
   id: string;
@@ -47,6 +47,14 @@ const LLM_PROVIDERS: Array<{
     value: 'openai',
     label: 'OpenAI',
     fallbackModels: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'],
+    needsKey: true,
+    needsUrl: true,
+    supportsModelFetch: true,
+  },
+  {
+    value: 'deepseek',
+    label: 'DeepSeek',
+    fallbackModels: ['deepseek-chat', 'deepseek-reasoner'],
     needsKey: true,
     supportsModelFetch: true,
   },
