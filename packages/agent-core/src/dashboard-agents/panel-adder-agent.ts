@@ -16,12 +16,23 @@ import type {
 
 // -- PanelAdder I/O
 
+export interface DatasourceContext {
+  name: string
+  type: string // e.g. 'prometheus', 'victoria-metrics', 'loki'
+  metrics: string[]
+  labelsByMetric: Record<string, string[]>
+}
+
 export interface PanelAdderInput {
   goal: string
   existingPanels: PanelConfig[]
   existingVariables: DashboardVariable[]
+  /** @deprecated use datasources instead */
   availableMetrics: string[]
+  /** @deprecated use datasources instead */
   labelsByMetric: Record<string, string[]>
+  /** All connected datasources with their discovered metrics */
+  datasources?: DatasourceContext[]
   gridNextRow: number
 }
 
@@ -107,24 +118,46 @@ export class PanelAdderAgent {
       ? `\n## Existing Panels (do NOT duplicate)\n${input.existingPanels.map((p) => `- ${p.title}`).join('\n')}\n`
       : ''
 
-    const metricsSection = input.availableMetrics.length
-      ? `\n## Available Metrics (from Prometheus)\nThese are the REAL metrics in this Prometheus instance. ONLY use metrics from this list:\n${input.availableMetrics.slice(0, 80).join('\n')}\n\nDo NOT invent metric names. If a metric is not in this list, it does not exist.\n`
-      : ''
-
-    const labelsSection = Object.keys(input.labelsByMetric).length
-      ? `\n## Label Dimensions & Sample Values\nThese show the REAL label names and values. Use these exact values in your queries:\n${Object.entries(input.labelsByMetric).slice(0, 20).map(([k, v]) => `- ${k}: ${v.join(', ')}`).join('\n')}\n\nDo NOT guess label values like job="api". Use the actual values shown above.\n`
-      : ''
+    // Build datasource context — support multiple datasources
+    let datasourceSection = ''
+    const dsContexts = input.datasources ?? []
+    if (dsContexts.length > 0) {
+      const parts = dsContexts.map((ds) => {
+        let section = `### Datasource: ${ds.name} (${ds.type})\n`
+        if (ds.metrics.length > 0) {
+          section += `Available metrics (ONLY use these — do NOT invent names):\n${ds.metrics.slice(0, 80).join('\n')}\n`
+        }
+        if (Object.keys(ds.labelsByMetric).length > 0) {
+          section += `Label dimensions & sample values (use these EXACT values):\n`
+          section += Object.entries(ds.labelsByMetric).slice(0, 20)
+            .map(([k, v]) => `- ${k}: ${v.join(', ')}`)
+            .join('\n')
+          section += '\n'
+        }
+        return section
+      })
+      datasourceSection = `\n## Connected Datasources\n${parts.join('\n')}\nDo NOT guess metric names or label values. Use ONLY what is listed above.\n`
+    } else {
+      // Fallback to legacy fields
+      const metricsSection = input.availableMetrics.length
+        ? `\n## Available Metrics\nONLY use metrics from this list:\n${input.availableMetrics.slice(0, 80).join('\n')}\n`
+        : ''
+      const labelsSection = Object.keys(input.labelsByMetric).length
+        ? `\n## Label Dimensions\n${Object.entries(input.labelsByMetric).slice(0, 20).map(([k, v]) => `- ${k}: ${v.join(', ')}`).join('\n')}\n`
+        : ''
+      datasourceSection = metricsSection + labelsSection
+    }
 
     const feedbackSection = criticFeedback
       ? `\n## CRITIC FEEDBACK - FIX THESE ISSUES\n${criticFeedback.issues.map((i) => `- [${i.severity}] ${i.panelTitle}: ${i.description} / Fix ${i.suggestedFix}`).join('\n')}\n`
       : ''
 
-    const systemPrompt = `You are a PromQL expert adding panels to an existing dashboard.
+    const systemPrompt = `You are an observability expert adding panels to a dashboard.
 
 ## Task
 The user wants to add panels to their dashboard. Generate the appropriate panel specifications based on their request.
 Decide the right number of panels based on the request - a simple metric might need 1 panel, a broader topic might need 2-3.
-${existingContext}${metricsSection}${labelsSection}${feedbackSection}
+${existingContext}${datasourceSection}${feedbackSection}
 
 ## PromQL Rules
 - rate() on counters (*_total, *_count) with [5m]

@@ -61,8 +61,9 @@ export class ReActLoop {
         continue
       }
 
-      const { message: chatReply, action } = step
-      log.info({ step: i, action, message: chatReply?.slice(0, 80), args: JSON.stringify(step.args).slice(0, 200) }, 'ReAct step')
+      const { message: chatReply, action, args = {} } = step
+      step.args = args // normalize undefined to empty object
+      log.info({ step: i, action, message: chatReply?.slice(0, 80), args: JSON.stringify(args).slice(0, 200) }, 'ReAct step')
 
       // Send conversational message to user before executing the action
       if (chatReply) {
