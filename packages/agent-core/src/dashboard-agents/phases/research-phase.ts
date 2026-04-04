@@ -6,6 +6,8 @@ const log = createLogger('research-phase')
 import { ResearchAgent, type ResearchResult } from '../research-agent.js'
 import { DiscoveryAgent } from '../discovery-agent.js'
 import type { GeneratorDeps, GenerateInput } from '../types.js'
+import type { IWebSearchAdapter } from '../../adapters/index.js'
+import { DuckDuckGoSearchAdapter } from '@agentic-obs/adapters'
 
 export interface ResearchPhaseResult {
   research?: ResearchResult
@@ -15,8 +17,13 @@ export interface ResearchPhaseResult {
 export class ResearchPhase {
   private readonly researchAgent: ResearchAgent
 
-  constructor(private deps: GeneratorDeps) {
-    this.researchAgent = new ResearchAgent(deps.gateway, deps.model, deps.sendEvent)
+  constructor(private deps: GeneratorDeps, searchAdapter?: IWebSearchAdapter) {
+    this.researchAgent = new ResearchAgent(
+      deps.gateway,
+      deps.model,
+      deps.sendEvent,
+      searchAdapter ?? new DuckDuckGoSearchAdapter(),
+    )
   }
 
   async run(input: GenerateInput): Promise<ResearchPhaseResult> {
@@ -29,7 +36,7 @@ export class ResearchPhase {
       args: { topic: input.goal },
       displayText: `Researching monitoring patterns for: ${shortGoal}`,
     })
-    if (this.deps.prometheusUrl) {
+    if (this.deps.metrics) {
       sendEvent?.({
         type: 'tool_call',
         tool: 'discover',
@@ -60,12 +67,11 @@ export class ResearchPhase {
         return undefined
       })
 
-    const discoveryPromise = this.deps.prometheusUrl
+    const discoveryPromise = this.deps.metrics
       ? (async () => {
           try {
             const discoveryAgent = new DiscoveryAgent(
-              this.deps.prometheusUrl!,
-              this.deps.prometheusHeaders ?? {},
+              this.deps.metrics!,
               sendEvent,
             )
             // First get all metric names, then use LLM to find relevant ones

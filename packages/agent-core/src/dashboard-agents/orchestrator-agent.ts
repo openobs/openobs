@@ -14,6 +14,7 @@ import type {
   IAlertRuleStore,
   DatasourceConfig,
 } from './types.js'
+import type { IMetricsAdapter } from '../adapters/index.js'
 import type { LLMGateway } from '@agentic-obs/llm-gateway'
 import { DashboardGeneratorAgent } from './dashboard-generator-agent.js'
 import { PanelAdderAgent } from './panel-adder-agent.js'
@@ -34,8 +35,7 @@ export interface OrchestratorDeps {
   conversationStore: IConversationStore
   investigationReportStore: IInvestigationReportStore
   alertRuleStore: IAlertRuleStore
-  prometheusUrl: string | undefined
-  prometheusHeaders: Record<string, string>
+  metricsAdapter?: IMetricsAdapter
   /** All configured datasources - used to inform the LLM about available environments */
   allDatasources?: DatasourceConfig[]
   sendEvent: (event: DashboardSseEvent) => void
@@ -76,20 +76,18 @@ export class OrchestratorAgent {
     const subAgentDeps = {
       gateway: deps.gateway,
       model: deps.model,
-      prometheusUrl: deps.prometheusUrl,
-      prometheusHeaders: deps.prometheusHeaders,
+      metrics: deps.metricsAdapter,
       sendEvent: deps.sendEvent,
     }
 
     this.generatorAgent = new DashboardGeneratorAgent(subAgentDeps)
     this.panelAdderAgent = new PanelAdderAgent(subAgentDeps)
 
-    if (deps.prometheusUrl) {
+    if (deps.metricsAdapter) {
       this.investigationAgent = new InvestigationAgent({
         gateway: deps.gateway,
         model: deps.model,
-        prometheusUrl: deps.prometheusUrl,
-        prometheusHeaders: deps.prometheusHeaders,
+        metrics: deps.metricsAdapter,
         sendEvent: deps.sendEvent,
       })
     }
@@ -97,8 +95,7 @@ export class OrchestratorAgent {
     this.alertRuleAgent = new AlertRuleAgent({
       gateway: deps.gateway,
       model: deps.model,
-      prometheusUrl: deps.prometheusUrl,
-      prometheusHeaders: deps.prometheusHeaders,
+      metrics: deps.metricsAdapter,
     })
 
     this.reactLoop = new ReActLoop({
@@ -110,7 +107,7 @@ export class OrchestratorAgent {
 
     this.verifierAgent = new VerifierAgent()
 
-    console.log(`[Orchestrator] init: prometheusUrl=${deps.prometheusUrl ? 'SET' : 'UNSET'}, investigationAgent=${this.investigationAgent ? 'YES' : 'NO'}`)
+    console.log(`[Orchestrator] init: metricsAdapter=${deps.metricsAdapter ? 'SET' : 'UNSET'}, investigationAgent=${this.investigationAgent ? 'YES' : 'NO'}`)
   }
 
   private emitAgentEvent(event: AgentEvent): void {
@@ -253,8 +250,7 @@ export class OrchestratorAgent {
           let verificationFailed = false
           if (updatedDash) {
             const verificationReport = await this.verifierAgent.verify('dashboard', updatedDash, {
-              prometheusUrl: this.deps.prometheusUrl,
-              prometheusHeaders: this.deps.prometheusHeaders,
+              metricsAdapter: this.deps.metricsAdapter,
             })
             this.deps.sendEvent({ type: 'verification_report', report: verificationReport })
             this.emitAgentEvent(this.makeAgentEvent('agent.artifact_verified', {
@@ -323,11 +319,10 @@ export class OrchestratorAgent {
           // Discover available metrics and labels before generating panels
           let availableMetrics: string[] = []
           let labelsByMetric: Record<string, string[]> = {}
-          if (this.deps.prometheusUrl) {
+          if (this.deps.metricsAdapter) {
             try {
               const discoveryAgent = new DiscoveryAgent(
-                this.deps.prometheusUrl,
-                this.deps.prometheusHeaders ?? {},
+                this.deps.metricsAdapter,
                 this.deps.sendEvent,
               )
               // Extract metric search keywords from goal using LLM
@@ -386,8 +381,7 @@ export class OrchestratorAgent {
           let addPanelsVerificationFailed = false
           if (updatedDashForPanels) {
             const verificationReport = await this.verifierAgent.verify('dashboard', updatedDashForPanels, {
-              prometheusUrl: this.deps.prometheusUrl,
-              prometheusHeaders: this.deps.prometheusHeaders,
+              metricsAdapter: this.deps.metricsAdapter,
             })
             this.deps.sendEvent({ type: 'verification_report', report: verificationReport })
             this.emitAgentEvent(this.makeAgentEvent('agent.artifact_verified', {
@@ -452,8 +446,7 @@ export class OrchestratorAgent {
 
           // Run verification on the investigation report
           const verificationReport = await this.verifierAgent.verify('investigation_report', result.report, {
-            prometheusUrl: this.deps.prometheusUrl,
-            prometheusHeaders: this.deps.prometheusHeaders,
+            metricsAdapter: this.deps.metricsAdapter,
           })
           this.deps.sendEvent({ type: 'verification_report', report: verificationReport })
           this.emitAgentEvent(this.makeAgentEvent('agent.artifact_verified', {

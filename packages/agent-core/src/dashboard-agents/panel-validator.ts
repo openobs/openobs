@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { LLMGateway, CompletionMessage } from '@agentic-obs/llm-gateway'
 import { createLogger } from '@agentic-obs/common'
+import type { IMetricsAdapter } from '../adapters/index.js'
 import type {
   PanelConfig,
   PanelQuery,
@@ -52,8 +53,7 @@ export class PanelValidator {
   constructor(
     private gateway: LLMGateway,
     private model: string,
-    private prometheusUrl: string | undefined,
-    private headers: Record<string, string>,
+    private metrics: IMetricsAdapter | undefined,
     private sendEvent: (event: DashboardSseEvent) => void,
   ) {}
 
@@ -221,33 +221,23 @@ export class PanelValidator {
     error?: string
     seriesCount?: number
   }> {
-    if (!this.prometheusUrl) {
+    if (!this.metrics) {
       return { success: true }
     }
 
     try {
-      const url = `${this.prometheusUrl}/api/v1/query?query=${encodeURIComponent(expr)}&time=${Math.floor(Date.now() / 1000)}`
-      const res = await fetch(url, {
-        headers: this.headers,
-        signal: AbortSignal.timeout(5_000),
-      })
-
-      if (!res.ok) {
-        return { success: false, error: `HTTP ${res.status}` }
+      const testResult = await this.metrics.testQuery(expr)
+      if (!testResult.ok) {
+        return { success: false, error: testResult.error }
       }
-
-      const body = (await res.json()) as {
-        status?: string
-        data?: { result?: unknown[] }
-        error?: string
+      // Get series count via instantQuery for cardinality check
+      try {
+        const samples = await this.metrics.instantQuery(expr)
+        return { success: true, seriesCount: samples.length }
+      } catch {
+        // testQuery succeeded but instantQuery failed — still valid
+        return { success: true }
       }
-
-      if (body.status === 'error') {
-        return { success: false, error: body.error }
-      }
-
-      const seriesCount = Array.isArray(body.data?.result) ? body.data.result.length : 0
-      return { success: true, seriesCount }
     }
     catch (err) {
       // Network / timeout treat as success to avoid blocking dashboard generation

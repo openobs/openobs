@@ -4,6 +4,7 @@ import type { LLMGateway } from '@agentic-obs/llm-gateway'
 import { createLogger } from '@agentic-obs/common'
 import { agentRegistry } from '../runtime/agent-registry.js'
 import { VerifierAgent } from '../verification/verifier-agent.js'
+import type { IMetricsAdapter } from '../adapters/index.js'
 import type {
   PanelConfig,
   PanelQuery,
@@ -20,8 +21,7 @@ const log = createLogger('investigation-agent')
 export interface InvestigationDeps {
   gateway: LLMGateway
   model: string
-  prometheusUrl: string
-  prometheusHeaders: Record<string, string>
+  metrics: IMetricsAdapter
   sendEvent: (event: DashboardSseEvent) => void
 }
 
@@ -191,8 +191,7 @@ export class InvestigationAgent {
       'investigation_report',
       report,
       {
-        prometheusUrl: this.deps.prometheusUrl,
-        prometheusHeaders: this.deps.prometheusHeaders,
+        metricsAdapter: this.deps.metrics,
       },
     )
 
@@ -212,13 +211,7 @@ export class InvestigationAgent {
   // Step 0: Discover what metrics actually exist in Prometheus
   private async discoverMetrics(): Promise<string[]> {
     try {
-      const res = await fetch(
-        `${this.deps.prometheusUrl}/api/v1/label/__name__/values`,
-        { headers: this.deps.prometheusHeaders, signal: AbortSignal.timeout(10_000) },
-      )
-      if (!res.ok) return []
-      const body = (await res.json()) as { status?: string; data?: string[] }
-      return body.data ?? []
+      return await this.deps.metrics.listMetricNames()
     } catch {
       return []
     }
@@ -286,35 +279,34 @@ ${existingContext}${metricsContext}
     }
   }
 
-  // Step 2: Execute queries against Prometheus
+  // Step 2: Execute queries against Prometheus via adapter
   private async executeQueries(
     queries: InvestigationPlan['queries'],
   ): Promise<QueryEvidence[]> {
     return Promise.all(
       queries.map(async (q): Promise<QueryEvidence> => {
         try {
-          const endpoint = q.instant ? 'query' : 'query_range'
-          const now = Math.floor(Date.now() / 1000)
-          const params = q.instant
-            ? `query=${encodeURIComponent(q.expr)}&time=${now}`
-            : `query=${encodeURIComponent(q.expr)}&start=${now - 3600}&end=${now}&step=60`
-          const url = `${this.deps.prometheusUrl}/api/v1/${endpoint}?${params}`
-
-          const res = await fetch(url, {
-            headers: this.deps.prometheusHeaders,
-            signal: AbortSignal.timeout(10_000),
-          })
-
-          if (!res.ok) {
-            return { ...q, result: null, error: `HTTP ${res.status}` }
+          if (q.instant) {
+            const samples = await this.deps.metrics.instantQuery(q.expr)
+            return {
+              ...q,
+              result: {
+                resultType: 'vector',
+                result: samples.map((s) => ({ metric: s.labels, value: [s.timestamp, String(s.value)] })),
+              },
+            }
+          } else {
+            const now = new Date()
+            const start = new Date(now.getTime() - 3600_000)
+            const ranges = await this.deps.metrics.rangeQuery(q.expr, start, now, '60')
+            return {
+              ...q,
+              result: {
+                resultType: 'matrix',
+                result: ranges.map((r) => ({ metric: r.metric, values: r.values })),
+              },
+            }
           }
-
-          const body = await res.json() as { status?: string, data?: unknown, error?: string }
-          if (body.status !== 'success') {
-            return { ...q, result: null, error: body.error ?? 'Query failed' }
-          }
-
-          return { ...q, result: body.data }
         }
         catch (err) {
           return { ...q, result: null, error: err instanceof Error ? err.message : 'Query failed' }

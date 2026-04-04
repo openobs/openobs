@@ -32,3 +32,4 @@ export * from './prometheus/index.js';
 export * from './trace/index.js';
 export * from './log/index.js';
 export * from './execution/index.js';
+export * from './web-search/index.js';

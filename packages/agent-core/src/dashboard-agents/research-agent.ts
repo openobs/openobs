@@ -2,6 +2,7 @@ import { parseLlmJson } from './llm-json.js'
 import type { LLMGateway, CompletionMessage } from '@agentic-obs/llm-gateway'
 import { createLogger } from '@agentic-obs/common'
 import type { DashboardSseEvent } from '@agentic-obs/common'
+import type { IWebSearchAdapter } from '../adapters/index.js'
 
 const log = createLogger('research-agent')
 
@@ -36,6 +37,7 @@ export class ResearchAgent {
     private gateway: LLMGateway,
     private model: string,
     private sendEvent: (event: DashboardSseEvent) => void,
+    private searchAdapter: IWebSearchAdapter,
   ) {}
 
   async research(topic: string): Promise<ResearchResult> {
@@ -53,8 +55,8 @@ export class ResearchAgent {
       displayText: `Searching: ${searchQuery}`,
     })
 
-    const searchResults = await this.webSearch(searchQuery)
-    log.info({ count: searchResults.length, firstSnippet: searchResults[0]?.slice(0, 120) }, 'web search complete')
+    const searchResults = await this.searchAdapter.search(searchQuery)
+    log.info({ count: searchResults.length, firstSnippet: searchResults[0]?.snippet.slice(0, 120) }, 'web search complete')
 
     this.sendEvent({
       type: 'tool_result',
@@ -65,11 +67,12 @@ export class ResearchAgent {
 
     // Step 2: LLM extracts structured knowledge from search results
     this.sendEvent({ type: 'thinking', content: 'Extracting monitoring insights...' })
-    const knowledge = await this.extractKnowledge(topic, searchResults)
+    const snippets = searchResults.map(r => r.snippet)
+    const knowledge = await this.extractKnowledge(topic, snippets)
     log.info({ metrics: knowledge.keyMetrics.length, practices: knowledge.bestPractices.length }, 'extracted monitoring knowledge')
 
-    const rawContext = searchResults.length > 0
-      ? `Web search results:\n${searchResults.map((s, i) => `${i + 1}. ${s}`).join('\n')}`
+    const rawContext = snippets.length > 0
+      ? `Web search results:\n${snippets.map((s, i) => `${i + 1}. ${s}`).join('\n')}`
       : ''
 
     return {
@@ -103,42 +106,6 @@ Return ONLY the query string, nothing else.`,
     }
     catch {
       return `${topic} prometheus monitoring metrics`
-    }
-  }
-
-  private async webSearch(query: string): Promise<string[]> {
-    try {
-      const encodedQuery = encodeURIComponent(query)
-      const searchUrl = `https://html.duckduckgo.com/html/?q=${encodedQuery}`
-      const res = await fetch(searchUrl, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; observability-assistant/1.0)' },
-        signal: AbortSignal.timeout(8_000),
-      })
-
-      if (!res.ok)
-        return []
-
-      const html = await res.text()
-      const snippets: string[] = []
-      const snippetPattern = /<a class="result__snippet" [^>]*>([\s\S]*?)<\/a>/g
-      let match: RegExpExecArray | null
-      while ((match = snippetPattern.exec(html)) !== null && snippets.length < 8) {
-        const text = (match[1] ?? '')
-          .replace(/<[^>]+>/g, '')
-          .replace(/&amp;/g, '&')
-          .replace(/&lt;/g, '<')
-          .replace(/&gt;/g, '>')
-          .replace(/&#x27;/g, '\'')
-          .trim()
-
-        if (text.length > 20)
-          snippets.push(text)
-      }
-
-      return snippets
-    }
-    catch {
-      return []
     }
   }
 

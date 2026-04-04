@@ -1,6 +1,7 @@
 import { DEFAULT_LLM_MODEL, type AlertRule } from '@agentic-obs/common';
 import { defaultAlertRuleStore } from '@agentic-obs/data-layer';
 import { AlertRuleAgent } from '@agentic-obs/agent-core';
+import { PrometheusMetricsAdapter } from '@agentic-obs/adapters';
 import { getSetupConfig } from '../routes/setup.js';
 import { createLlmGateway } from '../routes/llm-factory.js';
 import { resolvePrometheusDatasource } from './dashboard-service.js';
@@ -24,10 +25,9 @@ export class AlertRuleService {
     const model = config.llm.model || DEFAULT_LLM_MODEL;
 
     const prom = resolvePrometheusDatasource(config.datasources);
-    const prometheusUrl = prom?.url;
-    const prometheusHeaders = prom?.headers ?? {};
+    const metrics = prom ? new PrometheusMetricsAdapter(prom.url, prom.headers) : undefined;
 
-    const agent = new AlertRuleAgent({ gateway, model, prometheusUrl, prometheusHeaders });
+    const agent = new AlertRuleAgent({ gateway, model, metrics });
     const result = await agent.generate(prompt);
     const generated = result.rule;
 

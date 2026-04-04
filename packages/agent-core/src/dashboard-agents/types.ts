@@ -75,8 +75,7 @@ export interface RawPanelSpec {
 export interface GeneratorDeps {
   gateway: import('@agentic-obs/llm-gateway').LLMGateway
   model: string
-  prometheusUrl: string | undefined
-  prometheusHeaders: Record<string, string>
+  metrics?: import('../adapters/index.js').IMetricsAdapter
   sendEvent: (event: import('@agentic-obs/common').DashboardSseEvent) => void
 }
 

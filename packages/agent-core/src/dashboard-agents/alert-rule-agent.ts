@@ -3,6 +3,7 @@ import { createLogger } from '@agentic-obs/common'
 import { agentRegistry } from '../runtime/agent-registry.js'
 import { VerifierAgent } from '../verification/verifier-agent.js'
 import type { VerificationReport } from '../verification/types.js'
+import type { IMetricsAdapter } from '../adapters/index.js'
 import type { AlertCondition, AlertSeverity } from '@agentic-obs/common'
 
 const log = createLogger('alert-rule-agent')
@@ -10,8 +11,7 @@ const log = createLogger('alert-rule-agent')
 interface AlertRuleAgentDeps {
   gateway: LLMGateway
   model: string
-  prometheusUrl: string | undefined
-  prometheusHeaders: Record<string, string>
+  metrics?: IMetricsAdapter
 }
 
 interface GeneratedAlertRule {
@@ -44,18 +44,13 @@ export class AlertRuleAgent {
   constructor(private deps: AlertRuleAgentDeps) {}
 
   async generate(prompt: string, context?: AlertRuleContext): Promise<AlertRuleGenerationResult> {
-    // Step 1: Discover available metrics (if Prometheus available)
+    // Step 1: Discover available metrics (if adapter available)
     let availableMetrics = ''
-    if (this.deps.prometheusUrl) {
+    if (this.deps.metrics) {
       try {
-        const resp = await fetch(`${this.deps.prometheusUrl}/api/v1/label/__name__/values`, {
-          headers: this.deps.prometheusHeaders,
-        })
-        if (resp.ok) {
-          const data = await resp.json() as { data?: string[] }
-          const metrics = (data.data ?? []).slice(0, 200)
-          availableMetrics = `\n## Available Prometheus Metrics (sample)\n${metrics.join(', ')}`
-        }
+        const allNames = await this.deps.metrics.listMetricNames()
+        const metrics = allNames.slice(0, 200)
+        availableMetrics = `\n## Available Prometheus Metrics (sample)\n${metrics.join(', ')}`
       }
       catch {
         // Ignore - proceed without metric list
@@ -137,17 +132,16 @@ Return ONLY valid JSON:
 
     // Step 3: Validate query against Prometheus
     let finalRule = generated
-    if (this.deps.prometheusUrl) {
+    if (this.deps.metrics) {
       try {
-        const testUrl = `${this.deps.prometheusUrl}/api/v1/query?query=${encodeURIComponent(generated.condition.query)}`
-        const testResp = await fetch(testUrl, { headers: this.deps.prometheusHeaders })
-        if (!testResp.ok) {
+        const testResult = await this.deps.metrics.testQuery(generated.condition.query)
+        if (!testResult.ok) {
           // Query failed - ask LLM to fix
           const fixResp = await this.deps.gateway.complete([
             { role: 'system', content: systemPrompt },
             { role: 'user', content: prompt },
             { role: 'assistant', content: cleaned },
-            { role: 'user', content: `The PromQL query "${generated.condition.query}" failed validation against Prometheus (status ${testResp.status}). Please fix the query and return the complete JSON again.` },
+            { role: 'user', content: `The PromQL query "${generated.condition.query}" failed validation against Prometheus: ${testResult.error ?? 'unknown error'}. Please fix the query and return the complete JSON again.` },
           ], {
             model: this.deps.model,
             maxTokens: 1024,
@@ -190,8 +184,7 @@ Return ONLY valid JSON:
       'alert_rule',
       ruleForVerification,
       {
-        prometheusUrl: this.deps.prometheusUrl,
-        prometheusHeaders: this.deps.prometheusHeaders,
+        metricsAdapter: this.deps.metrics,
       },
     )
 

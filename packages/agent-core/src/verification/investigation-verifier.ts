@@ -1,16 +1,20 @@
 import type { InvestigationReport } from '@agentic-obs/common';
+import type { IMetricsAdapter } from '../adapters/index.js';
 import type { VerificationReport, VerificationIssue } from './types.js';
 import { testPrometheusQuery } from './prometheus-tester.js';
 
 export interface InvestigationVerifierInput {
   report: InvestigationReport;
+  /** @deprecated Use metricsAdapter instead */
   prometheusUrl?: string;
+  /** @deprecated Use metricsAdapter instead */
   prometheusHeaders?: Record<string, string>;
+  metricsAdapter?: IMetricsAdapter;
 }
 
 export class InvestigationVerifier {
   async verify(input: InvestigationVerifierInput): Promise<VerificationReport> {
-    const { report, prometheusUrl, prometheusHeaders } = input;
+    const { report, prometheusUrl, prometheusHeaders, metricsAdapter } = input;
     const issues: VerificationIssue[] = [];
     const checksRun: string[] = [];
 
@@ -57,11 +61,12 @@ export class InvestigationVerifier {
       }
 
       // Optional Prometheus validation (warning only)
-      if (prometheusUrl) {
+      const queryTarget = metricsAdapter ?? prometheusUrl;
+      if (queryTarget) {
         for (const q of queries) {
           if (!q.expr || q.expr.trim().length === 0) continue;
           const result = await testPrometheusQuery(
-            prometheusUrl,
+            queryTarget,
             q.expr,
             prometheusHeaders,
           );

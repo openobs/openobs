@@ -20,6 +20,7 @@ export class VerifierAgent {
           dashboard: target as Dashboard,
           prometheusUrl: context?.prometheusUrl,
           prometheusHeaders: context?.prometheusHeaders,
+          metricsAdapter: context?.metricsAdapter,
         });
       }
 
@@ -28,6 +29,7 @@ export class VerifierAgent {
           report: target as InvestigationReport,
           prometheusUrl: context?.prometheusUrl,
           prometheusHeaders: context?.prometheusHeaders,
+          metricsAdapter: context?.metricsAdapter,
         });
       }
 
@@ -36,6 +38,7 @@ export class VerifierAgent {
           rule: target as AlertRule,
           prometheusUrl: context?.prometheusUrl,
           prometheusHeaders: context?.prometheusHeaders,
+          metricsAdapter: context?.metricsAdapter,
         });
       }
 

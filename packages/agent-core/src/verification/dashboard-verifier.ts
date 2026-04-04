@@ -1,16 +1,20 @@
 import type { Dashboard, PanelConfig, PanelQuery } from '@agentic-obs/common';
+import type { IMetricsAdapter } from '../adapters/index.js';
 import type { VerificationReport, VerificationIssue } from './types.js';
 import { testPrometheusQuery } from './prometheus-tester.js';
 
 export interface DashboardVerifierInput {
   dashboard: Dashboard;
+  /** @deprecated Use metricsAdapter instead */
   prometheusUrl?: string;
+  /** @deprecated Use metricsAdapter instead */
   prometheusHeaders?: Record<string, string>;
+  metricsAdapter?: IMetricsAdapter;
 }
 
 export class DashboardVerifier {
   async verify(input: DashboardVerifierInput): Promise<VerificationReport> {
-    const { dashboard, prometheusUrl, prometheusHeaders } = input;
+    const { dashboard, prometheusUrl, prometheusHeaders, metricsAdapter } = input;
     const issues: VerificationIssue[] = [];
     const checksRun: string[] = [];
 
@@ -98,8 +102,9 @@ export class DashboardVerifier {
       }
     }
 
-    // 6. query_valid - test queries against Prometheus if URL is provided
-    if (prometheusUrl) {
+    // 6. query_valid - test queries against Prometheus if adapter or URL is provided
+    const queryTarget = metricsAdapter ?? prometheusUrl;
+    if (queryTarget) {
       checksRun.push('query_valid');
       for (const panel of dashboard.panels ?? []) {
         const queries = this.getPanelQueries(panel);
@@ -108,7 +113,7 @@ export class DashboardVerifier {
           if (this.extractVariableRefs(q.expr).length > 0) continue;
 
           const result = await testPrometheusQuery(
-            prometheusUrl,
+            queryTarget,
             q.expr,
             prometheusHeaders,
           );

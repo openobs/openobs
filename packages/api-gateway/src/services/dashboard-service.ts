@@ -8,6 +8,7 @@ import { defaultInvestigationReportStore, defaultAlertRuleStore } from '@agentic
 import { getSetupConfig, type DatasourceConfig } from '../routes/setup.js';
 import { createLlmGateway } from '../routes/llm-factory.js';
 import { DashboardOrchestratorAgent as OrchestratorAgent } from '@agentic-obs/agent-core';
+import { PrometheusMetricsAdapter } from '@agentic-obs/adapters';
 
 // -- Prometheus resolution (shared across services)
 
@@ -91,6 +92,10 @@ export class DashboardService {
     const model = config.llm.model;
     const prom = resolvePrometheusDatasource(config.datasources);
 
+    const metricsAdapter = prom
+      ? new PrometheusMetricsAdapter(prom.url, prom.headers)
+      : undefined;
+
     const orchestrator = new OrchestratorAgent({
       gateway,
       model,
@@ -98,8 +103,7 @@ export class DashboardService {
       conversationStore: this.conversationStore,
       investigationReportStore: defaultInvestigationReportStore,
       alertRuleStore: defaultAlertRuleStore,
-      prometheusUrl: prom?.url,
-      prometheusHeaders: prom?.headers ?? {},
+      metricsAdapter,
       allDatasources: config.datasources,
       sendEvent,
     });

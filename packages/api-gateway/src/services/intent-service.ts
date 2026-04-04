@@ -3,6 +3,7 @@ import { createLogger, DEFAULT_LLM_MODEL, type AlertRule } from '@agentic-obs/co
 const log = createLogger('intent-service');
 import { defaultAlertRuleStore } from '@agentic-obs/data-layer';
 import { AlertRuleAgent } from '@agentic-obs/agent-core';
+import { PrometheusMetricsAdapter } from '@agentic-obs/adapters';
 import type { IGatewayDashboardStore } from '../repositories/types.js';
 import { getSetupConfig } from '../routes/setup.js';
 import { createLlmGateway } from '../routes/llm-factory.js';
@@ -88,10 +89,9 @@ export class IntentService {
     const model = config.llm.model || DEFAULT_LLM_MODEL;
 
     const prom = resolvePrometheusDatasource(config.datasources);
-    const prometheusUrl = prom?.url;
-    const prometheusHeaders = prom?.headers ?? {};
+    const metrics = prom ? new PrometheusMetricsAdapter(prom.url, prom.headers) : undefined;
 
-    const agent = new AlertRuleAgent({ gateway, model, prometheusUrl, prometheusHeaders });
+    const agent = new AlertRuleAgent({ gateway, model, metrics });
     const result = await agent.generate(message);
     const generated = result.rule;
 

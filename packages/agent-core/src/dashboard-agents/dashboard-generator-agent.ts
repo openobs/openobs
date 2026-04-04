@@ -97,13 +97,12 @@ export class DashboardGeneratorAgent {
 
     // Step 4: Validate & fix queries against Prometheus (if available)
     let validated: PanelConfig[]
-    if (this.deps.prometheusUrl) {
+    if (this.deps.metrics) {
       const { PanelValidator } = await import('./panel-validator.js')
       const validator = new PanelValidator(
         this.deps.gateway,
         this.deps.model,
-        this.deps.prometheusUrl,
-        this.deps.prometheusHeaders ?? {},
+        this.deps.metrics,
         this.deps.sendEvent,
       )
       validated = await validator.validateAndCorrect(

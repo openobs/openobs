@@ -1,6 +1,7 @@
 // Discovery Sub-Agent - probes Prometheus to find metrics, labels, and sample data
 
 import type { DashboardSseEvent } from '@agentic-obs/common'
+import type { IMetricsAdapter } from '../adapters/index.js'
 
 export interface DiscoveryResult {
   metrics: string[]
@@ -9,20 +10,9 @@ export interface DiscoveryResult {
   totalMetrics: number
 }
 
-interface PrometheusVectorResult {
-  metric: Record<string, string>
-  value: [number, string]
-}
-
-interface PrometheusResponse<T> {
-  status: string
-  data: T
-}
-
 export class DiscoveryAgent {
   constructor(
-    private prometheusUrl: string,
-    private headers: Record<string, string>,
+    private metrics: IMetricsAdapter,
     private sendEvent: (event: DashboardSseEvent) => void,
   ) {}
 
@@ -123,9 +113,8 @@ export class DiscoveryAgent {
     }
   }
 
-  /** Server-side metric discovery via /api/v1/series — scales to large instances */
+  /** Server-side metric discovery via series match — scales to large instances */
   private async fetchMetricsBySeriesMatch(patterns: string[]): Promise<string[]> {
-    const baseUrl = this.prometheusUrl.replace(/\/$/, '')
     // Convert patterns to PromQL matchers: "http" → {__name__=~".*http.*"}
     const matchers = patterns
       .filter((p) => p.trim().length > 0)
@@ -136,43 +125,11 @@ export class DiscoveryAgent {
 
     if (matchers.length === 0) return []
 
-    const params = new URLSearchParams()
-    for (const m of matchers) params.append('match[]', m)
-    // Limit time range to last 5 minutes for speed
-    const now = Math.floor(Date.now() / 1000)
-    params.set('start', String(now - 300))
-    params.set('end', String(now))
-
-    const res = await fetch(`${baseUrl}/api/v1/series?${params}`, {
-      headers: this.headers,
-      signal: AbortSignal.timeout(15_000),
-    })
-
-    if (!res.ok) return []
-
-    const body = await res.json() as PrometheusResponse<Array<Record<string, string>>>
-    const names = new Set<string>()
-    for (const series of (body.data ?? [])) {
-      if (series['__name__']) names.add(series['__name__'])
-    }
-    return [...names].sort()
+    return this.metrics.findSeries(matchers)
   }
 
   private async fetchMetricNames(): Promise<string[]> {
-    const baseUrl = this.prometheusUrl.replace(/\/$/, '')
-    const url = `${baseUrl}/api/v1/label/__name__/values`
-
-    const res = await fetch(url, {
-      headers: this.headers,
-      signal: AbortSignal.timeout(15_000),
-    })
-
-    if (!res.ok) {
-      throw new Error(`Prometheus returned HTTP ${res.status} fetching metric names`)
-    }
-
-    const body = await res.json() as PrometheusResponse<string[]>
-    return Array.isArray(body.data) ? body.data : []
+    return this.metrics.listMetricNames()
   }
 
   private filterByPatterns(names: string[], patterns: string[]): string[] {
@@ -189,50 +146,21 @@ export class DiscoveryAgent {
   }
 
   private async fetchLabels(metric: string): Promise<string[]> {
-    const baseUrl = this.prometheusUrl.replace(/\/$/, '')
-    const params = new URLSearchParams()
-    params.set('match[]', metric)
-    const url = `${baseUrl}/api/v1/labels?${params}`
-
-    const res = await fetch(url, {
-      headers: this.headers,
-      signal: AbortSignal.timeout(10_000),
-    })
-
-    if (!res.ok) {
-      return []
-    }
-
-    const body = await res.json() as PrometheusResponse<string[]>
-    const labels = Array.isArray(body.data) ? body.data : []
-    // Exclude internal Prometheus label
-    return labels.filter((l) => l !== '__name__')
+    return this.metrics.listLabels(metric)
   }
 
   private async sampleMetric(metric: string): Promise<{ count: number, sampleLabels: Record<string, string>[] }> {
-    const baseUrl = this.prometheusUrl.replace(/\/$/, '')
-    const params = new URLSearchParams()
-    params.set('query', metric)
-    const url = `${baseUrl}/api/v1/query?${params}`
-
-    const res = await fetch(url, {
-      headers: this.headers,
-      signal: AbortSignal.timeout(10_000),
-    })
-
-    if (!res.ok) {
+    try {
+      const samples = await this.metrics.instantQuery(metric)
+      const count = samples.length
+      // Return up to 3 sample label sets (strip __name__ from labels)
+      const sampleLabels = samples.slice(0, 3).map((s) => {
+        const { __name__: _name, ...rest } = s.labels
+        return rest
+      })
+      return { count, sampleLabels }
+    } catch {
       return { count: 0, sampleLabels: [] }
     }
-
-    const body = await res.json() as PrometheusResponse<{ resultType: string, result: PrometheusVectorResult[] }>
-    const results = body.data?.result ?? []
-    const count = results.length
-    // Return up to 3 sample label sets (strip __name__ from labels)
-    const sampleLabels = results.slice(0, 3).map((r) => {
-      const { __name__: _name, ...rest } = r.metric
-      return rest
-    })
-
-    return { count, sampleLabels }
   }
 }

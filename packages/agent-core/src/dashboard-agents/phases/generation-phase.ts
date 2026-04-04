@@ -98,7 +98,7 @@ export class GenerationPhase {
 
   // Validate queries against Prometheus (if available)
   async validateQueries(panels: PanelConfig[]): Promise<PanelConfig[]> {
-    if (!this.deps.prometheusUrl)
+    if (!this.deps.metrics)
       return panels
 
     const validated: PanelConfig[] = []
@@ -374,15 +374,11 @@ approved = true if overallScore >= 8 AND no severity=error issues.`
 
   private async queryPrometheus(expr: string): Promise<boolean> {
     try {
-      if (!this.deps.prometheusUrl)
+      if (!this.deps.metrics)
         return true
 
-      const url = `${this.deps.prometheusUrl}/api/v1/query?query=${encodeURIComponent(expr)}&time=${Math.floor(Date.now() / 1000)}`
-      const res = await fetch(url, { headers: this.deps.prometheusHeaders })
-      if (!res.ok)
-        return false
-      const body = await res.json() as { status?: string }
-      return body.status === 'success'
+      const result = await this.deps.metrics.testQuery(expr)
+      return result.ok
     }
     catch {
       return true // Network error shouldn't block

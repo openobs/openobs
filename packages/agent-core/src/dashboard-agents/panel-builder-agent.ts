@@ -1,6 +1,7 @@
 import { parseLlmJson } from './llm-json.js'
 import type { LLMGateway, CompletionMessage } from '@agentic-obs/llm-gateway'
 import { createLogger } from '@agentic-obs/common'
+import type { IMetricsAdapter } from '../adapters/index.js'
 import type {
   PanelConfig,
   DashboardVariable,
@@ -58,11 +59,10 @@ export class PanelBuilderAgent {
   constructor(
     private gateway: LLMGateway,
     private model: string,
-    private prometheusUrl: string | undefined,
-    private headers: Record<string, string>,
+    private metrics: IMetricsAdapter | undefined,
     private sendEvent: (event: DashboardSseEvent) => void,
   ) {
-    this.validator = new PanelValidator(gateway, model, prometheusUrl, headers, sendEvent)
+    this.validator = new PanelValidator(gateway, model, metrics, sendEvent)
   }
 
   async build(input: PanelBuilderInput): Promise<PanelBuilderOutput> {

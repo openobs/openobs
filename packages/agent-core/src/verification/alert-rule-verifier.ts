@@ -1,11 +1,15 @@
 import type { AlertRule } from '@agentic-obs/common';
+import type { IMetricsAdapter } from '../adapters/index.js';
 import type { VerificationReport, VerificationIssue } from './types.js';
 import { testPrometheusQuery } from './prometheus-tester.js';
 
 export interface AlertRuleVerifierInput {
   rule: AlertRule;
+  /** @deprecated Use metricsAdapter instead */
   prometheusUrl?: string;
+  /** @deprecated Use metricsAdapter instead */
   prometheusHeaders?: Record<string, string>;
+  metricsAdapter?: IMetricsAdapter;
 }
 
 const VALID_SEVERITIES = new Set(['critical', 'high', 'medium', 'low']);
@@ -13,7 +17,7 @@ const VALID_OPERATORS = new Set(['>', '>=', '<', '<=', '==', '!=']);
 
 export class AlertRuleVerifier {
   async verify(input: AlertRuleVerifierInput): Promise<VerificationReport> {
-    const { rule, prometheusUrl, prometheusHeaders } = input;
+    const { rule, prometheusUrl, prometheusHeaders, metricsAdapter } = input;
     const issues: VerificationIssue[] = [];
     const checksRun: string[] = [];
 
@@ -124,14 +128,15 @@ export class AlertRuleVerifier {
     }
 
     // 6. query_executable - test PromQL query against Prometheus
+    const queryTarget = metricsAdapter ?? prometheusUrl;
     if (
-      prometheusUrl &&
+      queryTarget &&
       rule.condition?.query &&
       rule.condition.query.trim().length > 0
     ) {
       checksRun.push('query_executable');
       const result = await testPrometheusQuery(
-        prometheusUrl,
+        queryTarget,
         rule.condition.query,
         prometheusHeaders,
       );
