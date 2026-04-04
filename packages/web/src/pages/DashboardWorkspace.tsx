@@ -523,8 +523,15 @@ export default function DashboardWorkspace() {
               }}
               onScrollToPanel={scrollToPanel}
               onExport={() => {
-                if (!id) return;
-                window.open(`/api/dashboards/${id}/export`, '_blank');
+                if (!id || !dashboard) return;
+                const json = JSON.stringify(dashboard, null, 2);
+                const blob = new Blob([json], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${dashboard.title.replace(/[^a-zA-Z0-9_-]/g, '_')}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
               }}
             />
 
