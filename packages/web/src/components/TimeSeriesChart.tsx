@@ -219,9 +219,8 @@ function RechartsArea({
   const seriesLabels = useMemo(() => displaySeries.map((s) => resolveLabel(s)), [displaySeries]);
 
   return (
-    <div className="flex flex-col h-full bg-[#141420] rounded-lg p-2">
-      <div className="flex-1 min-h-0">
-      <ResponsiveContainer width="100%" height="100%">
+    <div className="h-full bg-[#141420] rounded-lg p-2">
+      <ResponsiveContainer width="100%" height={height}>
         <AreaChart data={chartData} margin={{ top: 8, right: 12, bottom: 20, left: 8 }}>
           {seriesKeys.map((key, i) => (
             <defs key={`grad-${key}`}>
@@ -287,9 +286,8 @@ function RechartsArea({
           ))}
         </AreaChart>
       </ResponsiveContainer>
-      </div>
 
-      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 px-2 pb-1 shrink-0">
+      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 px-2 pb-1">
         {seriesLabels.map((label, i) => (
           <button
             key={i}
