@@ -293,7 +293,6 @@ export default function DashboardPanelCard({
   editMode = false,
 }: Props) {
   const [loading, setLoading] = useState(true);
-  const [hovered, setHovered] = useState(false);
   const [multiRangeData, setMultiRangeData] = useState<QueryResult[]>([]);
   const [instantData, setInstantData] = useState<InstantResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -609,8 +608,6 @@ export default function DashboardPanelCard({
           ? 'border-dashed border-[#2A2A3E] hover:border-[#4F46E5]/50'
           : 'border-[#2A2A3E] hover:border-[#4F46E5]/50'
       }`}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
     >
       <div className="panel-drag-handle flex items-center justify-between px-3 py-1.5 bg-[#141420] border-b border-[#2A2A3E] cursor-grab active:cursor-grabbing min-h-[38px]">
         <div className="flex items-center gap-2 min-w-0">
@@ -631,8 +628,7 @@ export default function DashboardPanelCard({
             ))}
         </div>
 
-        {hovered && (
-          <div className="flex items-center gap-0.5 shrink-0">
+        <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
             {onEdit && (
               <button
                 type="button"
@@ -658,14 +654,13 @@ export default function DashboardPanelCard({
               </button>
             )}
           </div>
-        )}
       </div>
 
       {panel.description && (
         <p className="px-3 pt-1 text-[11px] text-[#8888AA] line-clamp-1">{panel.description}</p>
       )}
 
-      <div className="flex-1 min-h-0 overflow-hidden">{renderContent()}</div>
+      <div className="flex-1 min-h-[120px] overflow-hidden">{renderContent()}</div>
 
       <QueryBadge queries={effectiveQueries} />
     </div>

@@ -282,7 +282,7 @@ export class OrchestratorAgent {
 
           let observationText: string
           if (verificationFailed) {
-            observationText = `Generated ${result.panels.length} panels but verification FAILED — panels were rolled back. Issues found in generated queries or structure.`
+            observationText = `Generated ${result.panels.length} panels but verification FAILED — panels were rolled back. Do NOT retry generate_dashboard. Ask the user what they want to do.`
             this.deps.sendEvent({
               type: 'tool_result',
               tool: 'generate_dashboard',
