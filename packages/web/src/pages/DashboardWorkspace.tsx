@@ -522,6 +522,10 @@ export default function DashboardWorkspace() {
                 void handleAddPanel();
               }}
               onScrollToPanel={scrollToPanel}
+              onExport={() => {
+                if (!id) return;
+                window.open(`/api/dashboards/${id}/export`, '_blank');
+              }}
             />
 
             <div className="w-px h-5 bg-[#2A2A3E]" />

@@ -127,6 +127,22 @@ export function createDashboardRouter(deps: DashboardRouterDeps = {}): ExpressRo
     res.json(reports[reports.length - 1])
   })
 
+  // GET /dashboards/:id/export — download as JSON file
+  router.get('/:id/export', requirePermission('dashboard:read'), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = req.params['id'] ?? ''
+      const dashboard = await store.findById(id)
+      if (!dashboard) {
+        res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
+        return
+      }
+      const filename = `${dashboard.title.replace(/[^a-zA-Z0-9_-]/g, '_')}.json`
+      res.setHeader('Content-Type', 'application/json')
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+      res.json(dashboard)
+    } catch (err) { next(err) }
+  })
+
   // GET /dashboards/:id
   router.get('/:id', requirePermission('dashboard:read'), async (req: Request, res: Response, next: NextFunction) => {
     try {
