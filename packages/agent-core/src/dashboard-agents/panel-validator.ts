@@ -169,7 +169,32 @@ export class PanelValidator {
           }
         }
 
-        // Query is valid (0 series is OK - metric may be quiet)
+        // Query is valid syntactically — but check if it actually returns data
+        if ((validation.seriesCount ?? 0) === 0) {
+          // No data returned — likely wrong metric name or label filter
+          this.sendEvent({
+            type: 'tool_call',
+            tool: 'fix_query',
+            args: { panelTitle, issue: 'no_data', expr: current },
+            displayText: `"${panelTitle}" query returned no data — checking metric/labels.`,
+          })
+
+          const fixed = await this.fixQueryWithLLM(
+            current,
+            `Query "${current}" is syntactically valid but returns 0 series (no data). The metric name or label filters probably don't match what exists in Prometheus. Fix the metric name and/or label values to match real data. Available metrics: ${availableMetrics.slice(0, 30).join(', ')}`,
+            availableMetrics,
+          )
+
+          if (fixed && fixed !== current) {
+            current = fixed
+            continue // re-validate with fixed query
+          }
+
+          // Could not fix — drop this panel
+          log.warn({ panel: panelTitle, expr: current }, 'dropping panel — query returns no data and could not be fixed')
+          return null
+        }
+
         return current
       }
 
