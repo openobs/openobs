@@ -1,6 +1,7 @@
 import { parseLlmJson } from '../llm-json.js'
 import { createLogger } from '@agentic-obs/common'
 import type { ResearchResult } from '../research-agent.js'
+import { GENERATION_PRINCIPLES, buildGroundingContext } from '../system-context.js'
 
 const log = createLogger('discovery-phase')
 import type { DiscoveryResult } from '../discovery-agent.js'
@@ -20,11 +21,15 @@ export class DiscoveryPhase {
     discovery?: DiscoveryResult,
   ): Promise<DashboardPlan> {
     const researchContext = research
-      ? `\n## Research Context (from web search)\nMonitoring approach: ${research.monitoringApproach}\nKey metrics: ${research.keyMetrics.join(', ')}\nBest practices: ${research.bestPractices.join(', ')}\nPanel suggestions: ${research.panelSuggestions.join(', ')}\n`
+      ? `\n## Research Context (from web search)\nMonitoring approach: ${research.monitoringApproach}\nKey metrics: ${research.keyMetrics.join(', ')}\nBest practices: ${research.bestPractices.join(', ')}\n`
       : ''
 
-    const metricsContext = discovery?.metrics.length
-      ? `\n## Available Metrics (from user's Prometheus - supplementary)\n${discovery.metrics.slice(0, 80).join('\n')}\nThese metrics exist in the cluster. Prefer them when relevant, but also include important standard metrics that may not be in this list. List metrics use your knowledge of standard Prometheus metric naming for this technology.\n`
+    const metricsContext = discovery
+      ? buildGroundingContext({
+          discoveredMetrics: discovery.metrics,
+          labelsByMetric: discovery.labelsByMetric,
+          sampleValues: discovery.sampleValues,
+        })
       : ''
 
     const existingContext = input.existingPanels.length
@@ -32,6 +37,7 @@ export class DiscoveryPhase {
       : ''
 
     const systemPrompt = `You are a senior SRE planning a monitoring dashboard.
+${GENERATION_PRINCIPLES}
 
 ## Task
 Decompose the monitoring goal into logical panel GROUPS. Each group is a section of the dashboard.
@@ -40,9 +46,8 @@ ${researchContext}${metricsContext}${existingContext}
 ## Planning Rules
 1. Use your expertise to determine the right monitoring methodology (RED, USE, 4 Golden Signals, or custom) based on the technology.
 2. Structure: overview stats first -> core trends -> breakdowns -> detail tables
-3. STRICT LIMIT: 12-28 panels total, 3-6 sections max. Quality over quantity.
+3. Panel count is determined by what the user asked and what data exists. No fixed targets.
 4. Each panel spec needs a queryIntent (natural language description of the query).
-5. Use diverse visualization types - don't default everything to time_series. Pick the type that communicates the data best.
 
 ## Output Format (JSON)
 {

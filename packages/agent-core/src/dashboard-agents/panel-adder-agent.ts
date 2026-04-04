@@ -14,6 +14,7 @@ import type {
   RawPanelSpec,
   CriticFeedback,
 } from './types.js'
+import { GENERATION_PRINCIPLES } from './system-context.js'
 
 // -- PanelAdder I/O
 
@@ -154,10 +155,12 @@ export class PanelAdderAgent {
       : ''
 
     const systemPrompt = `You are an observability expert adding panels to a dashboard.
+${GENERATION_PRINCIPLES}
 
 ## Task
 The user wants to add panels to their dashboard. Generate the appropriate panel specifications based on their request.
 Decide the right number of panels based on the request - a simple metric might need 1 panel, a broader topic might need 2-3.
+Only add panels that directly answer the user's request. Do not broaden the topic.
 ${existingContext}${datasourceSection}${feedbackSection}
 
 ## PromQL Rules
@@ -223,10 +226,10 @@ Review Context
 User request: ${input.goal}
 Existing panels: ${input.existingPanels.map((p) => p.title).join(', ') || '(none)'}
 
-## Review Criteria
-1. Technology Relevance - Are the metrics relevant to "${input.goal}"? Flag panels with unrelated metrics.
+## Review Criteria (in priority order)
+1. Scope Obedience - Does every panel directly serve "${input.goal}"? Any panel for unrequested metrics or topics is an error.
 2. PromQL Correctness - Counters need rate(), histograms need histogram_quantile() on bucket, aggregations need by() clauses.
-3. Panel Count - Is the number of panels appropriate for the request? Let the scope of the request guide your judgment.
+3. Panel Count - Only as many panels as needed to answer the request. Fewer is better.
 4. Duplication - Do any new panels duplicate existing ones?
 5. Visualization - Is each chart type appropriate? stat/gauge need instant=true.
 

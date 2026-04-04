@@ -1,6 +1,7 @@
 import type { LLMGateway } from '@agentic-obs/llm-gateway'
 import { createLogger } from '@agentic-obs/common'
 import { agentRegistry } from '../runtime/agent-registry.js'
+import { GENERATION_PRINCIPLES, buildGroundingContext } from './system-context.js'
 import { VerifierAgent } from '../verification/verifier-agent.js'
 import type { VerificationReport } from '../verification/types.js'
 import type { IMetricsAdapter } from '../adapters/index.js'
@@ -45,12 +46,13 @@ export class AlertRuleAgent {
 
   async generate(prompt: string, context?: AlertRuleContext): Promise<AlertRuleGenerationResult> {
     // Step 1: Discover available metrics (if adapter available)
-    let availableMetrics = ''
+    let metricsContext = ''
     if (this.deps.metrics) {
       try {
         const allNames = await this.deps.metrics.listMetricNames()
-        const metrics = allNames.slice(0, 200)
-        availableMetrics = `\n## Available Prometheus Metrics (sample)\n${metrics.join(', ')}`
+        metricsContext = buildGroundingContext({
+          discoveredMetrics: allNames.slice(0, 200),
+        })
       }
       catch {
         // Ignore - proceed without metric list
@@ -73,18 +75,17 @@ export class AlertRuleAgent {
 
     // Step 2: LLM generates the alert rule
     const systemPrompt = `You are a Prometheus alerting expert. Given a natural language description, generate a structured alert rule.
-${availableMetrics}${dashboardContext}
+${GENERATION_PRINCIPLES}
+${metricsContext}${dashboardContext}
 
-## PromQL Patterns
+## PromQL Syntax Reference (use ONLY with discovered metrics)
 
-Common patterns for alert conditions:
-- Error rate: "rate(http_requests_total{code=~"5.."}[5m]) / rate(http_requests_total[5m]) * 100"
-- Latency: "histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m]))"
-- CPU usage: "100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)"
-- Memory: "(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100"
-- Disk: "(1 - node_filesystem_avail_bytes / node_filesystem_size_bytes) * 100"
-- Pod restarts: "increase(kube_pod_container_status_restarts_total[5m])"
-- SLO burn rate: "(rate(http_requests_total{code!~"5.."}[1h]) / rate(http_requests_total[1h]))"
+These are syntax patterns, NOT metric names to copy:
+- Counter rate: rate(METRIC_total[5m])
+- Histogram percentile: histogram_quantile(0.99, sum(rate(METRIC_bucket[5m])) by (le))
+- Ratio: sum(rate(A[5m])) / sum(rate(B[5m]))
+
+Replace METRIC with actual discovered metric names. Do NOT use these example metric names directly.
 
 ## Rules
 1. The query MUST be a valid PromQL expression that returns a scalar or single-element vector.

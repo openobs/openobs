@@ -12,7 +12,6 @@ export interface ResearchResult {
   metricPrefixes: string[]
   monitoringApproach: string
   bestPractices: string[]
-  panelSuggestions: string[]
   rawContext: string
 }
 
@@ -21,7 +20,6 @@ interface ExtractedKnowledge {
   metricPrefixes: string[]
   monitoringApproach: string
   bestPractices: string[]
-  panelSuggestions: string[]
 }
 
 const FALLBACK_KNOWLEDGE: ExtractedKnowledge = {
@@ -29,7 +27,6 @@ const FALLBACK_KNOWLEDGE: ExtractedKnowledge = {
   metricPrefixes: [],
   monitoringApproach: 'RED method (Rate, Errors, Duration)',
   bestPractices: ['Monitor key resource utilization', 'Set up alerting for critical metrics'],
-  panelSuggestions: ['Request rate', 'Error rate', 'Latency percentiles'],
 }
 
 export class ResearchAgent {
@@ -81,7 +78,6 @@ export class ResearchAgent {
       metricPrefixes: knowledge.metricPrefixes,
       monitoringApproach: knowledge.monitoringApproach,
       bestPractices: knowledge.bestPractices,
-      panelSuggestions: knowledge.panelSuggestions,
       rawContext,
     }
   }
@@ -122,11 +118,10 @@ Return ONLY the query string, nothing else.`,
 2. Prometheus metric name prefixes specific to this technology (for discovering metrics in Prometheus)
 3. Recommended monitoring approach (RED/USE/4 Golden Signals/custom)
 4. Best practices and common patterns
-5. Suggested dashboard panel ideas
 
 IMPORTANT: metricPrefixes must be specific to the technology being monitored. They will be used to search Prometheus for relevant metrics.
 
-Return JSON: { keyMetrics: [...], metricPrefixes: [...], monitoringApproach: "...", bestPractices: [...], panelSuggestions: [...] }`,
+Return JSON: { keyMetrics: [...], metricPrefixes: [...], monitoringApproach: "...", bestPractices: [...] }`,
       },
       {
         role: 'user',
@@ -150,7 +145,6 @@ Return JSON: { keyMetrics: [...], metricPrefixes: [...], monitoringApproach: "..
         metricPrefixes: Array.isArray(parsed.metricPrefixes) ? parsed.metricPrefixes : [],
         monitoringApproach: typeof parsed.monitoringApproach === 'string' ? parsed.monitoringApproach : FALLBACK_KNOWLEDGE.monitoringApproach,
         bestPractices: Array.isArray(parsed.bestPractices) ? parsed.bestPractices : [],
-        panelSuggestions: Array.isArray(parsed.panelSuggestions) ? parsed.panelSuggestions : [],
       }
     }
     catch (err) {

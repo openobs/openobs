@@ -11,6 +11,7 @@ import type {
 const log = createLogger('generation-phase')
 import type { DiscoveryResult } from '../discovery-agent.js'
 import type { ResearchResult } from '../research-agent.js'
+import { GENERATION_PRINCIPLES, buildGroundingContext } from '../system-context.js'
 import type {
   GeneratorDeps,
   GenerateInput,
@@ -205,12 +206,12 @@ export class GenerationPhase {
       ? `\n## Research Context\nKey metrics from web search: ${research.keyMetrics.join(', ')}\nThese are reference alongside your own knowledge.\n`
       : ''
 
-    const metricsSection = discovery && discovery.metrics.length > 0
-      ? `\n## Available Metrics (from Prometheus - supplementary)\n${discovery.metrics.slice(0, 15).join('\n')}\nThese metrics exist in the cluster. Prefer them when relevant, but also include important standard metrics that may not be in this list. List metrics use your knowledge of standard metric naming for this technology.\n`
-      : ''
-
-    const labelsSection = discovery && Object.keys(discovery.labelsByMetric).length > 0
-      ? `\n## Labels\n${Object.entries(discovery.labelsByMetric).slice(0, 15).map(([k, v]) => `- ${k}: ${v.join(', ')}`).join('\n')}\n`
+    const groundingContext = discovery
+      ? buildGroundingContext({
+          discoveredMetrics: discovery.metrics,
+          labelsByMetric: discovery.labelsByMetric,
+          sampleValues: discovery.sampleValues,
+        })
       : ''
 
     const feedbackSection = criticFeedback
@@ -220,13 +221,14 @@ export class GenerationPhase {
     const panelSpecsText = group.panelSpecs.map((s) => `- ${s.title} (${s.queryIntent}) (${s.visualization}) ${s.width}x${s.height}`).join('\n')
 
     const systemPrompt = `You are a PromQL expert generating dashboard panels for the "${group.label}" section.
+${GENERATION_PRINCIPLES}
 
 ## Section Purpose
 ${group.purpose}
 
 ## Panel Specifications
 ${panelSpecsText}
-${researchContext}${metricsSection}${labelsSection}${feedbackSection}
+${researchContext}${groundingContext}${feedbackSection}
 
 ## IMPORTANT
 Each panel spec above specifies its visualization type in parentheses. You MUST use exactly that visualization type.
@@ -257,7 +259,7 @@ Grid starts at row ${startRow}, 12-column grid.
 - status_timeline: use for up/down or health status over time. Query should return 0/1 values per target as range queries.
 
 ## Output
-Return a JSON array of panel specs. Use diverse visualization types - NOT just time_series.
+Return a JSON array of panel specs.
 [
   { "title": "Request Rate", "visualization": "stat", "queries": [{ "refId": "A", "expr": "", "instant": true }], "row": 0, "col": 0, "width": 3, "height": 2 },
   { "title": "Latency Trend", "visualization": "time_series", "queries": [{ "refId": "A", "expr": "", "legendFormat": "{{pod}}" }], "row": 2, "col": 0, "width": 6, "height": 3 },
@@ -306,12 +308,13 @@ Section: ${group.label} -> ${group.purpose}
 Expected scope: ${input.scope}
 
 ## Review Criteria
-1. Technology Relevance
-2. PromQL Correctness
-3. Visualization Appropriateness
-4. Panel Count Appropriateness
-5. Completeness
-6. Redundancy
+1. Scope Obedience — did this section ONLY produce what was requested? Any unrequested metric families or scope expansion is an error.
+2. Technology Relevance
+3. PromQL Correctness
+4. Visualization Appropriateness
+5. Panel Count Appropriateness
+6. Completeness
+7. Redundancy
 
 ## Output (JSON)
 {
