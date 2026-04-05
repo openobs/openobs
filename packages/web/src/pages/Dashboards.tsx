@@ -87,7 +87,11 @@ export default function Dashboards({ listType }: { listType?: string } = {}) {
   const [sortKey, setSortKey] = useState<SortKey>('date');
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['__none__']));
   const [deletingDashId, setDeletingDashId] = useState<string | null>(null);
+  const [movingDashId, setMovingDashId] = useState<string | null>(null);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [showNewFolder, setShowNewFolder] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const newFolderRef = useRef<HTMLInputElement>(null);
 
   // Keyboard shortcut: / to focus search
   useEffect(() => {
@@ -116,6 +120,20 @@ export default function Dashboards({ listType }: { listType?: string } = {}) {
     const res = await apiClient.delete(`/dashboards/${id}`);
     if (!res.error) setDashboards((prev) => prev.filter((d) => d.id !== id));
   }, []);
+
+  const handleMoveToFolder = useCallback(async (id: string, folder: string) => {
+    const res = await apiClient.put(`/dashboards/${id}`, { folder: folder || undefined });
+    if (!res.error) {
+      setDashboards((prev) => prev.map((d) => d.id === id ? { ...d, folder: folder || undefined } : d));
+      setExpandedFolders((prev) => { const n = new Set(prev); n.add(folder || '__none__'); return n; });
+    }
+    setMovingDashId(null);
+  }, []);
+
+  const existingFolders = useMemo(() => {
+    const set = new Set(dashboards.map((d) => d.folder).filter(Boolean) as string[]);
+    return Array.from(set).sort();
+  }, [dashboards]);
 
   const toggleFolder = (folder: string) => {
     setExpandedFolders((prev) => {
@@ -174,13 +192,22 @@ export default function Dashboards({ listType }: { listType?: string } = {}) {
             <h1 className="text-3xl font-bold tracking-tight text-on-surface font-[Manrope]">{config.title}</h1>
             <p className="text-on-surface-variant mt-1 text-sm">{config.subtitle}</p>
           </div>
-          <button
-            type="button"
-            onClick={() => navigate('/')}
-            className="bg-primary text-on-primary-fixed px-4 py-2 rounded-lg font-semibold text-sm transition-transform active:scale-95"
-          >
-            {config.newLabel}
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => { setShowNewFolder(true); setTimeout(() => newFolderRef.current?.focus(), 50); }}
+              className="bg-surface-high text-on-surface-variant hover:text-on-surface px-4 py-2 rounded-lg font-semibold text-sm transition-colors"
+            >
+              + Folder
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="bg-primary text-on-primary-fixed px-4 py-2 rounded-lg font-semibold text-sm transition-transform active:scale-95"
+            >
+              {config.newLabel}
+            </button>
+          </div>
         </div>
 
         {/* Search + sort bar */}
@@ -209,6 +236,38 @@ export default function Dashboards({ listType }: { listType?: string } = {}) {
             {sortKey === 'date' ? 'Latest' : 'Name'}
           </button>
         </div>
+
+        {/* New folder input */}
+        {showNewFolder && (
+          <div className="flex items-center gap-2 mb-4 bg-surface-high rounded-xl px-4 py-3">
+            <svg className="w-4 h-4 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
+            <input
+              ref={newFolderRef}
+              type="text"
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newFolderName.trim()) {
+                  setExpandedFolders((prev) => { const n = new Set(prev); n.add(newFolderName.trim()); return n; });
+                  setShowNewFolder(false);
+                  setNewFolderName('');
+                }
+                if (e.key === 'Escape') { setShowNewFolder(false); setNewFolderName(''); }
+              }}
+              placeholder="Folder name, then Enter"
+              className="flex-1 bg-transparent text-sm text-on-surface placeholder:text-on-surface-variant/60 outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => { setShowNewFolder(false); setNewFolderName(''); }}
+              className="text-on-surface-variant hover:text-on-surface text-xs"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
 
         {/* Loading */}
         {loadingList && (
@@ -302,17 +361,53 @@ export default function Dashboards({ listType }: { listType?: string } = {}) {
                           </span>
                         </div>
 
-                        {/* Delete button */}
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); setDeletingDashId(dash.id); }}
-                          className="shrink-0 p-1.5 rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
-                          title="Delete"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
+                        {/* Actions */}
+                        <div className="flex items-center gap-1 shrink-0 relative">
+                          {/* Move to folder */}
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setMovingDashId(movingDashId === dash.id ? null : dash.id); }}
+                            className="p-1.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+                            title="Move to folder"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                            </svg>
+                          </button>
+                          {/* Folder dropdown */}
+                          {movingDashId === dash.id && (
+                            <div className="absolute right-0 top-full mt-1 bg-surface-highest rounded-lg shadow-xl z-20 py-1 min-w-[160px]">
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); void handleMoveToFolder(dash.id, ''); }}
+                                className={`w-full px-3 py-2 text-left text-sm hover:bg-surface-bright transition-colors ${!dash.folder ? 'text-primary' : 'text-on-surface'}`}
+                              >
+                                General
+                              </button>
+                              {existingFolders.map((f) => (
+                                <button
+                                  key={f}
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); void handleMoveToFolder(dash.id, f); }}
+                                  className={`w-full px-3 py-2 text-left text-sm hover:bg-surface-bright transition-colors ${dash.folder === f ? 'text-primary' : 'text-on-surface'}`}
+                                >
+                                  {f}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          {/* Delete */}
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setDeletingDashId(dash.id); }}
+                            className="p-1.5 rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
+                            title="Delete"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>

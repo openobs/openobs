@@ -4,7 +4,6 @@ import { apiClient } from '../api/client.js';
 import { queryScheduler } from '../api/query-scheduler.js';
 import DashboardGrid from '../components/DashboardGrid.js';
 import PanelEditor from '../components/PanelEditor.js';
-import FloatingToolbar from '../components/FloatingToolbar.js';
 import ChatPanel from '../components/ChatPanel.js';
 import VariableBar from '../components/VariableBar.js';
 import InvestigationReportView from '../components/InvestigationReportView.js';
@@ -183,22 +182,6 @@ function SaveDropdown({
 
 // Status badge
 
-function StatusBadge({ status }: { status: Dashboard['status'] }) {
-  const dot = {
-    generating: 'bg-amber-500 animate-pulse',
-    ready: 'bg-secondary',
-    error: 'bg-error',
-  };
-  const label = { generating: 'Generating', ready: 'Ready', error: 'Error' };
-
-  return (
-    <div className="flex items-center gap-1.5 shrink-0" title={label[status]}>
-      <span className={`w-2 h-2 rounded-full ${dot[status]}`} />
-      <span className="text-xs text-on-surface-variant">{label[status]}</span>
-    </div>
-  );
-}
-
 // Main
 
 export default function DashboardWorkspace() {
@@ -212,6 +195,7 @@ export default function DashboardWorkspace() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
+  const [timeRange, setTimeRange] = useState('1h');
   const [editingPanel, setEditingPanel] = useState<PanelConfig | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
@@ -509,21 +493,61 @@ export default function DashboardWorkspace() {
           )}
         </div>
 
-        {!isGenerating && dashboard.title !== 'Untitled Dashboard' && (
-          <StatusBadge status={dashboard.status} />
+        {/* Center: time range + refresh */}
+        {!showReport && !isGenerating && (
+          <div className="flex items-center gap-2 shrink-0">
+            <select
+              value={timeRange}
+              onChange={(e) => {
+                setTimeRange(e.target.value);
+                queryScheduler.clearCache();
+                window.dispatchEvent(new CustomEvent('dashboard:refresh-panels'));
+              }}
+              className="bg-surface-high text-on-surface text-xs rounded-lg px-3 py-1.5 border-none focus:ring-1 focus:ring-primary cursor-pointer appearance-none"
+            >
+              <option value="5m">Last 5m</option>
+              <option value="15m">Last 15m</option>
+              <option value="30m">Last 30m</option>
+              <option value="1h">Last 1h</option>
+              <option value="3h">Last 3h</option>
+              <option value="6h">Last 6h</option>
+              <option value="12h">Last 12h</option>
+              <option value="24h">Last 24h</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => {
+                queryScheduler.clearCache();
+                window.dispatchEvent(new CustomEvent('dashboard:refresh-panels'));
+              }}
+              className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-high transition-colors"
+              title="Refresh"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m14.836 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0A8.003 8.003 0 015.163 13M15 15h5" />
+              </svg>
+            </button>
+          </div>
         )}
 
         {!showReport && (
           <>
-            <FloatingToolbar
-              panels={panels}
-              editMode={editMode}
-              onToggleEdit={() => setEditMode((v) => !v)}
-              onAddPanel={() => {
-                void handleAddPanel();
-              }}
-              onScrollToPanel={scrollToPanel}
-              onExport={() => {
+            {/* Edit toggle */}
+            <button
+              type="button"
+              onClick={() => setEditMode((v) => !v)}
+              className={`p-1.5 rounded-lg transition-colors ${editMode ? 'bg-primary/15 text-primary' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-high'}`}
+              title={editMode ? 'Exit edit mode' : 'Edit dashboard'}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
+
+            {/* Export */}
+            <button
+              type="button"
+              onClick={() => {
                 if (!id || !dashboard) return;
                 const json = JSON.stringify(dashboard, null, 2);
                 const blob = new Blob([json], { type: 'application/json' });
@@ -534,21 +558,11 @@ export default function DashboardWorkspace() {
                 a.click();
                 URL.revokeObjectURL(url);
               }}
-            />
-
-            <div className="w-px h-5 bg-outline-variant" />
-
-            <button
-              type="button"
-              onClick={() => {
-                queryScheduler.clearCache();
-                window.dispatchEvent(new CustomEvent('dashboard:refresh-panels'));
-              }}
-              className="group relative p-2 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-high transition-colors"
-              title="Refresh"
+              className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-high transition-colors"
+              title="Export JSON"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m14.836 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0A8.003 8.003 0 015.163 13M15 15h5" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </button>
 

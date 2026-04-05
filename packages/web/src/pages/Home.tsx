@@ -82,7 +82,6 @@ export default function Home() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [thinkingText, setThinkingText] = useState<string | null>(null);
-  const [intentResult, setIntentResult] = useState<{ intent: string; summary?: string } | null>(null);
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
   const [alertCount, setAlertCount] = useState<number | null>(null);
   const [deletingDashId, setDeletingDashId] = useState<string | null>(null);
@@ -116,7 +115,6 @@ export default function Home() {
       setSubmitting(true);
       setSubmitError(null);
       setThinkingText(null);
-      setIntentResult(null);
 
       abortRef.current?.abort();
       abortRef.current = new AbortController();
@@ -135,25 +133,18 @@ export default function Home() {
 
             switch (eventType) {
               case 'thinking':
-                setThinkingText((parsed.content as string) ?? 'Thinking...');
                 break;
               case 'intent':
-                setIntentResult({ intent: parsed.intent as string });
                 break;
               case 'done': {
                 const intent = parsed.intent as string;
-                const summary = parsed.summary as string | undefined;
-                setIntentResult({ intent, summary });
                 setThinkingText(null);
-
-                setTimeout(() => {
-                  const nav = parsed.navigate as string;
-                  if (intent === 'alert') {
-                    navigate(nav || '/alerts');
-                  } else {
-                    navigate(nav || '/', { state: { initialPrompt: trimmed } });
-                  }
-                }, 800);
+                const nav = parsed.navigate as string;
+                if (intent === 'alert') {
+                  navigate(nav || '/alerts');
+                } else {
+                  navigate(nav || '/', { state: { initialPrompt: trimmed } });
+                }
                 break;
               }
               case 'error':
@@ -206,7 +197,7 @@ export default function Home() {
             <span className="text-primary italic">investigating</span> today?
           </h1>
           <p className="text-on-surface-variant text-lg">
-            Curator is analyzing telemetry from Prometheus in real-time.
+            Prism is analyzing telemetry from Prometheus in real-time.
           </p>
         </motion.div>
 
@@ -243,10 +234,10 @@ export default function Home() {
                   onKeyDown={handleKeyDown}
                   onFocus={() => setFocused(true)}
                   onBlur={() => setFocused(false)}
-                  placeholder="Ask Curator to analyze, explain, or visualize..."
+                  placeholder="Ask Prism to analyze, explain, or visualize..."
                   rows={2}
                   disabled={submitting}
-                  className="flex-1 bg-transparent border-none focus:ring-0 focus:outline-none text-lg text-white placeholder:text-on-surface-variant/50 resize-none py-2"
+                  className="flex-1 bg-transparent border-none focus:ring-0 focus:outline-none text-sm text-on-surface placeholder:text-on-surface-variant/50 resize-none py-2"
                 />
               </div>
 
@@ -277,9 +268,9 @@ export default function Home() {
                 <button
                   type="submit"
                   disabled={!prompt.trim() || submitting}
-                  className={`px-6 py-2 font-bold rounded-xl flex items-center gap-2 transition-all duration-200 ${
+                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 shrink-0 ${
                     prompt.trim()
-                      ? 'bg-gradient-to-r from-primary to-primary-container text-on-primary-fixed hover:opacity-90 shadow-md'
+                      ? 'bg-primary text-on-primary-fixed hover:opacity-90'
                       : 'bg-surface-high text-on-surface-variant/40'
                   }`}
                 >
@@ -289,12 +280,9 @@ export default function Home() {
                       <path d="M22 12a10 10 0 00-10-10" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
                     </svg>
                   ) : (
-                    <>
-                      <span className="text-sm uppercase tracking-wider">Analyze</span>
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 17L17 7M17 7H7M17 7v10" />
-                      </svg>
-                    </>
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 19.5l15-15M19.5 4.5H8.5M19.5 4.5v11" />
+                    </svg>
                   )}
                 </button>
               </div>
@@ -303,33 +291,9 @@ export default function Home() {
 
           {/* Thinking / intent status */}
           {submitting && (
-            <div className="mt-4 rounded-xl bg-surface-high/80 backdrop-blur-xl px-4 py-3.5 space-y-2.5">
-              {thinkingText && (
-                <div className="flex items-center gap-2.5">
-                  <span className="inline-block w-4 h-4 rounded-full animate-spin shrink-0 border-2 border-outline border-t-primary" />
-                  <span className="text-sm text-on-surface-variant">{thinkingText}</span>
-                </div>
-              )}
-              {intentResult && (
-                <div className="flex items-center gap-2.5">
-                  <span className="flex h-4 w-4 items-center justify-center shrink-0">
-                    <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                  </span>
-                  <span className="text-xs text-on-surface">
-                    Intent classified:
-                    <span className="font-medium ml-1">
-                      {intentResult.intent === 'alert'
-                        ? 'Alert'
-                        : intentResult.intent === 'investigate'
-                          ? 'Investigation'
-                          : 'Dashboard'}
-                    </span>
-                  </span>
-                </div>
-              )}
-              {intentResult?.summary && (
-                <p className="text-xs text-secondary pl-6">{intentResult.summary}</p>
-              )}
+            <div className="mt-4 flex items-center justify-center gap-2.5 py-3">
+              <span className="inline-block w-4 h-4 rounded-full animate-spin border-2 border-outline border-t-primary" />
+              <span className="text-xs text-on-surface-variant">Processing...</span>
             </div>
           )}
         </motion.div>
