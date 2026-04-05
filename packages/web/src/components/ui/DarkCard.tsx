@@ -7,7 +7,7 @@ interface DarkCardProps {
 
 export function DarkCard({ className = '', children }: DarkCardProps) {
   return (
-    <div className={`bg-[#141420] rounded-2xl border border-[#2A2A3E] p-4 ${className}`}>
+    <div className={`bg-[var(--color-surface-highest)] rounded-2xl border border-[var(--color-outline-variant)] p-4 ${className}`}>
       {children}
     </div>
   );

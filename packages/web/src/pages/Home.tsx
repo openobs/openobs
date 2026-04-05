@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { apiClient } from '../api/client.js';
-import { DarkCard } from '../components/ui/DarkCard.js';
 import { fadeIn } from '../animations.js';
 import ConfirmDialog from '../components/ConfirmDialog.js';
 
@@ -34,15 +33,42 @@ function relativeTime(iso: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-// Quick-start suggestions
+// Quick action cards
 
-const SUGGESTIONS = [
-  { icon: 'K8s', label: 'K8s cluster overview', prompt: 'Create a Kubernetes cluster overview dashboard with node health, pod status, and resource utilization.' },
-  { icon: 'Mesh', label: 'Istio service mesh', prompt: 'Create an Istio service mesh dashboard with request rates, error rates, and p95 latency.' },
-  { icon: 'DB', label: 'Node health dashboard', prompt: 'Create a node health dashboard with CPU, memory, disk, and network metrics.' },
-  { icon: 'Redis', label: 'Redis monitoring', prompt: 'Create a Redis monitoring dashboard with memory usage, hit rate, and command throughput.' },
-  { icon: 'Why', label: 'Why is latency high?', prompt: 'Why is my service experiencing high latency?' },
-  { icon: 'Error', label: 'Investigate error spike', prompt: 'Investigate the recent error rate spike in my services' },
+const QUICK_ACTIONS = [
+  {
+    category: 'Performance',
+    icon: (
+      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+      </svg>
+    ),
+    colorClass: 'text-primary',
+    prompt: 'Analyze CPU spike in checkout-service',
+    label: '"Analyze CPU spike in checkout-service"',
+  },
+  {
+    category: 'Dashboards',
+    icon: (
+      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v18h18M7 16l4-4 4 4 4-4" />
+      </svg>
+    ),
+    colorClass: 'text-tertiary',
+    prompt: 'Create a dashboard for user login latency',
+    label: '"Create a dashboard for user login latency"',
+  },
+  {
+    category: 'Incident',
+    icon: (
+      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+      </svg>
+    ),
+    colorClass: 'text-error',
+    prompt: 'Explain the recent 5xx error surge',
+    label: '"Explain the recent 5xx error surge"',
+  },
 ];
 
 // Main
@@ -120,7 +146,6 @@ export default function Home() {
                 setIntentResult({ intent, summary });
                 setThinkingText(null);
 
-                // Navigate after a brief moment so user sees the result.
                 setTimeout(() => {
                   const nav = parsed.navigate as string;
                   if (intent === 'alert') {
@@ -160,94 +185,102 @@ export default function Home() {
     }
   };
 
-  const handleSuggestionClick = (s: (typeof SUGGESTIONS)[number]) => {
-    setPrompt(s.prompt);
+  const handleQuickAction = (actionPrompt: string) => {
+    setPrompt(actionPrompt);
     textareaRef.current?.focus();
   };
 
   return (
-    <div className="min-h-full bg-[#0A0A0F] flex flex-col">
-      <div className="flex-1 flex flex-col items-center justify-center px-4 py-10">
+    <div className="min-h-full bg-surface-container flex flex-col items-center justify-center relative">
+      {/* Center content */}
+      <div className="w-full max-w-3xl px-6 flex flex-col items-center">
+        {/* Editorial headline */}
         <motion.div
-          className="text-center mb-8"
+          className="mb-12 text-center"
           variants={fadeIn}
           initial="hidden"
           animate="visible"
         >
-          <div className="relative inline-block mb-6">
-            <div className="absolute inset-0 -m-16 rounded-full bg-[#6366F1]/20 blur-xl" />
-            <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-[#6366F1] to-[#58C5C6] flex items-center justify-center shadow-lg shadow-[#6366F1]/25">
-              <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5l7.5 4.5v6L12 19.5 4.5 15v-6L12 4.5z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 12l7.5-4.5M12 12L4.5 7.5M12 12v7.5" />
-              </svg>
-            </div>
-          </div>
-
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-[#E8E8ED] mb-2">
-            What can I help you with?
+          <h1 className="font-[Manrope] text-5xl font-extrabold tracking-tight text-white mb-4 leading-tight">
+            Welcome, what are we{' '}
+            <span className="text-primary italic">investigating</span> today?
           </h1>
-          <p className="text-[#555570] text-base">
-            Build dashboards, investigate issues, or ask anything about your infrastructure.
+          <p className="text-on-surface-variant text-lg">
+            Curator is analyzing telemetry from Prometheus in real-time.
           </p>
         </motion.div>
 
+        {/* Prompt input */}
         <motion.div
-          className="w-full max-w-2xl"
+          className="w-full relative group"
           variants={fadeIn}
           initial="hidden"
           animate="visible"
           transition={{ delay: 0.05 }}
         >
+          <div
+            className={`absolute inset-0 blur-2xl rounded-3xl transition-all duration-500 ${
+              focused ? 'bg-primary/20' : 'bg-primary/10'
+            }`}
+          />
+
           <form
             onSubmit={(e) => {
               void handleSubmit(e);
             }}
           >
-            <div
-              className={`rounded-2xl border overflow-hidden shadow-2xl transition-all duration-300 ${
-                focused
-                  ? 'bg-[#141420] border-[#6366F1]/40 shadow-[#6366F1]/10'
-                  : 'bg-[#111118] border-[#2A2A3E] hover:border-[#3A3A4E]'
-              }`}
-            >
-              <textarea
-                ref={textareaRef}
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onFocus={() => setFocused(true)}
-                onBlur={() => setFocused(false)}
-                placeholder="Ask me to build a dashboard, investigate an issue, or explore your metrics..."
-                rows={3}
-                disabled={submitting}
-                className="w-full bg-transparent px-5 py-4 text-[15px] text-[#E8E8ED] placeholder:text-[#444450] focus:outline-none resize-none disabled:opacity-50 leading-relaxed"
-              />
-
-              <div className="flex items-center gap-2 px-4 py-2.5">
-                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#1C1C2E]/60 rounded-lg text-xs text-[#555570]">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  <span>Prometheus</span>
+            <div className="relative bg-surface-bright/80 backdrop-blur-xl rounded-[2rem] p-6 shadow-2xl">
+              <div className="flex items-start gap-4">
+                <div className="mt-1 flex items-center justify-center w-10 h-10 rounded-full bg-surface-high">
+                  <svg className="w-5 h-5 text-primary" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z" />
+                  </svg>
                 </div>
+                <textarea
+                  ref={textareaRef}
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onFocus={() => setFocused(true)}
+                  onBlur={() => setFocused(false)}
+                  placeholder="Ask Curator to analyze, explain, or visualize..."
+                  rows={2}
+                  disabled={submitting}
+                  className="flex-1 bg-transparent border-none focus:ring-0 focus:outline-none text-lg text-white placeholder:text-on-surface-variant/50 resize-none py-2"
+                />
+              </div>
 
-                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#1C1C2E]/60 rounded-lg text-xs text-[#555570]">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#6366F1]" />
-                  <span>Claude</span>
+              <div className="mt-4 flex justify-between items-center">
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className="p-2 rounded-xl hover:bg-surface-highest text-on-surface-variant transition-colors"
+                  >
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    className="p-2 rounded-xl hover:bg-surface-highest text-on-surface-variant transition-colors"
+                  >
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </button>
                 </div>
-
-                <div className="flex-1" />
 
                 {submitError && (
-                  <span className="text-xs text-red-400 truncate max-w-xs">{submitError}</span>
+                  <span className="text-xs text-error truncate max-w-xs">{submitError}</span>
                 )}
 
                 <button
                   type="submit"
                   disabled={!prompt.trim() || submitting}
-                  className={`relative flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-200 ${
+                  className={`px-6 py-2 font-bold rounded-xl flex items-center gap-2 transition-all duration-200 ${
                     prompt.trim()
-                      ? 'bg-[#6366F1] hover:bg-[#818CF8] text-white shadow-md shadow-[#6366F1]/25 scale-100'
-                      : 'bg-[#1C1C2E] text-[#444458] scale-95'
+                      ? 'bg-gradient-to-r from-primary to-primary-container text-on-primary-fixed hover:opacity-90 shadow-md'
+                      : 'bg-surface-high text-on-surface-variant/40'
                   }`}
                 >
                   {submitting ? (
@@ -256,39 +289,35 @@ export default function Home() {
                       <path d="M22 12a10 10 0 00-10-10" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
                     </svg>
                   ) : (
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M7.999 15.001l8.586-8.586-1.414-1.414L6.585 13.587V8h-2v9h9v-2H7.999z" />
-                    </svg>
+                    <>
+                      <span className="text-sm uppercase tracking-wider">Analyze</span>
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 17L17 7M17 7H7M17 7v10" />
+                      </svg>
+                    </>
                   )}
                 </button>
               </div>
             </div>
           </form>
 
-          {!submitting && (
-            <div className="text-center text-[10px] mt-2 text-[#333345]">
-              Press <kbd className="px-1 py-0.5 rounded bg-[#1C1C2E] text-[#555570] font-mono text-[10px]">Enter</kbd> to send,
-              <kbd className="ml-1 px-1 py-0.5 rounded bg-[#1C1C2E] text-[#555570] font-mono text-[10px]">Shift+Enter</kbd> for newline
-            </div>
-          )}
-
+          {/* Thinking / intent status */}
           {submitting && (
-            <div className="mt-4 rounded-xl border border-[#2A2A3E] bg-[#111118] px-4 py-3.5 space-y-2.5">
+            <div className="mt-4 rounded-xl bg-surface-high/80 backdrop-blur-xl px-4 py-3.5 space-y-2.5">
               {thinkingText && (
                 <div className="flex items-center gap-2.5">
-                  <span className="inline-block w-4 h-4 rounded-full animate-spin shrink-0 border-2 border-[#2A2A3E] border-t-[#6366F1]" />
-                  <span className="text-sm text-[#8888AA]">{thinkingText}</span>
+                  <span className="inline-block w-4 h-4 rounded-full animate-spin shrink-0 border-2 border-outline border-t-primary" />
+                  <span className="text-sm text-on-surface-variant">{thinkingText}</span>
                 </div>
               )}
-
               {intentResult && (
                 <div className="flex items-center gap-2.5">
                   <span className="flex h-4 w-4 items-center justify-center shrink-0">
-                    <span className="w-2 h-2 rounded-full bg-[#6366F1] animate-pulse" />
+                    <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                   </span>
-                  <span className="text-xs text-[#E8E8ED]">
+                  <span className="text-xs text-on-surface">
                     Intent classified:
-                    <span className="text-[#E8E8ED] font-medium ml-1">
+                    <span className="font-medium ml-1">
                       {intentResult.intent === 'alert'
                         ? 'Alert'
                         : intentResult.intent === 'investigate'
@@ -298,68 +327,71 @@ export default function Home() {
                   </span>
                 </div>
               )}
-
               {intentResult?.summary && (
-                <p className="text-xs text-[#22C55E] pl-6">{intentResult.summary}</p>
+                <p className="text-xs text-secondary pl-6">{intentResult.summary}</p>
               )}
             </div>
           )}
-
-          {!submitting && (
-            <motion.div
-              className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-6 max-w-2xl w-full"
-              variants={fadeIn}
-              initial="hidden"
-              animate="visible"
-              transition={{ delay: 0.1 }}
-            >
-              {SUGGESTIONS.map((s) => (
-                <button
-                  key={s.label}
-                  type="button"
-                  onClick={() => handleSuggestionClick(s)}
-                  className="flex items-center gap-2 px-3 py-2.5 text-left text-[13px] text-[#8888AA] bg-[#111118] border border-[#1E1E2E] rounded-xl hover:border-[#6366F1]/30 hover:bg-[#141420] transition-all duration-200 group"
-                >
-                  <span className="text-base shrink-0 opacity-90 group-hover:opacity-100 transition-opacity">
-                    {s.icon}
-                  </span>
-                  <span className="truncate">{s.label}</span>
-                </button>
-              ))}
-            </motion.div>
-          )}
         </motion.div>
 
+        {/* Quick action cards */}
+        {!submitting && (
+          <motion.div
+            className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-4 w-full"
+            variants={fadeIn}
+            initial="hidden"
+            animate="visible"
+            transition={{ delay: 0.1 }}
+          >
+            {QUICK_ACTIONS.map((action) => (
+              <button
+                key={action.category}
+                type="button"
+                onClick={() => handleQuickAction(action.prompt)}
+                className="p-5 bg-surface-low hover:bg-surface-high rounded-2xl text-left transition-all duration-200 group"
+              >
+                <div className={`flex items-center gap-2 ${action.colorClass} mb-2`}>
+                  {action.icon}
+                  <span className="text-[10px] font-bold uppercase tracking-widest">
+                    {action.category}
+                  </span>
+                </div>
+                <p className="text-on-surface-variant text-sm leading-relaxed group-hover:text-white transition-colors">
+                  {action.label}
+                </p>
+              </button>
+            ))}
+          </motion.div>
+        )}
+
+        {/* Recent dashboards */}
         {dashboards.length > 0 && (
           <motion.section
-            className="mt-8 pb-10 max-w-6xl mx-auto w-full"
+            className="mt-12 w-full"
             variants={fadeIn}
             initial="hidden"
             animate="visible"
             transition={{ delay: 0.15 }}
           >
-            <DarkCard className="flex items-center justify-between mb-5">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-[#555570]">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
                 Recent
               </h2>
               <Link
                 to="/dashboards"
-                className="text-xs text-[#6366F1] hover:text-[#818CF8] transition-colors"
+                className="text-xs text-primary hover:text-primary-container transition-colors"
               >
                 View all
               </Link>
-            </DarkCard>
+            </div>
 
             <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
               {dashboards.map((dash) => (
-                <div
-                  key={dash.id}
-                  className="shrink-0 w-48 relative group/home-card"
-                >
+                <div key={dash.id} className="shrink-0 w-48 relative group/home-card">
                   <button
                     type="button"
                     onClick={() => navigate(`/dashboards/${dash.id}`)}
-                    className="w-full text-left bg-[#111118] rounded-xl border border-[#1E1E2E] p-3.5 cursor-pointer hover:border-[#6366F1]/30 hover:bg-[#141420] transition-all duration-200"
+                    className="w-full text-left bg-surface-low hover:bg-surface-high rounded-xl p-3.5 cursor-pointer transition-all duration-200"
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <span
@@ -367,19 +399,18 @@ export default function Home() {
                           dash.status === 'generating'
                             ? 'bg-amber-400 animate-pulse'
                             : dash.status === 'error'
-                              ? 'bg-red-400'
+                              ? 'bg-error'
                               : 'bg-emerald-500'
                         }`}
                       />
-                      <span className="text-[10px] text-[#444458]">
+                      <span className="text-[10px] text-on-surface-variant/60">
                         {relativeTime(dash.updatedAt ?? dash.createdAt)}
                       </span>
                     </div>
-
-                    <div className="text-sm font-medium text-[#C8C8D8] line-clamp-2 mb-1.5">
+                    <div className="text-sm font-medium text-on-surface line-clamp-2 mb-1.5">
                       {dash.title}
                     </div>
-                    <div className="text-xs text-[#444458]">
+                    <div className="text-xs text-on-surface-variant/60">
                       {dash.panels.length} panel{dash.panels.length === 1 ? '' : 's'}
                     </div>
                   </button>
@@ -387,7 +418,7 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => setDeletingDashId(dash.id)}
-                    className="absolute top-2 right-2 p-1.5 rounded-lg bg-[#111118]/90 border border-[#1E1E2E] text-[#444458] hover:text-[#EF4444] hover:border-[#EF4444]/30 opacity-0 group-hover/home-card:opacity-100 transition-all"
+                    className="absolute top-2 right-2 p-1.5 rounded-lg bg-surface/90 text-on-surface-variant hover:text-error opacity-0 group-hover/home-card:opacity-100 transition-all"
                     title="Delete"
                   >
                     <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
@@ -404,51 +435,52 @@ export default function Home() {
           </motion.section>
         )}
 
-        <motion.section
-          className="w-full pb-10 max-w-6xl mx-auto"
+        {/* Alert status bar */}
+        <motion.div
+          className="mt-8 mb-10 w-full"
           variants={fadeIn}
           initial="hidden"
           animate="visible"
           transition={{ delay: 0.2 }}
         >
-          <DarkCard className="flex items-center justify-between">
+          <div className="flex items-center justify-between bg-surface-low rounded-xl px-5 py-3">
             <div className="flex items-center gap-3">
               {alertCount !== null && alertCount > 0 ? (
                 <>
-                  <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
-                  <span className="text-sm font-semibold text-[#E8E8ED]">
+                  <span className="w-2 h-2 rounded-full bg-error animate-pulse" />
+                  <span className="text-sm font-semibold text-on-surface">
                     {alertCount} anomaly{alertCount === 1 ? '' : 'ies'} detected
                   </span>
                 </>
               ) : alertCount === 0 ? (
                 <>
                   <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  <span className="text-sm text-[#8888AA]">No active anomalies</span>
+                  <span className="text-sm text-on-surface-variant">No active anomalies</span>
                 </>
               ) : (
-                <span className="text-sm text-[#555570]">Loading alerts...</span>
+                <span className="text-sm text-on-surface-variant/60">Loading alerts...</span>
               )}
             </div>
             <Link
               to="/feed"
-              className="text-sm text-[#6366F1] hover:text-[#818CF8] transition-colors font-medium"
+              className="text-sm text-primary hover:text-primary-container transition-colors font-medium"
             >
               View Feed
             </Link>
-          </DarkCard>
-        </motion.section>
-
-        <ConfirmDialog
-          open={deletingDashId !== null}
-          title="Delete dashboard?"
-          message="This dashboard and all its panels will be permanently deleted."
-          onConfirm={() => {
-            if (deletingDashId) void handleDeleteDashboard(deletingDashId);
-            setDeletingDashId(null);
-          }}
-          onCancel={() => setDeletingDashId(null)}
-        />
+          </div>
+        </motion.div>
       </div>
+
+      <ConfirmDialog
+        open={deletingDashId !== null}
+        title="Delete dashboard?"
+        message="This dashboard and all its panels will be permanently deleted."
+        onConfirm={() => {
+          if (deletingDashId) void handleDeleteDashboard(deletingDashId);
+          setDeletingDashId(null);
+        }}
+        onCancel={() => setDeletingDashId(null)}
+      />
     </div>
   );
 }

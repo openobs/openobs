@@ -134,24 +134,24 @@ function ProgressBar({ current }: { current: number }) {
             <div
               className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
                 i === current
-                  ? 'bg-[#6366F1] text-white ring-4 ring-[#6366F1]/20'
+                  ? 'bg-[var(--color-primary)] text-white ring-4 ring-[var(--color-primary)]/20'
                   : i < current
-                    ? 'bg-[#6366F1] text-white'
-                    : 'bg-[#2A2A3E] text-[#8888AA]'
+                    ? 'bg-[var(--color-primary)] text-white'
+                    : 'bg-[var(--color-outline-variant)] text-[var(--color-on-surface-variant)]'
               }`}
             >
               {i + 1}
             </div>
             <span
               className={`mt-1.5 text-xs font-medium hidden sm:block ${
-                i === current ? 'text-[#6366F1]' : 'text-[#8888AA]'
+                i === current ? 'text-[var(--color-primary)]' : 'text-[var(--color-on-surface-variant)]'
               }`}
             >
               {label}
             </span>
           </div>
           {i < STEPS.length - 1 && (
-            <div className={`flex-1 h-0.5 mt-[-16px] ${i < current ? 'bg-[#6366F1]' : 'bg-[#2A2A3E]'}`} />
+            <div className={`flex-1 h-0.5 mt-[-16px] ${i < current ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-outline-variant)]'}`} />
           )}
         </React.Fragment>
       ))}
@@ -169,12 +169,12 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
           AI
         </span>
       </div>
-      <h1 className="text-3xl font-bold text-[#E8E8ED] mb-2">Welcome to AgentObs</h1>
-      <p className="text-lg text-[#8888AA] font-medium mb-2">AI-native observability platform</p>
-      <p className="text-[#8888AA] max-w-2xl mx-auto mb-10">
+      <h1 className="text-3xl font-bold text-[var(--color-on-surface)] mb-2">Welcome to AgentObs</h1>
+      <p className="text-lg text-[var(--color-on-surface-variant)] font-medium mb-2">AI-native observability platform</p>
+      <p className="text-[var(--color-on-surface-variant)] max-w-2xl mx-auto mb-10">
         Automatically investigate incidents, correlate signals, and generate runbooks, powered by LLMs.
       </p>
-      <p className="text-sm text-[#8888AA] mb-10">Let's get you set up in 2 minutes.</p>
+      <p className="text-sm text-[var(--color-on-surface-variant)] mb-10">Let's get you set up in 2 minutes.</p>
       <button
         type="button"
         onClick={onNext}
@@ -277,12 +277,12 @@ function StepLlm({
 
   return (
     <div>
-      <h2 className="text-xl font-bold text-[#E8E8ED] mb-1">LLM Provider</h2>
-      <p className="text-[#8888AA] text-sm mb-6">Choose the AI model that powers your investigations.</p>
+      <h2 className="text-xl font-bold text-[var(--color-on-surface)] mb-1">LLM Provider</h2>
+      <p className="text-[var(--color-on-surface-variant)] text-sm mb-6">Choose the AI model that powers your investigations.</p>
 
       <div className="space-y-6">
         <div>
-          <label className="block text-sm font-medium text-[#E8E8ED] mb-1.5">Providers</label>
+          <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">Providers</label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {LLM_PROVIDERS.map((p) => (
               <button
@@ -304,8 +304,8 @@ function StepLlm({
                 }}
                 className={`text-left px-4 py-3 rounded-lg border-2 text-sm font-medium transition-colors ${
                   config.provider === p.value
-                    ? 'border-[#6366F1] bg-[#1C1C2E] text-[#6366F1]'
-                    : 'border-[#2A2A3E] text-[#8888AA] hover:border-[#4F46E5] hover:bg-[#1C1C2E]'
+                    ? 'border-[var(--color-primary)] bg-[var(--color-surface-high)] text-[var(--color-primary)]'
+                    : 'border-[var(--color-outline-variant)] text-[var(--color-on-surface-variant)] hover:border-[var(--color-primary)] hover:bg-[var(--color-surface-high)]'
                 }`}
               >
                 {p.label}
@@ -316,7 +316,7 @@ function StepLlm({
 
         {provider.needsKey && (
           <div>
-            <label className="block text-sm font-medium text-[#E8E8ED] mb-1.5">API Key</label>
+            <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">API Key</label>
             <input
               type="password"
               value={config.apiKey}
@@ -325,14 +325,14 @@ function StepLlm({
                 setTestResult(null);
               }}
               placeholder="sk-..."
-              className="w-full px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#1C1C2E] text-[#E8E8ED] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+              className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
             />
           </div>
         )}
 
         {provider.needsUrl && (
           <div>
-            <label className="block text-sm font-medium text-[#E8E8ED] mb-1.5">
+            <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">
               {config.provider === 'ollama' ? 'Ollama URL' : 'Endpoint URL'}
             </label>
             <input
@@ -343,14 +343,14 @@ function StepLlm({
                 setTestResult(null);
               }}
               placeholder={config.provider === 'ollama' ? 'http://localhost:11434' : 'https://your-resource.openai.azure.com'}
-              className="w-full px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#1C1C2E] text-[#E8E8ED] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+              className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
             />
           </div>
         )}
 
         {config.provider === 'corporate-gateway' && (
           <div>
-            <label className="block text-sm font-medium text-[#E8E8ED] mb-1.5">
+            <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">
               Token Helper Command
             </label>
             <input
@@ -361,9 +361,9 @@ function StepLlm({
                 setTestResult(null);
               }}
               placeholder="./scripts/token.sh"
-              className="w-full px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#1C1C2E] text-[#E8E8ED] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1] font-mono"
+              className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)] font-mono"
             />
-            <p className="text-xs text-[#8888AA] mt-1">
+            <p className="text-xs text-[var(--color-on-surface-variant)] mt-1">
               Shell command that outputs an auth token. Token is cached and refreshed automatically.
             </p>
           </div>
@@ -371,7 +371,7 @@ function StepLlm({
 
         {provider.needsRegion && (
           <div>
-            <label className="block text-sm font-medium text-[#E8E8ED] mb-1.5">AWS Region</label>
+            <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">AWS Region</label>
             <input
               type="text"
               value={config.region}
@@ -380,18 +380,18 @@ function StepLlm({
                 setTestResult(null);
               }}
               placeholder="us-east-1"
-              className="w-full px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#1C1C2E] text-[#E8E8ED] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+              className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
             />
           </div>
         )}
 
         <div>
-          <label className="block text-sm font-medium text-[#E8E8ED] mb-1.5">Default Model</label>
+          <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">Default Model</label>
           <div className="flex gap-2">
             <select
               value={config.model}
               onChange={(e) => onChange({ model: e.target.value })}
-              className="flex-1 px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#1C1C2E] text-[#E8E8ED] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+              className="flex-1 px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
             >
               {availableModels.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -404,7 +404,7 @@ function StepLlm({
                 type="button"
                 onClick={() => void handleFetchModels()}
                 disabled={fetchingModels || (provider.needsKey && !config.apiKey)}
-                className="px-3 py-2 rounded-lg border border-[#2A2A3E] text-sm font-medium text-[#E8E8ED] hover:bg-[#1C1C2E] disabled:opacity-50 transition-colors whitespace-nowrap"
+                className="px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] text-sm font-medium text-[var(--color-on-surface)] hover:bg-[var(--color-surface-high)] disabled:opacity-50 transition-colors whitespace-nowrap"
               >
                 {fetchingModels ? 'Loading...' : 'Fetch Models'}
               </button>
@@ -427,7 +427,7 @@ function StepLlm({
             type="button"
             onClick={() => void handleTest()}
             disabled={testing || !canProceed}
-            className="px-4 py-2 rounded-lg border border-[#2A2A3E] text-sm font-medium text-[#E8E8ED] hover:bg-[#1C1C2E] disabled:opacity-50 transition-colors"
+            className="px-4 py-2 rounded-lg border border-[var(--color-outline-variant)] text-sm font-medium text-[var(--color-on-surface)] hover:bg-[var(--color-surface-high)] disabled:opacity-50 transition-colors"
           >
             {testing ? 'Testing...' : 'Test Connection'}
           </button>
@@ -440,7 +440,7 @@ function StepLlm({
         </div>
 
         <div className="flex justify-between mt-8">
-          <button type="button" onClick={onBack} className="px-5 py-2 text-sm font-medium text-[#8888AA] hover:text-[#E8E8ED]">
+          <button type="button" onClick={onBack} className="px-5 py-2 text-sm font-medium text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]">
             ← Back
           </button>
           <button
@@ -498,23 +498,23 @@ function StepDatasources({ onNext, onBack }: { onNext: () => void; onBack: () =>
 
   return (
     <div>
-      <h2 className="text-xl font-bold text-[#E8E8ED] mb-1">Data Sources</h2>
-      <p className="text-[#8888AA] text-sm mb-6">Connect your observability backends. You can add more later in Settings.</p>
+      <h2 className="text-xl font-bold text-[var(--color-on-surface)] mb-1">Data Sources</h2>
+      <p className="text-[var(--color-on-surface-variant)] text-sm mb-6">Connect your observability backends. You can add more later in Settings.</p>
 
       {entries.length > 0 && (
         <div className="space-y-2 mb-4">
           {entries.map((ds, i) => (
-            <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-lg bg-[#1C1C2E] border border-[#2A2A3E]">
-              <span className="text-xs font-mono bg-[#0A0A0F] border border-[#2A2A3E] rounded px-2 py-1 text-[#8888AA]">
+            <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-lg bg-[var(--color-surface-high)] border border-[var(--color-outline-variant)]">
+              <span className="text-xs font-mono bg-[var(--color-surface-lowest)] border border-[var(--color-outline-variant)] rounded px-2 py-1 text-[var(--color-on-surface-variant)]">
                 {ds.type}
               </span>
-              <span className="text-sm text-[#E8E8ED] flex-1">
+              <span className="text-sm text-[var(--color-on-surface)] flex-1">
                 {ds.name || ds.url}
               </span>
               <button
                 type="button"
                 onClick={() => void handleTest(i)}
-                className="text-xs text-[#6366F1] hover:text-[#818CF8] font-medium"
+                className="text-xs text-[var(--color-primary)] hover:text-[var(--color-primary)] font-medium"
               >
                 Test
               </button>
@@ -527,7 +527,7 @@ function StepDatasources({ onNext, onBack }: { onNext: () => void; onBack: () =>
               <button
                 type="button"
                 onClick={() => setEntries((prev) => prev.filter((_, j) => j !== i))}
-                className="text-xs text-[#8888AA] hover:text-[#E8E8ED]"
+                className="text-xs text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]"
               >
                 Remove
               </button>
@@ -537,14 +537,14 @@ function StepDatasources({ onNext, onBack }: { onNext: () => void; onBack: () =>
       )}
 
       {adding && (
-        <div className="border border-[#2A2A3E] rounded-xl bg-[#141420] p-4 space-y-3 mb-4">
+        <div className="border border-[var(--color-outline-variant)] rounded-xl bg-[var(--color-surface-highest)] p-4 space-y-3 mb-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-[#8888AA] mb-1">Type</label>
+              <label className="block text-xs font-medium text-[var(--color-on-surface-variant)] mb-1">Type</label>
               <select
                 value={form.type}
                 onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
-                className="w-full px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#1C1C2E] text-[#E8E8ED] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
               >
                 {categories.map((cat) => (
                   <optgroup key={cat} label={cat}>
@@ -559,35 +559,35 @@ function StepDatasources({ onNext, onBack }: { onNext: () => void; onBack: () =>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-[#8888AA] mb-1">Name (optional)</label>
+              <label className="block text-xs font-medium text-[var(--color-on-surface-variant)] mb-1">Name (optional)</label>
               <input
                 type="text"
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 placeholder="prod-loki"
-                className="w-full px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#1C1C2E] text-[#E8E8ED] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-[#8888AA] mb-1">URL</label>
+              <label className="block text-xs font-medium text-[var(--color-on-surface-variant)] mb-1">URL</label>
               <input
                 type="url"
                 value={form.url}
                 onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
                 placeholder="http://localhost:3100"
-                className="w-full px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#1C1C2E] text-[#E8E8ED] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-[#8888AA] mb-1">API Key (optional)</label>
+              <label className="block text-xs font-medium text-[var(--color-on-surface-variant)] mb-1">API Key (optional)</label>
               <input
                 type="password"
                 value={form.apiKey}
                 onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
                 placeholder="password"
-                className="w-full px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#1C1C2E] text-[#E8E8ED] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
               />
             </div>
           </div>
@@ -604,7 +604,7 @@ function StepDatasources({ onNext, onBack }: { onNext: () => void; onBack: () =>
             <button
               type="button"
               onClick={() => setAdding(false)}
-              className="px-4 py-2 text-sm text-[#8888AA] hover:text-[#E8E8ED]"
+              className="px-4 py-2 text-sm text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]"
             >
               Cancel
             </button>
@@ -615,17 +615,17 @@ function StepDatasources({ onNext, onBack }: { onNext: () => void; onBack: () =>
       <button
         type="button"
         onClick={() => setAdding(true)}
-        className="w-full py-3 rounded-xl border-2 border-dashed border-[#2A2A3E] text-sm text-[#8888AA] hover:border-[#6366F1] hover:text-[#6366F1] transition-colors mb-4"
+        className="w-full py-3 rounded-xl border-2 border-dashed border-[var(--color-outline-variant)] text-sm text-[var(--color-on-surface-variant)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-colors mb-4"
       >
         + Add data source
       </button>
 
       <div className="flex justify-between mt-6">
-        <button type="button" onClick={onBack} className="px-5 py-2 text-sm font-medium text-[#8888AA] hover:text-[#E8E8ED]">
+        <button type="button" onClick={onBack} className="px-5 py-2 text-sm font-medium text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]">
           ← Back
         </button>
         <div className="flex gap-3">
-          <button type="button" onClick={onNext} className="px-5 py-2 text-sm text-[#8888AA] hover:text-[#E8E8ED]">
+          <button type="button" onClick={onNext} className="px-5 py-2 text-sm text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]">
             Skip for now
           </button>
           <button
@@ -680,96 +680,96 @@ function StepNotifications({
 
   return (
     <div>
-      <h2 className="text-xl font-bold text-[#E8E8ED] mb-1">Notifications</h2>
-      <p className="text-[#8888AA] text-sm mb-6">
+      <h2 className="text-xl font-bold text-[var(--color-on-surface)] mb-1">Notifications</h2>
+      <p className="text-[var(--color-on-surface-variant)] text-sm mb-6">
         Get alerted when incidents are detected. All optional - skip if not needed now.
       </p>
 
       <div className="space-y-4">
-        <div className="p-4 rounded-xl border border-[#2A2A3E] bg-[#141420]">
-          <h3 className="text-sm font-semibold text-[#E8E8ED] mb-3">Slack</h3>
-          <label className="block text-xs font-medium text-[#8888AA] mb-1">Webhook URL</label>
+        <div className="p-4 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-highest)]">
+          <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">Slack</h3>
+          <label className="block text-xs font-medium text-[var(--color-on-surface-variant)] mb-1">Webhook URL</label>
           <input
             type="url"
             value={config.slackWebhook}
             onChange={(e) => onChange({ slackWebhook: e.target.value })}
             placeholder="https://hooks.slack.com/services/..."
-            className="w-full px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#1C1C2E] text-[#E8E8ED] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+            className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
           />
         </div>
 
-        <div className="p-4 rounded-xl border border-[#2A2A3E] bg-[#141420]">
-          <h3 className="text-sm font-semibold text-[#E8E8ED] mb-3">PagerDuty</h3>
-          <label className="block text-xs font-medium text-[#8888AA] mb-1">Integration Key</label>
+        <div className="p-4 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-highest)]">
+          <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">PagerDuty</h3>
+          <label className="block text-xs font-medium text-[var(--color-on-surface-variant)] mb-1">Integration Key</label>
           <input
             type="password"
             value={config.pagerDutyKey}
             onChange={(e) => onChange({ pagerDutyKey: e.target.value })}
             placeholder="your-integration-key"
-            className="w-full px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#1C1C2E] text-[#E8E8ED] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+            className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
           />
         </div>
 
-        <div className="p-4 rounded-xl border border-[#2A2A3E] bg-[#141420]">
-          <h3 className="text-sm font-semibold text-[#E8E8ED] mb-3">Email (SMTP)</h3>
+        <div className="p-4 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-highest)]">
+          <h3 className="text-sm font-semibold text-[var(--color-on-surface)] mb-3">Email (SMTP)</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-[#8888AA] mb-1">SMTP Host</label>
+              <label className="block text-xs font-medium text-[var(--color-on-surface-variant)] mb-1">SMTP Host</label>
               <input
                 type="text"
                 value={config.emailHost}
                 onChange={(e) => onChange({ emailHost: e.target.value })}
                 placeholder="smtp.example.com"
-                className="w-full px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#1C1C2E] text-[#E8E8ED] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-[#8888AA] mb-1">Port</label>
+              <label className="block text-xs font-medium text-[var(--color-on-surface-variant)] mb-1">Port</label>
               <input
                 type="number"
                 value={config.emailPort}
                 onChange={(e) => onChange({ emailPort: e.target.value })}
                 placeholder="587"
-                className="w-full px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#1C1C2E] text-[#E8E8ED] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-[#8888AA] mb-1">Username</label>
+              <label className="block text-xs font-medium text-[var(--color-on-surface-variant)] mb-1">Username</label>
               <input
                 type="text"
                 value={config.emailUser}
                 onChange={(e) => onChange({ emailUser: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#1C1C2E] text-[#E8E8ED] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-[#8888AA] mb-1">Password</label>
+              <label className="block text-xs font-medium text-[var(--color-on-surface-variant)] mb-1">Password</label>
               <input
                 type="text"
                 value={config.emailPass}
                 onChange={(e) => onChange({ emailPass: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#1C1C2E] text-[#E8E8ED] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-xs font-medium text-[#8888AA] mb-1">From address</label>
+              <label className="block text-xs font-medium text-[var(--color-on-surface-variant)] mb-1">From address</label>
               <input
                 type="email"
                 value={config.emailFrom}
                 onChange={(e) => onChange({ emailFrom: e.target.value })}
                 placeholder="alerts@example.com"
-                className="w-full px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#1C1C2E] text-[#E8E8ED] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+                className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
               />
             </div>
           </div>
         </div>
 
         <div className="flex justify-between mt-6">
-          <button type="button" onClick={onBack} className="px-5 py-2 text-sm font-medium text-[#8888AA] hover:text-[#E8E8ED]">
+          <button type="button" onClick={onBack} className="px-5 py-2 text-sm font-medium text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]">
             ← Back
           </button>
           <div className="flex gap-3">
-            <button type="button" onClick={onNext} className="px-5 py-2 text-sm text-[#8888AA] hover:text-[#E8E8ED]">
+            <button type="button" onClick={onNext} className="px-5 py-2 text-sm text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]">
               Skip for now
             </button>
             <button
@@ -812,17 +812,17 @@ function StepReady({
       <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 text-3xl mb-6">
         ✓
       </div>
-      <h2 className="text-2xl font-bold text-[#E8E8ED] mb-2">You're all set!</h2>
-      <p className="text-[#8888AA] mb-8">AgentObs is configured and ready to investigate.</p>
+      <h2 className="text-2xl font-bold text-[var(--color-on-surface)] mb-2">You're all set!</h2>
+      <p className="text-[var(--color-on-surface-variant)] mb-8">AgentObs is configured and ready to investigate.</p>
 
-      <div className="text-left bg-[#1C1C2E] rounded-xl border border-[#2A2A3E] p-4 mb-8 max-w-md mx-auto space-y-3">
+      <div className="text-left bg-[var(--color-surface-high)] rounded-xl border border-[var(--color-outline-variant)] p-4 mb-8 max-w-md mx-auto space-y-3">
         <div className="flex justify-between text-sm">
-          <span className="text-[#8888AA]">LLM Provider</span>
-          <span className="font-medium text-[#E8E8ED]">{providerLabel}</span>
+          <span className="text-[var(--color-on-surface-variant)]">LLM Provider</span>
+          <span className="font-medium text-[var(--color-on-surface)]">{providerLabel}</span>
         </div>
         <div className="flex justify-between text-sm">
-          <span className="text-[#8888AA]">Model</span>
-          <span className="font-medium text-[#E8E8ED]">{llm.model}</span>
+          <span className="text-[var(--color-on-surface-variant)]">Model</span>
+          <span className="font-medium text-[var(--color-on-surface)]">{llm.model}</span>
         </div>
       </div>
 
@@ -869,7 +869,7 @@ export default function SetupWizard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460] flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-3xl bg-[#141420] border border-[#2A2A3E] rounded-2xl p-8">
+      <div className="w-full max-w-3xl bg-[var(--color-surface-highest)] border border-[var(--color-outline-variant)] rounded-2xl p-8">
         <ProgressBar current={step} />
 
         {step === 0 && <StepWelcome onNext={next} />}

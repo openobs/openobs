@@ -50,8 +50,8 @@ const ENV_STYLES: Record<string, string> = {
   prod: 'bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20',
   staging: 'bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/20',
   dev: 'bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/20',
-  test: 'bg-[#6366F1]/10 text-[#6366F1] border-[#6366F1]/20',
-  custom: 'bg-[#8888AA]/10 text-[#8888AA] border-[#8888AA]/20',
+  test: 'bg-[var(--color-primary)]/10 text-[var(--color-primary)] border-[var(--color-primary)]/20',
+  custom: 'bg-[var(--color-on-surface-variant)]/10 text-[var(--color-on-surface-variant)] border-[var(--color-on-surface-variant)]/20',
 };
 
 function dsInfo(type: DatasourceType) {
@@ -85,7 +85,7 @@ function StatusDot({ status }: { status: ConnStatus }) {
   if (status === 'error') {
     return <span className="w-2 h-2 rounded-full bg-[#EF4444] shrink-0" title="Error" />;
   }
-  return <span className="w-2 h-2 rounded-full bg-[#555570] shrink-0" title="Unknown" />;
+  return <span className="w-2 h-2 rounded-full bg-[var(--color-outline)] shrink-0" title="Unknown" />;
 }
 
 // Input components
@@ -101,18 +101,18 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-[#E8E8ED] mb-1">{label}</label>
+      <label className="block text-xs font-medium text-[var(--color-on-surface)] mb-1">{label}</label>
       {children}
-      {hint && <p className="mt-1 text-[10px] text-[#555570]">{hint}</p>}
+      {hint && <p className="mt-1 text-[10px] text-[var(--color-outline)]">{hint}</p>}
     </div>
   );
 }
 
 const inputCls =
-  'w-full px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#0A0A0F] text-[#E8E8ED] text-sm placeholder-[#555570] focus:outline-none focus:border-[#6366F1] transition-colors';
+  'w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-lowest)] text-[var(--color-on-surface)] text-sm placeholder-[var(--color-outline)] focus:outline-none focus:border-[var(--color-primary)] transition-colors';
 
 const selectCls =
-  'w-full px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#0A0A0F] text-[#E8E8ED] text-sm focus:outline-none focus:border-[#6366F1] transition-colors';
+  'w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-lowest)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:border-[var(--color-primary)] transition-colors';
 
 // Empty form state
 
@@ -188,7 +188,7 @@ function DatasourceForm({
   };
 
   return (
-    <div className="px-4 pb-4 pt-3 border-t border-[#1C1C2E] space-y-3">
+    <div className="px-4 pb-4 pt-3 border-t border-[var(--color-surface-high)] space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Field label="Type">
           <select
@@ -313,7 +313,7 @@ function DatasourceForm({
             void handleTest();
           }}
           disabled={testing || !value.url}
-          className="px-3 py-1.5 rounded-lg border border-[#2A2A3E] text-xs font-medium text-[#E8E8ED] hover:bg-[#0C1C2E] disabled:opacity-50 transition-colors"
+          className="px-3 py-1.5 rounded-lg border border-[var(--color-outline-variant)] text-xs font-medium text-[var(--color-on-surface)] hover:bg-[#0C1C2E] disabled:opacity-50 transition-colors"
         >
           {testing ? 'Testing...' : 'Test Connection'}
         </button>
@@ -326,19 +326,19 @@ function DatasourceForm({
           >
             {testResult.ok ? 'Connected' : testResult.message}
             {testResult.ok && testResult.version && (
-              <span className="text-[#8888AA] ml-1">({testResult.version})</span>
+              <span className="text-[var(--color-on-surface-variant)] ml-1">({testResult.version})</span>
             )}
           </span>
         )}
       </div>
 
-      <div className="flex items-center gap-2 pt-2 border-t border-[#1C1C2E]">
-        <label className="flex items-center gap-2 text-xs text-[#8888AA] cursor-pointer select-none">
+      <div className="flex items-center gap-2 pt-2 border-t border-[var(--color-surface-high)]">
+        <label className="flex items-center gap-2 text-xs text-[var(--color-on-surface-variant)] cursor-pointer select-none">
           <input
             type="checkbox"
             checked={value.isDefault ?? false}
             onChange={(e) => set({ isDefault: e.target.checked })}
-            className="w-3.5 h-3.5 rounded accent-[#6366F1]"
+            className="w-3.5 h-3.5 rounded accent-[var(--color-primary)]"
           />
           Set as default
         </label>
@@ -349,7 +349,7 @@ function DatasourceForm({
           <button
             type="button"
             onClick={onDelete}
-            className="px-2.5 py-1.5 rounded-lg text-xs text-[#555570] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors"
+            className="px-2.5 py-1.5 rounded-lg text-xs text-[var(--color-outline)] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors"
           >
             Delete
           </button>
@@ -358,7 +358,7 @@ function DatasourceForm({
         <button
           type="button"
           onClick={onCancel}
-          className="px-2.5 py-1.5 rounded-lg text-xs text-[#8888AA] hover:bg-[#1C1C2E] transition-colors"
+          className="px-2.5 py-1.5 rounded-lg text-xs text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-high)] transition-colors"
         >
           Cancel
         </button>
@@ -366,7 +366,7 @@ function DatasourceForm({
           type="button"
           onClick={onSave}
           disabled={saving || !value.name || !value.url}
-          className="px-3 py-1.5 rounded-lg bg-[#6366F1] text-white text-xs font-medium hover:bg-[#4F46E5] disabled:opacity-40 transition-colors"
+          className="px-3 py-1.5 rounded-lg bg-[var(--color-primary)] text-white text-xs font-medium hover:bg-[var(--color-primary)] disabled:opacity-40 transition-colors"
         >
           {saving ? 'Saving...' : isNew ? 'Add Datasource' : 'Save Changes'}
         </button>
@@ -436,14 +436,14 @@ function DatasourceRow({
   };
 
   return (
-    <div className="rounded-xl border bg-[#141418] border-[#2A2A3E] hover:border-[#6366F1]/40 transition-all">
+    <div className="rounded-xl border bg-[#141418] border-[var(--color-outline-variant)] hover:border-[var(--color-primary)]/40 transition-all">
       <button
         type="button"
         onClick={onToggle}
         className="w-full text-left px-4 py-3 flex items-center gap-3"
       >
         <svg
-          className={`w-3.5 h-3.5 text-[#555570] transition-transform shrink-0 ${
+          className={`w-3.5 h-3.5 text-[var(--color-outline)] transition-transform shrink-0 ${
             expanded ? 'rotate-90' : ''
           }`}
           fill="none"
@@ -456,12 +456,12 @@ function DatasourceRow({
 
         <TypeIcon type={ds.type} />
 
-        <span className="text-sm font-medium text-[#E8E8ED] truncate min-w-0 max-w-[180px]">
+        <span className="text-sm font-medium text-[var(--color-on-surface)] truncate min-w-0 max-w-[180px]">
           {ds.name}
         </span>
 
         {ds.isDefault && (
-          <span className="px-1.5 py-0.5 rounded bg-[#6366F1]/15 text-[#818CF8] text-[10px] font-semibold shrink-0">
+          <span className="px-1.5 py-0.5 rounded bg-[var(--color-primary)]/15 text-[var(--color-primary)] text-[10px] font-semibold shrink-0">
             Default
           </span>
         )}
@@ -488,12 +488,12 @@ function DatasourceRow({
         )}
 
         {ds.cluster && (
-          <span className="px-1.5 py-0.5 rounded bg-[#1C1C2E] text-[#8888AA] text-[10px] font-mono shrink-0 hidden md:inline">
+          <span className="px-1.5 py-0.5 rounded bg-[var(--color-surface-high)] text-[var(--color-on-surface-variant)] text-[10px] font-mono shrink-0 hidden md:inline">
             {ds.cluster}
           </span>
         )}
 
-        <span className="text-[11px] text-[#555570] font-mono hidden md:inline truncate flex-1 text-right">
+        <span className="text-[11px] text-[var(--color-outline)] font-mono hidden md:inline truncate flex-1 text-right">
           {truncateUrl(ds.url)}
         </span>
 
@@ -534,14 +534,14 @@ function AddDatasourcePanel({
   };
 
   return (
-    <div className="rounded-xl border border-[#6366F1]/30 bg-[#141420]">
-      <div className="px-4 py-3 flex items-center gap-2 border-b border-[#1C1C2E]">
-        <span className="text-sm font-semibold text-[#E8E8ED]">New Data Source</span>
+    <div className="rounded-xl border border-[var(--color-primary)]/30 bg-[var(--color-surface-highest)]">
+      <div className="px-4 py-3 flex items-center gap-2 border-b border-[var(--color-surface-high)]">
+        <span className="text-sm font-semibold text-[var(--color-on-surface)]">New Data Source</span>
         <div className="flex-1" />
         <button
           type="button"
           onClick={onCancel}
-          className="p-1 text-[#555570] hover:text-[#8888AA] transition-colors"
+          className="p-1 text-[var(--color-outline)] hover:text-[var(--color-on-surface-variant)] transition-colors"
           aria-label="Close"
         >
           <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
@@ -719,15 +719,15 @@ export default function Connections() {
   );
 
   return (
-    <div className="min-h-full bg-[#0A0A0F]">
+    <div className="min-h-full bg-[var(--color-surface-lowest)]">
       <div className="max-w-4xl mx-auto px-4 py-6 sm:px-6 sm:py-8">
         <div className="flex items-center justify-between mb-5">
-          <h1 className="text-xl font-bold text-[#E8E8ED]">Connections</h1>
+          <h1 className="text-xl font-bold text-[var(--color-on-surface)]">Connections</h1>
           {!showAddForm && (
             <button
               type="button"
               onClick={() => setShowAddForm(true)}
-              className="px-3 py-1.5 bg-[#6366F1] text-white text-xs font-medium rounded-lg hover:bg-[#4F46E5] transition-colors"
+              className="px-3 py-1.5 bg-[var(--color-primary)] text-white text-xs font-medium rounded-lg hover:bg-[var(--color-primary)] transition-colors"
             >
               Add data source
             </button>
@@ -735,7 +735,7 @@ export default function Connections() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 mb-5">
-          <span className="text-sm text-[#E8E8ED] font-medium">
+          <span className="text-sm text-[var(--color-on-surface)] font-medium">
             {counts.total} data source{counts.total === 1 ? '' : 's'}
           </span>
           {topTypes.map((t) => (
@@ -755,7 +755,7 @@ export default function Connections() {
 
         <div className="relative mb-5">
           <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-[#555570]"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-outline)]"
             viewBox="0 0 24 24"
             stroke="currentColor"
             strokeWidth={2}
@@ -773,13 +773,13 @@ export default function Connections() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search by name, type, URL, environment..."
-            className="w-full bg-[#141420] border border-[#2A2A3E] rounded-lg pl-9 pr-9 py-2 text-sm text-[#E8E8ED] placeholder-[#555570] focus:outline-none focus:border-[#6366F1] transition-colors"
+            className="w-full bg-[var(--color-surface-highest)] border border-[var(--color-outline-variant)] rounded-lg pl-9 pr-9 py-2 text-sm text-[var(--color-on-surface)] placeholder-[var(--color-outline)] focus:outline-none focus:border-[var(--color-primary)] transition-colors"
           />
           {searchQuery && (
             <button
               type="button"
               onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#555570] hover:text-[#8888AA]"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--color-outline)] hover:text-[var(--color-on-surface-variant)]"
             >
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                 <path
@@ -790,7 +790,7 @@ export default function Connections() {
               </svg>
             </button>
           )}
-          <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded bg-[#1C1C2E] text-[10px] text-[#555570] font-mono border border-[#2A2A3E]">
+          <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded bg-[var(--color-surface-high)] text-[10px] text-[var(--color-outline)] font-mono border border-[var(--color-outline-variant)]">
             /
           </kbd>
         </div>
@@ -806,14 +806,14 @@ export default function Connections() {
 
         {loading && (
           <div className="flex justify-center py-16">
-            <span className="inline-block w-6 h-6 border-2 border-[#2A2A3E] border-t-[#6366F1] rounded-full animate-spin" />
+            <span className="inline-block w-6 h-6 border-2 border-[var(--color-outline-variant)] border-t-[var(--color-primary)] rounded-full animate-spin" />
           </div>
         )}
 
         {!loading && datasources.length === 0 && !showAddForm && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-12 h-12 rounded-xl bg-[#1A1A2E] border border-[#2A2A3E] flex items-center justify-center mb-3">
-              <svg className="w-6 h-6 text-[#555570]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="w-12 h-12 rounded-xl bg-[#1A1A2E] border border-[var(--color-outline-variant)] flex items-center justify-center mb-3">
+              <svg className="w-6 h-6 text-[var(--color-outline)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -822,14 +822,14 @@ export default function Connections() {
                 />
               </svg>
             </div>
-            <p className="text-sm text-[#8888AA] mb-1">No data sources configured</p>
-            <p className="text-xs text-[#555570] mb-4">
+            <p className="text-sm text-[var(--color-on-surface-variant)] mb-1">No data sources configured</p>
+            <p className="text-xs text-[var(--color-outline)] mb-4">
               Add a Prometheus, Loki, or other data source to start querying
             </p>
             <button
               type="button"
               onClick={() => setShowAddForm(true)}
-              className="px-4 py-2 bg-[#6366F1] text-white text-sm font-medium rounded-lg hover:bg-[#4F46E5] transition-colors"
+              className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg hover:bg-[var(--color-primary)] transition-colors"
             >
               Add data source
             </button>
@@ -838,13 +838,13 @@ export default function Connections() {
 
         {!loading && datasources.length > 0 && filtered.length === 0 && (
           <div className="flex flex-col items-center py-12 text-center">
-            <p className="text-sm text-[#8888AA]">
+            <p className="text-sm text-[var(--color-on-surface-variant)]">
               No data sources match <span className="text-[#60A5FA]">"{searchQuery}"</span>
             </p>
             <button
               type="button"
               onClick={() => setSearchQuery('')}
-              className="mt-2 text-xs text-[#6366F1] hover:text-[#818CF8]"
+              className="mt-2 text-xs text-[var(--color-primary)] hover:text-[var(--color-primary)]"
             >
               Clear search
             </button>

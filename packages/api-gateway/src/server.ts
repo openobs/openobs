@@ -37,7 +37,7 @@ import {
 import { createDefaultStores } from './repositories/factory.js';
 import type { Repositories } from '@agentic-obs/data-layer';
 import { createLogger, requestLogger, GracefulShutdown, ShutdownPriority } from '@agentic-obs/common';
-import { registerStore, loadAll, flushStores } from './persistence.js';
+import { registerStore, loadAll, flushStores, markDirty } from './persistence.js';
 
 const log = createLogger('api-gateway');
 
@@ -136,6 +136,10 @@ export function startServer(port = 3000): void {
 
   // Register all stores for JSON file persistence and load saved data
   void (async () => {
+    // Connect data-layer's markDirty to api-gateway's persistence layer
+    const { setMarkDirty } = await import('@agentic-obs/data-layer');
+    setMarkDirty(markDirty);
+
     const {
       defaultDashboardStore,
       defaultAlertRuleStore,

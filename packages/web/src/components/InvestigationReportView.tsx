@@ -7,67 +7,20 @@ interface Props {
   onClose?: () => void;
 }
 
-function MarkdownText({ content }: { content: string }) {
-  // Simple markdown rendering: bold, code, headers, paragraphs
-  const lines = content.split('\n');
-  const elements: React.ReactNode[] = [];
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-
-    if (line!.startsWith('### ')) {
-      elements.push(
-        <h4 key={i} className="text-sm font-semibold text-[#F0EBED] mt-4 mb-1.5">
-          {line!.slice(4)}
-        </h4>,
-      );
-    } else if (line!.startsWith('## ')) {
-      elements.push(
-        <h3 key={i} className="text-base font-semibold text-[#E8E8ED] mt-5 mb-2">
-          {line!.slice(3)}
-        </h3>,
-      );
-    } else if (line!.startsWith('# ')) {
-      elements.push(
-        <h2 key={i} className="text-lg font-bold text-[#E8E8ED] mt-6 mb-2">
-          {line!.slice(2)}
-        </h2>,
-      );
-    } else if (line!.startsWith('- ')) {
-      elements.push(
-        <ul key={i} className="text-sm text-[#BCC0D8] mt-1 list-disc leading-relaxed">
-          <li>{InlineMarkdown({ text: line!.slice(2) })}</li>
-        </ul>,
-      );
-    } else if (line!.trim()) {
-      elements.push(
-        <p key={i} className="text-sm text-[#BCC0D8] leading-relaxed">
-          {InlineMarkdown({ text: line! })}
-        </p>,
-      );
-    } else {
-      elements.push(<div key={i} className="h-2" />);
-    }
-  }
-
-  return <>{elements}</>;
-}
+/* ── Inline markdown ── */
 
 function InlineMarkdown({ text }: { text: string }) {
-  // Handle **bold**, `code`, and italic
   const parts: React.ReactNode[] = [];
   let remaining = text;
   let key = 0;
 
   while (remaining.length > 0) {
-    // bold
     const boldMatch = remaining.match(/\*\*(.+?)\*\*/);
-    // Code
     const codeMatch = remaining.match(/`(.+?)`/);
 
     const matches = [
-      boldMatch ? { type: 'bold', match: boldMatch, index: boldMatch.index ?? 0 } : null,
-      codeMatch ? { type: 'code', match: codeMatch, index: codeMatch.index ?? 0 } : null,
+      boldMatch ? { type: 'bold' as const, match: boldMatch, index: boldMatch.index ?? 0 } : null,
+      codeMatch ? { type: 'code' as const, match: codeMatch, index: codeMatch.index ?? 0 } : null,
     ]
       .filter(Boolean)
       .sort((a, b) => (a?.index ?? 0) - (b?.index ?? 0));
@@ -84,7 +37,7 @@ function InlineMarkdown({ text }: { text: string }) {
 
     if (first.type === 'bold') {
       parts.push(
-        <strong key={key++} className="font-semibold text-[#E8E8ED]">
+        <strong key={key++} className="font-semibold text-on-surface">
           {first.match[1]}
         </strong>,
       );
@@ -92,7 +45,7 @@ function InlineMarkdown({ text }: { text: string }) {
       parts.push(
         <code
           key={key++}
-          className="text-xs p-1 bg-[#1C1C2E] text-[#A0B1F0] px-1 py-0.5 rounded font-mono"
+          className="text-xs bg-surface-variant text-tertiary px-1.5 py-0.5 rounded font-mono"
         >
           {first.match[1]}
         </code>,
@@ -105,15 +58,72 @@ function InlineMarkdown({ text }: { text: string }) {
   return <>{parts}</>;
 }
 
+/* ── Block-level markdown ── */
+
+function MarkdownText({ content }: { content: string }) {
+  const lines = content.split('\n');
+  const elements: React.ReactNode[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+
+    if (line.startsWith('### ')) {
+      elements.push(
+        <h4 key={i} className="text-base font-bold font-[Manrope] text-on-surface mt-6 mb-2 flex items-center gap-2">
+          <span className="w-1 h-5 bg-primary rounded-full" />
+          {line.slice(4)}
+        </h4>,
+      );
+    } else if (line.startsWith('## ')) {
+      elements.push(
+        <h3 key={i} className="text-xl font-bold font-[Manrope] text-on-surface mt-8 mb-3 flex items-center gap-2">
+          <span className="w-1.5 h-6 bg-primary rounded-full" />
+          {line.slice(3)}
+        </h3>,
+      );
+    } else if (line.startsWith('# ')) {
+      elements.push(
+        <h2 key={i} className="text-2xl font-extrabold font-[Manrope] text-on-surface mt-8 mb-3 flex items-center gap-2">
+          <span className="w-1.5 h-6 bg-primary rounded-full" />
+          {line.slice(2)}
+        </h2>,
+      );
+    } else if (line.startsWith('- ')) {
+      elements.push(
+        <div key={i} className="flex gap-3 mt-2">
+          <span className="text-primary mt-0.5 shrink-0">&#x2022;</span>
+          <span className="text-[15px] text-on-surface-variant leading-relaxed">
+            <InlineMarkdown text={line.slice(2)} />
+          </span>
+        </div>,
+      );
+    } else if (line.trim()) {
+      elements.push(
+        <p key={i} className="text-[15px] text-on-surface-variant leading-relaxed mt-1">
+          <InlineMarkdown text={line} />
+        </p>,
+      );
+    } else {
+      elements.push(<div key={i} className="h-3" />);
+    }
+  }
+
+  return <>{elements}</>;
+}
+
+/* ── Section renderers ── */
+
 function EvidenceSection({ section }: { section: InvestigationReportSection }) {
   return (
-    <div className="mb-6">
-      <div className="mb-3 pl-4 border-l-2 border-[#6366F1]/40">
-        <MarkdownText content={section.content ?? ''} />
-      </div>
+    <div className="mt-8">
+      {section.content && (
+        <div className="mb-4 pl-5 border-l-2 border-primary/40">
+          <MarkdownText content={section.content} />
+        </div>
+      )}
 
       {section.panel && (
-        <div className="rounded-xl overflow-hidden" style={{ height: 280 }}>
+        <div className="rounded-2xl overflow-hidden bg-surface-high" style={{ height: 280 }}>
           <DashboardPanelCard panel={section.panel} />
         </div>
       )}
@@ -123,38 +133,54 @@ function EvidenceSection({ section }: { section: InvestigationReportSection }) {
 
 function TextSection({ section }: { section: InvestigationReportSection }) {
   return (
-    <div className="mb-6">
+    <div className="mt-6">
       <MarkdownText content={section.content ?? ''} />
     </div>
   );
 }
 
+/* ── Main component ── */
+
 export default function InvestigationReportView({ report }: Props) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto">
-        <div className="px-3 max-w-auto mx-6 py-6">
-          <div className="p-4 rounded-xl bg-[#6366F1]/5 border border-[#6366F1]/20">
-            <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-lg bg-[#6366F1]/10 flex items-center justify-center shrink-0 mt-0.5">
-                <svg className="w-4 h-4 text-[#818CF8]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="text-xs font-semibold text-[#818CF8] uppercase tracking-wider mb-1">Summary</h3>
-                <p className="text-sm text-[#E8E8ED] leading-relaxed">{report.summary}</p>
-              </div>
-            </div>
-          </div>
+        <div className="px-12 py-10 max-w-4xl mx-auto space-y-8">
 
-          {report.sections.map((section, i) => (
+          {/* Header */}
+          <header className="space-y-4">
+            <div className="flex items-center gap-3">
+              <span className="px-2 py-0.5 rounded bg-error/10 text-error text-[10px] font-bold tracking-widest uppercase">
+                Investigation Report
+              </span>
+            </div>
+
+            <h1 className="text-4xl font-extrabold font-[Manrope] tracking-tight text-on-surface leading-tight">
+              {report.summary.length > 120
+                ? report.summary.slice(0, 120) + '...'
+                : report.summary}
+            </h1>
+          </header>
+
+          {/* Summary */}
+          <section className="space-y-3">
+            <h3 className="text-xl font-bold font-[Manrope] text-on-surface flex items-center gap-2">
+              <span className="w-1.5 h-6 bg-primary rounded-full" />
+              Summary
+            </h3>
+            <p className="text-[15px] text-on-surface-variant leading-relaxed pl-4 border-l-2 border-primary/40">
+              {report.summary}
+            </p>
+          </section>
+
+          {/* Sections */}
+          {report.sections.map((section, i) =>
             section.type === 'evidence' ? (
               <EvidenceSection key={i} section={section} />
             ) : (
               <TextSection key={i} section={section} />
-            )
-          ))}
+            ),
+          )}
         </div>
       </div>
     </div>

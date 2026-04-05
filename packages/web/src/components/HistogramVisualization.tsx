@@ -50,25 +50,25 @@ export default function HistogramVisualization({ buckets }: Props) {
   }, [buckets]);
 
   if (data.length === 0) {
-    return <div className="text-xs text-[#555570] italic py-4 text-center">No data</div>;
+    return <div className="text-xs text-[var(--color-outline)] italic py-4 text-center">No data</div>;
   }
 
   return (
-    <div className="bg-[#141420] rounded-lg p-2">
+    <div className="bg-[var(--color-surface-highest)] rounded-lg p-2">
       <ResponsiveContainer width="100%" height={160}>
         <BarChart data={data} margin={{ top: 0, right: 12, bottom: 4, left: 4 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#2A2A3E" horizontal />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--color-outline-variant)" horizontal />
           <XAxis
             dataKey="label"
-            tick={{ fill: '#8888AA', fontSize: 10 }}
-            axisLine={{ stroke: '#2A2A3E' }}
+            tick={{ fill: 'var(--color-on-surface-variant)', fontSize: 10 }}
+            axisLine={{ stroke: 'var(--color-outline-variant)' }}
             tickLine={false}
             interval={data.length > 12 ? Math.floor(data.length / 8) : 0}
           />
           <YAxis
             tickFormatter={formatValue}
-            tick={{ fill: '#8888AA', fontSize: 11 }}
-            axisLine={{ stroke: '#2A2A3E' }}
+            tick={{ fill: 'var(--color-on-surface-variant)', fontSize: 11 }}
+            axisLine={{ stroke: 'var(--color-outline-variant)' }}
             tickLine={false}
             width={45}
           />
@@ -78,14 +78,14 @@ export default function HistogramVisualization({ buckets }: Props) {
               if (!active || !payload || payload.length === 0) return null;
               const d = payload[0]?.payload as { label: string; count: number };
               return (
-                <div className="bg-[#141420] border border-[#2A2A3E] rounded-lg px-3 py-2 shadow-xl text-xs">
-                  <div className="text-[#8888AA] mb-0.5">{d.label}</div>
-                  <div className="text-[#E8E8ED] font-mono font-semibold">{formatValue(d.count ?? 0)}</div>
+                <div className="bg-[var(--color-surface-highest)] border border-[var(--color-outline-variant)] rounded-lg px-3 py-2 shadow-xl text-xs">
+                  <div className="text-[var(--color-on-surface-variant)] mb-0.5">{d.label}</div>
+                  <div className="text-[var(--color-on-surface)] font-mono font-semibold">{formatValue(d.count ?? 0)}</div>
                 </div>
               );
             }}
           />
-          <Bar dataKey="count" radius={[3, 3, 0, 0]} maxBarSize={40} fill="#6366F1" fillOpacity={0.85} />
+          <Bar dataKey="count" radius={[3, 3, 0, 0]} maxBarSize={40} fill="var(--color-primary)" fillOpacity={0.85} />
         </BarChart>
       </ResponsiveContainer>
     </div>

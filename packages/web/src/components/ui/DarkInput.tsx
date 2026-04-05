@@ -11,7 +11,7 @@ type TextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
 type DarkInputProps = InputProps | TextareaProps;
 
 const baseClass =
-  'w-full bg-[#1C1C2E] rounded-xl border border-[#2A2A3E] px-4 py-3 text-[#E8E8ED] placeholder:text-[#555570] focus:border-[#6366F1] focus:ring focus:ring-[#6366F1]/20 outline-none transition-colors';
+  'w-full bg-[var(--color-surface-high)] rounded-xl border border-[var(--color-outline-variant)] px-4 py-3 text-[var(--color-on-surface)] placeholder:text-[var(--color-outline)] focus:border-[var(--color-primary)] focus:ring focus:ring-[var(--color-primary)]/20 outline-none transition-colors';
 
 export function DarkInput(props: DarkInputProps) {
   if (props.as === 'textarea') {

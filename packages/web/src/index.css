@@ -1,16 +1,47 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #0A0A0F;
-  --color-surface: #141420;
-  --color-surface-hover: #1C1C2E;
-  --color-border: #2A2A3E;
-  --color-border-active: #4F46E5;
-  --color-text-primary: #E8E8ED;
-  --color-text-secondary: #8888AA;
-  --color-text-muted: #555570;
-  --color-accent: #6366F1;
-  --color-accent-glow: #818CF8;
+  /* Surface hierarchy — cool blue-gray observatory palette */
+  --color-surface-lowest: #0d1117;
+  --color-surface: #131a2b;
+  --color-surface-low: #151929;
+  --color-surface-container: #1a1e2e;
+  --color-surface-high: #232838;
+  --color-surface-highest: #2a3042;
+  --color-surface-bright: #323848;
+  --color-surface-variant: #2a3042;
+
+  /* Text / on-surface */
+  --color-on-surface: #e2e8f0;
+  --color-on-surface-variant: #8b92a8;
+
+  /* Primary */
+  --color-primary: #a3a6ff;
+  --color-primary-container: #9396ff;
+  --color-on-primary-fixed: #000000;
+
+  /* Secondary */
+  --color-secondary: #62fae3;
+
+  /* Tertiary */
+  --color-tertiary: #c180ff;
+
+  /* Error */
+  --color-error: #ff6e84;
+
+  /* Outline */
+  --color-outline: #3d4558;
+  --color-outline-variant: #2e3547;
+
+  /* Surface tint (for tinted shadows) */
+  --color-surface-tint: #a3a6ff;
+
+  /* Chart series colors */
+  --color-chart-green: #22c55e;
+  --color-chart-red: #ef4444;
+  --color-chart-blue: #3b82f6;
+  --color-chart-yellow: #eab308;
+  --color-chart-purple: #a855f7;
 }
 
 *, *::before, *::after {
@@ -20,8 +51,8 @@
 body {
   margin: 0;
   font-family: Inter, "apple-system", BlinkMacSystemFont, sans-serif;
-  background: var(--color-bg);
-  color: var(--color-text-primary);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
 }
 
 #root {
@@ -30,19 +61,36 @@ body {
   flex-direction: column;
 }
 
+/* Glassmorphism utility */
+.glass {
+  background: rgba(50, 56, 72, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
 /* Customize grid layout appearance */
 .react-grid-item.react-grid-placeholder {
-  background: rgba(99, 102, 241, 0.1);
-  border: 2px dashed rgba(99, 102, 241, 0.4);
-  border-radius: 8px;
+  background: rgba(163, 166, 255, 0.1);
+  border: 2px dashed rgba(163, 166, 255, 0.4);
+  border-radius: 12px;
   opacity: 1 !important;
 }
 
 .react-grid-item > .react-resizable-handle::after {
-  border-color: #4F46E5;
+  border-color: #a3a6ff;
 }
+
+/* Thin scrollbar for all scrollable areas */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-outline-variant); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-outline); }
+* { scrollbar-width: thin; scrollbar-color: var(--color-outline-variant) transparent; }
+
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
 .react-grid-item.react-draggable-dragging {
   z-index: 100;
-  box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 40px -5px rgba(163, 166, 255, 0.05);
 }

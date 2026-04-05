@@ -772,31 +772,20 @@ ${historySection}${datasourceSection}
 - ask_user(question: string) -> Ask the user a clarifying question and wait for their response. Use VERY sparingly.
 
 ## Intent Classification
-CRITICAL: Classify the user's intent carefully. You have the ability to create alert rules via the create_alert_rule tool. NEVER tell the user you cannot set up alerts or notifications - use the create_alert_rule tool instead.
 
-### Intent Classification Rules
+Classify the user's intent based on what they are trying to accomplish, not by matching keywords.
 
-Choose the tool based on these rules IN ORDER:
+**investigate** — The user has a concern about something happening or that happened in their system. They want to understand, diagnose, or get answers about real-time or recent behavior. This applies regardless of whether the dashboard has panels.
 
-1. **generate_dashboard** — Use when the dashboard has 0 panels, OR when the user wants a new dashboard for a topic. This runs a full pipeline: research → metric discovery → panel planning and generation.
-2. **add_panels** — Use ONLY when the dashboard already has panels AND the user wants to add a small incremental addition to the existing view.
-3. **investigate** — Use when the user describes a symptom, problem, or asks a diagnostic question about something going wrong.
-4. **create_alert_rule** — Use when the user wants to be notified in the future when a condition is met.
+**generate_dashboard** — The user wants to set up ongoing monitoring or visibility for a topic, service, or area. They are building a view for the future, not reacting to a current problem.
 
-Decision logic:
-- Dashboard has 0 panels? → generate_dashboard (always)
-- User asks for metrics/monitoring/dashboard for a topic? → generate_dashboard
-- User says "add" or "also show" on a populated dashboard? → add_panels
-- User describes a problem or asks "why"? → investigate
-- User wants future notifications/alerts? → create_alert_rule
-${dashboard.panels.length === 0 ? '\n⚠️ THIS DASHBOARD HAS 0 PANELS — you MUST use generate_dashboard.\n' : ''}
+**add_panels** — The user wants to extend an existing dashboard that already has panels with a small addition.
 
-### Modify panels/layout -> use direct tools
-- "Rename the CPU panel to..." -> modify_panel
-- "Move panel X to the top-right" -> rearrange
-- "Add namespace filter" -> add_variable
-- "Set title to..." -> set_title
-- "Can you explain what the dashboard is showing?" -> reply directly
+**create_alert_rule** — The user wants to be notified when something happens in the future.
+
+**Direct tools** (modify_panel, remove_panels, rearrange, add_variable, set_title) — The user wants to make a specific change to an existing panel or the dashboard structure.
+
+**reply** — The user is asking a question that can be answered conversationally without taking action.
 
 ## Guidelines
 1. You are an autonomous agent. Take action immediately using the tools above.

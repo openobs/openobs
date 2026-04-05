@@ -155,7 +155,7 @@ function buildSteps(events: ChatEvent[]): { steps: StepRow[]; preStatus: string 
 function ChevronIcon({ expanded }: { expanded: boolean }) {
   return (
     <svg
-      className={`w-3.5 h-3.5 text-[#555570] transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}
+      className={`w-3.5 h-3.5 text-on-surface-variant transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -168,9 +168,9 @@ function ChevronIcon({ expanded }: { expanded: boolean }) {
 function AnimatedDots() {
   return (
     <span className="inline-flex gap-0.5 ml-0.5 translate-y-[-1px]">
-      <span className="w-1 h-1 rounded-full bg-[#6366F1] animate-bounce [animation-delay:0ms]" />
-      <span className="w-1 h-1 rounded-full bg-[#6366F1] animate-bounce [animation-delay:150ms]" />
-      <span className="w-1 h-1 rounded-full bg-[#6366F1] animate-bounce [animation-delay:300ms]" />
+      <span className="w-1 h-1 rounded-full bg-primary animate-bounce [animation-delay:0ms]" />
+      <span className="w-1 h-1 rounded-full bg-primary animate-bounce [animation-delay:150ms]" />
+      <span className="w-1 h-1 rounded-full bg-primary animate-bounce [animation-delay:300ms]" />
     </span>
   );
 }
@@ -206,26 +206,26 @@ function StepRowView({
     <div className="flex items-start gap-2.5 py-1.5 min-h-[20px]">
       <div className="w-4 shrink-0">
         {isActive ? (
-          <span className="block w-2 h-2 rounded-full bg-[#6366F1] animate-pulse" />
+          <span className="block w-2 h-2 rounded-full bg-primary animate-pulse" />
         ) : step.result?.success ? (
-          <svg className="w-3.5 h-3.5 text-[#34D399]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <svg className="w-3.5 h-3.5 text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         ) : step.done ? (
-          <svg className="w-3.5 h-3.5 text-[#EF4444]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <svg className="w-3.5 h-3.5 text-error" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         ) : (
-          <span className="block w-2 h-2 rounded-full bg-[#555570]" />
+          <span className="block w-2 h-2 rounded-full bg-on-surface-variant" />
         )}
       </div>
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          <span className="text-xs font-medium text-[#E8E8ED]">{step.label}</span>
+          <span className="text-xs font-medium text-on-surface">{step.label}</span>
           {isActive && <AnimatedDots />}
         </div>
-        <div className="text-[11px] text-[#555570] truncate mt-0.5 leading-tight">
+        <div className="text-[11px] text-on-surface-variant truncate mt-0.5 leading-tight">
           {step.result?.text || step.status}
         </div>
       </div>
@@ -279,14 +279,14 @@ function AgentActivityBlock({
           <ChevronIcon expanded={expanded} />
           {isLive ? (
             <>
-              <span className="w-1.5 h-1.5 rounded-full bg-[#6366F1] animate-pulse shrink-0" />
-              <span className="text-xs text-[#8888AA] truncate">{summaryText}</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shrink-0" />
+              <span className="text-xs text-on-surface-variant truncate">{summaryText}</span>
               <AnimatedDots />
             </>
           ) : (
             <>
-              <span className="w-1.5 h-1.5 rounded-full bg-[#34D399] shrink-0" />
-              <span className="text-xs text-[#555570] truncate">{summaryText}</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-secondary shrink-0" />
+              <span className="text-xs text-on-surface-variant truncate">{summaryText}</span>
             </>
           )}
         </div>
@@ -301,11 +301,11 @@ function AgentActivityBlock({
             transition={{ duration: 0.15 }}
             className="overflow-hidden"
           >
-            <div className="mt-1 px-3 pb-2 border-l border-[#2A2A3E]">
+            <div className="mt-1 px-3 pb-2 border-l border-outline-variant">
               {preStatus && steps.length === 0 && (
                 <div className="flex items-center gap-2 py-1.5">
-                  <span className="w-2 h-2 rounded-full bg-[#6366F1] animate-pulse shrink-0" />
-                  <span className="text-xs text-[#8888AA]">{preStatus}</span>
+                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse shrink-0" />
+                  <span className="text-xs text-on-surface-variant">{preStatus}</span>
                   <AnimatedDots />
                 </div>
               )}
@@ -325,10 +325,11 @@ function AgentActivityBlock({
 
 function UserMessage({ content }: { content: string }) {
   return (
-    <div className="flex justify-end my-3">
-      <div className="max-w-[85%] px-4 py-2 text-sm leading-relaxed bg-[#6366F1] text-white rounded-2xl rounded-br-md">
+    <div className="flex flex-col items-end gap-2 my-4">
+      <div className="max-w-[90%] p-4 text-sm leading-relaxed bg-surface-variant rounded-xl rounded-tr-none text-on-surface">
         {content}
       </div>
+      <span className="text-[10px] text-on-surface-variant uppercase tracking-widest">You</span>
     </div>
   );
 }
@@ -351,13 +352,13 @@ function InlineMd({ text }: { text: string }) {
     if (hit.i > 0) parts.push(rest.slice(0, hit.i));
     if (hit.t === 'b') {
       parts.push(
-        <strong key={i++} className="font-semibold text-[#E8E8ED]">
+        <strong key={i++} className="font-semibold text-on-surface">
           {hit.m![1]}
         </strong>
       );
     } else {
       parts.push(
-        <code key={i++} className="text-[11px] bg-[#1C1C2E] text-[#818CF8] px-1 py-0.5 rounded font-mono">
+        <code key={i++} className="text-[11px] bg-surface-high text-primary px-1 py-0.5 rounded font-mono">
           {hit.m![1]}
         </code>
       );
@@ -370,31 +371,40 @@ function InlineMd({ text }: { text: string }) {
 function AssistantMessage({ content }: { content: string }) {
   const lines = content.split('\n');
   return (
-    <div className="my-3">
-      <div className="text-sm leading-relaxed text-[#C8C8D8]">
-        {lines.map((line, i) => {
-          if (line.startsWith('## ')) {
+    <div className="flex flex-col items-start gap-3 my-4">
+      <div className="max-w-[95%] p-5 rounded-xl rounded-tl-none bg-surface-high border-l-2 border-tertiary/40 relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-tertiary/20 to-transparent" />
+        <div className="text-sm leading-relaxed text-on-surface">
+          {lines.map((line, i) => {
+            if (line.startsWith('## ')) {
+              return (
+                <div key={i} className="text-sm font-semibold text-on-surface mt-3 mb-1">
+                  {line.slice(3)}
+                </div>
+              );
+            }
+            if (line.startsWith('- ')) {
+              return (
+                <div key={i} className="pl-4 relative">
+                  <span className="absolute left-0 text-tertiary">•</span>
+                  <InlineMd text={line.slice(2)} />
+                </div>
+              );
+            }
             return (
-              <div key={i} className="text-sm font-semibold text-[#E8E8ED] mt-3 mb-1">
-                {line.slice(3)}
+              <div key={i} className={i === 0 ? '' : 'mt-1'}>
+                <InlineMd text={line} />
               </div>
             );
-          }
-          if (line.startsWith('- ')) {
-            return (
-              <div key={i} className="pl-4 relative">
-                <span className="absolute left-0 text-[#6366F1]">•</span>
-                <InlineMd text={line.slice(2)} />
-              </div>
-            );
-          }
-          return (
-            <div key={i} className={i === 0 ? '' : 'mt-1'}>
-              <InlineMd text={line} />
-            </div>
-          );
-        })}
+          })}
+        </div>
       </div>
+      <span className="text-[10px] text-on-surface-variant uppercase tracking-widest flex items-center gap-2">
+        <svg className="w-3 h-3 text-tertiary" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M5 2a1 1 0 011 1v1h1a1 1 0 010 2H6v1a1 1 0 01-2 0V6H3a1 1 0 010-2h1V3a1 1 0 011-1zm0 10a1 1 0 011 1v1h1a1 1 0 110 2H6v1a1 1 0 11-2 0v-1H3a1 1 0 110-2h1v-1a1 1 0 011-1zM12 2a1 1 0 01.967.744L14.146 7.2 17.5 9.134a1 1 0 010 1.732l-3.354 1.935-1.18 4.455a1 1 0 01-1.933 0L9.854 12.8 6.5 10.866a1 1 0 010-1.732l3.354-1.935 1.18-4.455A1 1 0 0112 2z" />
+        </svg>
+        Curator
+      </span>
     </div>
   );
 }
@@ -402,11 +412,11 @@ function AssistantMessage({ content }: { content: string }) {
 function ErrorMessage({ content }: { content: string }) {
   return (
     <div className="my-2">
-      <div className="flex items-start gap-2 p-3 rounded-lg bg-[#EF4444]/10 border border-[#EF4444]/25">
-        <svg className="w-3.5 h-3.5 text-[#EF4444] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <div className="flex items-start gap-2 p-3 rounded-lg bg-error/10 border border-error/25">
+        <svg className="w-3.5 h-3.5 text-error shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86l-7.5 13A1 1 0 003.66 18h16.68a1 1 0 00.87-1.5l-7.5-13a1 1 0 00-1.74 0z" />
         </svg>
-        <span className="text-xs text-[#EF7771]">{content}</span>
+        <span className="text-xs text-error">{content}</span>
       </div>
     </div>
   );
@@ -494,13 +504,13 @@ export default function ChatPanel({ events, isGenerating, onSendMessage, onStop 
       <button
         type="button"
         onClick={handleOpen}
-        className="h-12 w-12 rounded-full bg-[#6366F1] hover:bg-[#818CF8] text-white shadow-lg shadow-[#6366F1]/30 flex items-center justify-center relative transition-all duration-200 shrink-0 self-end m-3"
+        className="h-12 w-12 rounded-full bg-primary hover:bg-primary-container text-white shadow-lg shadow-primary/30 flex items-center justify-center relative transition-all duration-200 shrink-0 self-end m-3"
       >
         <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
           <path d="M18 10c0 3.866-3.582 7-8 7a8.84 8.84 0 01-3.641-.737L2 17l1.026-3.077A6.71 6.71 0 012 10c0-3.866 3.582-7 8-7s8 3.134 8 7z" />
         </svg>
         {unread > 0 && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[#EF4444] text-white text-[10px] font-bold flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-error text-white text-[10px] font-bold flex items-center justify-center">
             {unread > 9 ? '9+' : unread}
           </span>
         )}
@@ -513,41 +523,50 @@ export default function ChatPanel({ events, isGenerating, onSendMessage, onStop 
       variants={slideIn}
       initial="hidden"
       animate="visible"
-      className="shrink-0 flex flex-col bg-[#0A0A0F] border-l border-[#1E1E2E] h-full relative"
+      className="shrink-0 flex flex-col bg-surface-low border-l border-white/5 h-full relative"
       style={{ width: chatWidth }}
     >
       <div
         onMouseDown={handleDragStart}
-        className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-[#6366F1]/30 transition-colors -ml-px"
+        className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-primary/30 transition-colors -ml-px"
       />
 
-      <div className="flex items-center gap-2 px-3 py-3 border-b border-[#1E1E2E] shrink-0">
-        <div className="flex items-center gap-2 flex-1">
-          <span className={`w-2 h-2 rounded-full ${isGenerating ? 'bg-[#6366F1] animate-pulse' : 'bg-[#34D399]'}`} />
-          <span className="text-sm font-semibold text-[#E8E8ED]">AI Chat</span>
+      <div className="flex items-center justify-between p-6 border-b border-white/5 shrink-0">
+        <div className="flex items-center gap-3 flex-1">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-tertiary to-tertiary/60 flex items-center justify-center">
+            <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M5 2a1 1 0 011 1v1h1a1 1 0 010 2H6v1a1 1 0 01-2 0V6H3a1 1 0 010-2h1V3a1 1 0 011-1zm0 10a1 1 0 011 1v1h1a1 1 0 110 2H6v1a1 1 0 11-2 0v-1H3a1 1 0 110-2h1v-1a1 1 0 011-1zM12 2a1 1 0 01.967.744L14.146 7.2 17.5 9.134a1 1 0 010 1.732l-3.354 1.935-1.18 4.455a1 1 0 01-1.933 0L9.854 12.8 6.5 10.866a1 1 0 010-1.732l3.354-1.935 1.18-4.455A1 1 0 0112 2z" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-xs font-bold text-tertiary uppercase tracking-tight">AI Curator</p>
+            <p className="text-[10px] text-on-surface-variant">
+              {isGenerating ? 'Working...' : 'Ready'}
+            </p>
+          </div>
         </div>
         <button
           type="button"
           onClick={() => setCollapsed(true)}
-          className="p-1.5 rounded-lg hover:bg-[#1C1C2E] text-[#555570] hover:text-[#8888AA] transition-colors"
+          className="text-on-surface-variant hover:text-on-surface transition-colors"
         >
-          <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M4.293 10.707a1 1 0 010-1.414l4-4A1 1 0 119.707 6.707L7.414 9H15a1 1 0 110 2H7.414l2.293 2.293a1 1 0 01-1.414 1.414l-4-4z" />
+          <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
           </svg>
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-3">
+      <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-4 hide-scrollbar">
         {events.length === 0 && (
           <div className="flex flex-col items-center justify-center gap-3 px-4 text-center h-full">
-            <div className="w-10 h-10 rounded-xl bg-[#6366F1]/10 flex items-center justify-center">
-              <svg className="w-5 h-5 text-[#6366F1]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <div className="w-10 h-10 rounded-xl bg-tertiary/10 flex items-center justify-center">
+              <svg className="w-5 h-5 text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5M7 4h10a3 3 0 013 3v7a3 3 0 01-3 3h-4l-4 3v-3H7a3 3 0 01-3-3V7a3 3 0 013-3z" />
               </svg>
             </div>
             <div>
-              <p className="text-sm text-[#E8E8ED]">Ask a question or request changes to your dashboard.</p>
-              <p className="text-xs text-[#555570] mt-1">Try: "Add a CPU usage panel" or "Investigate high error rates"</p>
+              <p className="text-sm text-on-surface">Ask a question or request changes to your dashboard.</p>
+              <p className="text-xs text-on-surface-variant mt-1">Try: "Add a CPU usage panel" or "Investigate high error rates"</p>
             </div>
           </div>
         )}
@@ -583,17 +602,17 @@ export default function ChatPanel({ events, isGenerating, onSendMessage, onStop 
         <div ref={bottomRef} />
       </div>
 
-      <div className="shrink-0 p-3 border-t border-[#1E1E2E]">
+      <div className="shrink-0 p-6 bg-surface-low border-t border-white/5 space-y-4">
         <div className="relative">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Message..."
+            placeholder="Ask AI to investigate..."
             rows={1}
             disabled={isGenerating}
-            className="w-full bg-[#141420] rounded-xl border border-[#2A2A3E] px-3 py-2.5 pr-20 text-sm text-[#E8E8ED] placeholder:text-[#444458] focus:border-[#6366F1]/50 focus:ring-[#6366F1]/50 focus:ring outline-none resize-none transition-colors disabled:opacity-50"
-            style={{ minHeight: '44px', maxHeight: '120px' }}
+            className="w-full bg-surface-bright ring-1 ring-white/5 focus:ring-tertiary/50 rounded-xl py-4 pl-5 pr-14 text-sm text-on-surface placeholder-on-surface-variant outline-none resize-none transition-all disabled:opacity-50"
+            style={{ minHeight: '52px', maxHeight: '120px' }}
             onInput={(e) => {
               const el = e.target as HTMLTextAreaElement;
               el.style.height = 'auto';
@@ -604,7 +623,7 @@ export default function ChatPanel({ events, isGenerating, onSendMessage, onStop 
             <button
               type="button"
               onClick={onStop}
-              className="absolute right-12 bottom-2 w-7 h-7 rounded-lg bg-[#2A2A3E] hover:bg-[#EF7771]/20 text-[#8888AA] hover:text-[#EF7771] flex items-center justify-center transition-colors"
+              className="absolute right-12 bottom-3 w-8 h-8 rounded-lg bg-surface-highest hover:bg-error/20 text-on-surface-variant hover:text-error flex items-center justify-center transition-colors"
               title="Stop"
             >
               <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
@@ -616,15 +635,19 @@ export default function ChatPanel({ events, isGenerating, onSendMessage, onStop 
             type="button"
             onClick={handleSend}
             disabled={!input.trim()}
-            className="absolute right-2 bottom-2 w-7 h-7 rounded-lg bg-[#6366F1] hover:bg-[#818CF8] text-white flex items-center justify-center transition-colors disabled:opacity-30"
+            className="absolute right-3 bottom-3 w-8 h-8 bg-tertiary rounded-lg flex items-center justify-center text-white shadow-lg shadow-tertiary/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-30"
             title="Send"
           >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M3.478 2.405a.75.75 0 01.82-.168l12.25 5.25a.75.75 0 010 1.378l-12.25 5.25a.75.75 0 01-1.043-.824l1.08-4.713H9.5a.75.75 0 000-1.5H4.335l-1.08-4.713a.75.75 0 01.223-.673z" />
+            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H3a1 1 0 110-2h9.586l-3.293-3.293a1 1 0 011.414-1.414l4 4z" clipRule="evenodd" transform="rotate(-90 10 10)" />
             </svg>
           </button>
         </div>
-        {!isGenerating && <p className="text-[10px] text-[#444458] text-right mt-1">Enter to send</p>}
+        {!isGenerating && (
+          <p className="text-[10px] text-center text-on-surface-variant/50">
+            Press <kbd className="px-1.5 py-0.5 bg-surface-highest rounded text-on-surface-variant">Enter</kbd> to send
+          </p>
+        )}
       </div>
     </motion.div>
   );

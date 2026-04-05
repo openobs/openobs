@@ -93,8 +93,8 @@ const LLM_PROVIDERS: Array<{
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="bg-[#141420] rounded-xl border border-[#2A2A3E] p-6">
-      <h2 className="text-base font-semibold text-[#E8E8ED] mb-4">{title}</h2>
+    <section className="bg-[var(--color-surface-highest)] rounded-xl border border-[var(--color-outline-variant)] p-6">
+      <h2 className="text-base font-semibold text-[var(--color-on-surface)] mb-4">{title}</h2>
       {children}
     </section>
   );
@@ -196,7 +196,7 @@ function LlmSection() {
     <Section title="LLM Provider">
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-[#E8E8ED] mb-1.5">Provider</label>
+          <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">Provider</label>
           <select
             value={config.provider}
             onChange={(e) => {
@@ -214,7 +214,7 @@ function LlmSection() {
               setRemoteModels([]);
               setModelsFetched(false);
             }}
-            className="w-full px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#1C1C2E] text-[#E8E8ED] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+            className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
           >
             {LLM_PROVIDERS.map((p) => (
               <option key={p.value} value={p.value}>
@@ -226,7 +226,7 @@ function LlmSection() {
 
         {provider.needsKey && (
           <div>
-            <label className="block text-sm font-medium text-[#E8E8ED] mb-1.5">API Key</label>
+            <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">API Key</label>
             <input
               type="password"
               value={config.apiKey}
@@ -235,14 +235,14 @@ function LlmSection() {
                 setTestResult(null);
               }}
               placeholder="sk-..."
-              className="w-full px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#1C1C2E] text-[#E8E8ED] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+              className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
             />
           </div>
         )}
 
         {provider.needsUrl && (
           <div>
-            <label className="block text-sm font-medium text-[#E8E8ED] mb-1.5">
+            <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">
               {config.provider === 'ollama' ? 'Ollama URL' : 'Endpoint URL'}
             </label>
             <input
@@ -250,31 +250,31 @@ function LlmSection() {
               value={config.baseUrl}
               onChange={(e) => setConfig((prev) => ({ ...prev, baseUrl: e.target.value }))}
               placeholder={config.provider === 'ollama' ? 'http://localhost:11434' : 'https://your-resource.openai.azure.com'}
-              className="w-full px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#1C1C2E] text-[#E8E8ED] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+              className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
             />
           </div>
         )}
 
         {provider.needsRegion && (
           <div>
-            <label className="block text-sm font-medium text-[#E8E8ED] mb-1.5">AWS Region</label>
+            <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">AWS Region</label>
             <input
               type="text"
               value={config.region}
               onChange={(e) => setConfig((prev) => ({ ...prev, region: e.target.value }))}
               placeholder="us-east-1"
-              className="w-full px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#1C1C2E] text-[#E8E8ED] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+              className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
             />
           </div>
         )}
 
         <div>
-          <label className="block text-sm font-medium text-[#E8E8ED] mb-1.5">Default Model</label>
+          <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">Default Model</label>
           <div className="flex gap-2">
             <select
               value={config.model}
               onChange={(e) => setConfig((prev) => ({ ...prev, model: e.target.value }))}
-              className="flex-1 px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#1C1C2E] text-[#E8E8ED] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+              className="flex-1 px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
             >
               {availableModels.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -287,7 +287,7 @@ function LlmSection() {
                 type="button"
                 onClick={() => void handleFetchModels()}
                 disabled={fetchingModels || (provider.needsKey && !config.apiKey)}
-                className="px-3 py-2 rounded-lg border border-[#2A2A3E] text-sm font-medium text-[#E8E8ED] hover:bg-[#1C1C2E] disabled:opacity-50 transition-colors whitespace-nowrap"
+                className="px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] text-sm font-medium text-[var(--color-on-surface)] hover:bg-[var(--color-surface-high)] disabled:opacity-50 transition-colors whitespace-nowrap"
               >
                 {fetchingModels ? 'Loading...' : 'Fetch Models'}
               </button>
@@ -310,7 +310,7 @@ function LlmSection() {
             type="button"
             onClick={() => void handleTest()}
             disabled={testing}
-            className="px-3 py-2 rounded-lg border border-[#2A2A3E] text-sm font-medium text-[#E8E8ED] hover:bg-[#1C1C2E] disabled:opacity-50"
+            className="px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] text-sm font-medium text-[var(--color-on-surface)] hover:bg-[var(--color-surface-high)] disabled:opacity-50"
           >
             {testing ? 'Testing...' : 'Test Connection'}
           </button>
@@ -359,24 +359,24 @@ function NotificationsSection() {
     <Section title="Notifications">
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-[#E8E8ED] mb-1.5">Slack Webhook URL</label>
+          <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">Slack Webhook URL</label>
           <input
             type="url"
             value={slackWebhook}
             onChange={(e) => setSlackWebhook(e.target.value)}
             placeholder="https://hooks.slack.com/services/..."
-            className="w-full px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#1C1C2E] text-[#E8E8ED] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+            className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-[#E8E8ED] mb-1.5">PagerDuty Integration Key</label>
+          <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">PagerDuty Integration Key</label>
           <input
             type="password"
             value={pagerDutyKey}
             onChange={(e) => setPagerDutyKey(e.target.value)}
             placeholder="your-integration-key"
-            className="w-full px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#1C1C2E] text-[#E8E8ED] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+            className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
           />
         </div>
 
@@ -410,7 +410,7 @@ function DangerZone() {
 
   return (
     <Section title="Danger Zone">
-      <p className="text-sm text-[#8888AA] mb-4">
+      <p className="text-sm text-[var(--color-on-surface-variant)] mb-4">
         Reset all configuration and return to the setup wizard. This cannot be undone.
       </p>
       {!confirming ? (
@@ -423,7 +423,7 @@ function DangerZone() {
         </button>
       ) : (
         <div className="flex items-center gap-3">
-          <span className="text-sm text-[#E8E8ED]">Are you sure?</span>
+          <span className="text-sm text-[var(--color-on-surface)]">Are you sure?</span>
           <button
             type="button"
             onClick={() => void handleReset()}
@@ -435,7 +435,7 @@ function DangerZone() {
           <button
             type="button"
             onClick={() => setConfirming(false)}
-            className="px-4 py-2 text-sm text-[#8888AA] hover:text-[#E8E8ED]"
+            className="px-4 py-2 text-sm text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]"
           >
             Cancel
           </button>
@@ -460,8 +460,8 @@ export default function Settings() {
     <div className="px-4 py-6 sm:p-8">
       <div className="max-w-2xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-[#E8E8ED] mb-1">Settings</h1>
-          <p className="text-[#8888AA] text-sm">Configure your AgentObs platform.</p>
+          <h1 className="text-2xl font-bold text-[var(--color-on-surface)] mb-1">Settings</h1>
+          <p className="text-[var(--color-on-surface-variant)] text-sm">Configure your AgentObs platform.</p>
           {status && (
             <div className="mt-3 flex items-center gap-2">
               <span

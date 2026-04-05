@@ -59,7 +59,7 @@ function actionRisk(type: string): RiskLevel {
 }
 
 const RISK_STYLES: Record<RiskLevel, string> = {
-  low: 'bg-[#1C1C2E] text-[#B8B8A0]',
+  low: 'bg-[var(--color-surface-high)] text-[#B8B8A0]',
   medium: 'bg-[#F59E0B]/10 text-[#F59E0B]',
   high: 'bg-[#F97316]/10 text-[#F97316]',
   critical: 'bg-[#EF4444]/10 text-[#EF4444]',
@@ -69,7 +69,7 @@ const STATUS_STYLES: Record<ApprovalStatus, string> = {
   pending: 'bg-[#F59E0B]/10 text-[#F59E0B]',
   approved: 'bg-[#22C55E]/10 text-[#22C55E]',
   rejected: 'bg-[#EF4444]/10 text-[#EF4444]',
-  expired: 'bg-[#1C1C2E] text-[#555570]',
+  expired: 'bg-[var(--color-surface-high)] text-[var(--color-outline)]',
 };
 
 // Action Card
@@ -86,7 +86,7 @@ function ActionCard({ request, processing, onApprove, onReject }: ActionCardProp
   const isPending = request.status === 'pending';
 
   return (
-    <div className="bg-[#141420] rounded-xl border border-[#2A2A3E] p-4 space-y-3">
+    <div className="bg-[var(--color-surface-highest)] rounded-xl border border-[var(--color-outline-variant)] p-4 space-y-3">
       {/* Header row */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3 flex-wrap">
@@ -100,12 +100,12 @@ function ActionCard({ request, processing, onApprove, onReject }: ActionCardProp
             {request.status}
           </span>
         </div>
-        <span className="text-xs text-[#555570] shrink-0">{relativeTime(request.createdAt)}</span>
+        <span className="text-xs text-[var(--color-outline)] shrink-0">{relativeTime(request.createdAt)}</span>
       </div>
 
       {/* Target service */}
       <div className="text-sm text-[#B8B8A0]">
-        <span className="text-[#555570]">Target:</span>{' '}
+        <span className="text-[var(--color-outline)]">Target:</span>{' '}
         <span className="font-medium">{request.action.targetService}</span>
       </div>
 
@@ -114,14 +114,14 @@ function ActionCard({ request, processing, onApprove, onReject }: ActionCardProp
 
       {/* Params (collapsed preview) */}
       {Object.keys(request.action.params).length > 0 && (
-        <pre className="text-xs bg-[#0B0B14] rounded-lg p-3 overflow-auto text-[#B8B8A0] border border-[#2A2A3E]">
+        <pre className="text-xs bg-[#0B0B14] rounded-lg p-3 overflow-auto text-[#B8B8A0] border border-[var(--color-outline-variant)]">
           {JSON.stringify(request.action.params, null, 2)}
         </pre>
       )}
 
       {/* Footer row - stacks vertically on mobile */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-1">
-        <div className="text-xs text-[#555570] space-x-3">
+        <div className="text-xs text-[var(--color-outline)] space-x-3">
           <span>Context: {request.context.investigationId.slice(0, 8)}…</span>
           {request.expiresAt && <span>expires in {expiresIn(request.expiresAt)}</span>}
           {request.resolvedBy && <span>resolved by {request.resolvedBy}</span>}
@@ -133,7 +133,7 @@ function ActionCard({ request, processing, onApprove, onReject }: ActionCardProp
               type="button"
               disabled={processing}
               onClick={() => onReject(request.id)}
-              className="flex-1 self-stretch px-4 py-2.5 sm:py-1.5 rounded-lg text-sm sm:text-xs font-medium border border-[#2A2A3E] text-[#B8B8A0] hover:bg-[#1C1C2E] hover:text-[#E8E8E0] disabled:opacity-50 transition-colors"
+              className="flex-1 self-stretch px-4 py-2.5 sm:py-1.5 rounded-lg text-sm sm:text-xs font-medium border border-[var(--color-outline-variant)] text-[#B8B8A0] hover:bg-[var(--color-surface-high)] hover:text-[#E8E8E0] disabled:opacity-50 transition-colors"
             >
               Reject
             </button>
@@ -141,7 +141,7 @@ function ActionCard({ request, processing, onApprove, onReject }: ActionCardProp
               type="button"
               disabled={processing}
               onClick={() => onApprove(request.id)}
-              className="flex-1 sm:flex-none px-4 py-2.5 sm:py-1.5 rounded-lg text-sm sm:text-xs font-medium bg-[#6366F1] text-white hover:bg-[#4F46E5] disabled:opacity-50 transition-colors"
+              className="flex-1 sm:flex-none px-4 py-2.5 sm:py-1.5 rounded-lg text-sm sm:text-xs font-medium bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary)] disabled:opacity-50 transition-colors"
             >
               {processing ? 'Processing…' : 'Approve'}
             </button>
@@ -208,7 +208,7 @@ export default function ActionCenter() {
   const displayed = tab === 'pending' ? pending : resolved;
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-4 bg-[#0A0A0F] min-h-full">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-4 bg-[var(--color-surface-lowest)] min-h-full">
       {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
@@ -220,7 +220,7 @@ export default function ActionCenter() {
         <button
           type="button"
           onClick={() => void loadApprovals()}
-          className="text-xs text-[#B8B8A0] hover:text-[#6366F1] px-3 py-1.5 rounded-lg border border-[#2A2A3E] hover:bg-[#1C1C2E] transition-colors"
+          className="text-xs text-[#B8B8A0] hover:text-[var(--color-primary)] px-3 py-1.5 rounded-lg border border-[var(--color-outline-variant)] hover:bg-[var(--color-surface-high)] transition-colors"
         >
           Refresh
         </button>
@@ -247,7 +247,7 @@ export default function ActionCenter() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-[#2A2A3E]">
+      <div className="flex border-b border-[var(--color-outline-variant)]">
         {(['pending', 'resolved'] as const).map((t) => (
           <button
             key={t}
@@ -255,8 +255,8 @@ export default function ActionCenter() {
             onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium capitalize border-b-2 transition-colors ${
               tab === t
-                ? 'border-[#6366F1] text-[#6366F1]'
-                : 'border-transparent text-[#555570] hover:text-[#4E8EDE]'
+                ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
+                : 'border-transparent text-[var(--color-outline)] hover:text-[#4E8EDE]'
             }`}
           >
             {t}
@@ -286,14 +286,14 @@ export default function ActionCenter() {
       {/* Content */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <span className="inline-block w-5 h-5 border-2 border-[#2A2A3E] border-t-[#6366F1] rounded-full animate-spin" />
+          <span className="inline-block w-5 h-5 border-2 border-[var(--color-outline-variant)] border-t-[var(--color-primary)] rounded-full animate-spin" />
         </div>
       ) : error ? (
         <div className="px-4 py-3 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/20 text-sm text-[#EF4444]">
           {error}
         </div>
       ) : displayed.length === 0 ? (
-        <div className="text-center py-16 text-[#555570] text-sm">
+        <div className="text-center py-16 text-[var(--color-outline)] text-sm">
           {tab === 'pending' ? 'No pending approvals' : 'No resolved actions yet'}
         </div>
       ) : (

@@ -21,6 +21,7 @@ interface Dashboard {
   description?: string;
   prompt: string;
   status: 'generating' | 'ready' | 'error';
+  type?: string;
   panels: PanelConfig[];
   variables?: DashboardVariable[];
   createdAt: string;
@@ -99,8 +100,8 @@ function SaveDropdown({
         onClick={() => setOpen((v) => !v)}
         className={`p-1.5 rounded-lg transition-colors shrink-0 ${
           savedLabel
-            ? 'bg-[#6366F1]/20 text-[#6366F1]'
-            : 'hover:bg-[#1C1C2E] text-[#555570] hover:text-[#8888AA]'
+            ? 'bg-primary/20 text-primary'
+            : 'hover:bg-surface-high text-on-surface-variant hover:text-on-surface'
         }`}
         title="Save to folder"
         disabled={saving}
@@ -121,9 +122,9 @@ function SaveDropdown({
       </button>
 
       {open && (
-        <div className="absolute top-full right-0 mt-1 w-52 bg-[#141420] border border-[#2A2A3E] rounded-xl shadow-xl z-50 overflow-hidden">
+        <div className="absolute top-full right-0 mt-1 w-52 bg-surface-container border border-outline-variant rounded-xl shadow-xl z-50 overflow-hidden">
           <div className="px-3 pt-2.5 pb-1">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-[#555570]">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">
               Save to folder
             </div>
           </div>
@@ -137,8 +138,8 @@ function SaveDropdown({
                   onClick={() => void saveToFolder(folder)}
                   className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs transition-colors text-left ${
                     currentFolder === folder
-                      ? 'text-[#6366F1] bg-[#6366F1]/10'
-                      : 'text-[#E8E8ED] hover:bg-[#1C1C2E]'
+                      ? 'text-primary bg-primary/10'
+                      : 'text-on-surface hover:bg-surface-high'
                   }`}
                 >
                   <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
@@ -160,7 +161,7 @@ function SaveDropdown({
             </div>
           )}
 
-          {folders.length > 0 && <div className="border-t border-[#2A2A3E]" />}
+          {folders.length > 0 && <div className="border-t border-outline-variant" />}
 
           <div className="p-2">
             <input
@@ -170,9 +171,9 @@ function SaveDropdown({
               onChange={(e) => setNewFolder(e.target.value)}
               onKeyDown={handleInputKeyDown}
               placeholder="New folder name"
-              className="w-full bg-[#1C1C2E] border border-[#2A2A3E] rounded-lg px-2.5 py-1.5 text-xs text-[#E8E8ED] placeholder-[#555570] focus:outline-none focus:border-[#6366F1]"
+              className="w-full bg-surface-high border border-outline-variant rounded-lg px-2.5 py-1.5 text-xs text-on-surface placeholder-on-surface-variant focus:outline-none focus:border-primary"
             />
-            <p className="text-[10px] text-[#555570] mt-1 px-0.5">Press Enter to save</p>
+            <p className="text-[10px] text-on-surface-variant mt-1 px-0.5">Press Enter to save</p>
           </div>
         </div>
       )}
@@ -184,16 +185,16 @@ function SaveDropdown({
 
 function StatusBadge({ status }: { status: Dashboard['status'] }) {
   const dot = {
-    generating: 'bg-[#F59E0B] animate-pulse',
-    ready: 'bg-[#22C55E]',
-    error: 'bg-[#EF4444]',
+    generating: 'bg-amber-500 animate-pulse',
+    ready: 'bg-secondary',
+    error: 'bg-error',
   };
   const label = { generating: 'Generating', ready: 'Ready', error: 'Error' };
 
   return (
     <div className="flex items-center gap-1.5 shrink-0" title={label[status]}>
       <span className={`w-2 h-2 rounded-full ${dot[status]}`} />
-      <span className="text-xs text-[#555570]">{label[status]}</span>
+      <span className="text-xs text-on-surface-variant">{label[status]}</span>
     </div>
   );
 }
@@ -420,20 +421,20 @@ export default function DashboardWorkspace() {
   // Loading / error states
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full bg-[#0A0A0F]">
-        <span className="inline-block w-6 h-6 border-2 border-[#2A2A3E] border-t-[#6366F1] rounded-full animate-spin" />
+      <div className="flex items-center justify-center h-full bg-surface">
+        <span className="inline-block w-6 h-6 border-2 border-outline-variant border-t-primary rounded-full animate-spin" />
       </div>
     );
   }
 
   if (loadError || !dashboard) {
     return (
-      <div className="flex flex-col items-center justify-center h-full bg-[#0A0A0F] text-center px-6">
-        <p className="text-[#EF4444] text-sm mb-4">{loadError ?? 'Dashboard not found.'}</p>
+      <div className="flex flex-col items-center justify-center h-full bg-surface text-center px-6">
+        <p className="text-error text-sm mb-4">{loadError ?? 'Dashboard not found.'}</p>
         <button
           type="button"
-          onClick={() => navigate('/dashboards')}
-          className="text-sm text-[#6366F1] hover:text-[#818CF8] transition-colors"
+          onClick={() => navigate(-1)}
+          className="text-sm text-primary hover:text-primary-container transition-colors"
         >
           Back to Dashboards
         </button>
@@ -444,12 +445,12 @@ export default function DashboardWorkspace() {
   // Render
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-[#0A0A0F]">
-      <div className="shrink-0 flex items-center gap-3 px-4 py-2.5 bg-[#0A0A0F] border-b border-[#2A2A3E]">
+    <div className="flex flex-col h-full overflow-hidden bg-surface">
+      <div className="shrink-0 flex items-center gap-3 px-6 py-2.5 bg-surface/80 backdrop-blur-xl">
         <button
           type="button"
-          onClick={() => navigate(showReport ? '/investigate' : '/dashboards')}
-          className="p-1.5 rounded-lg hover:bg-[#1C1C2E] text-[#555570] hover:text-[#8888AA] transition-colors shrink-0"
+          onClick={() => navigate(dashboard?.type === 'investigation' ? '/investigations' : '/dashboards')}
+          className="p-1.5 rounded-lg hover:bg-surface-high text-on-surface-variant hover:text-on-surface transition-colors shrink-0"
           aria-label="Back to dashboards"
         >
           <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
@@ -464,17 +465,17 @@ export default function DashboardWorkspace() {
         <div className="flex-1 min-w-0 flex items-center gap-2">
           {isGenerating && dashboard.title === 'Untitled Dashboard' ? (
             <div className="flex items-center gap-2 min-w-0">
-              <span className="inline-block w-2 h-2 rounded-full bg-[#6366F1] animate-pulse shrink-0" />
-              <span className="text-sm text-[#8888AA] truncate italic">
+              <span className="inline-block w-2 h-2 rounded-full bg-primary animate-pulse shrink-0" />
+              <span className="text-sm text-on-surface-variant truncate italic">
                 {dashboard.prompt?.length > 50 ? `${dashboard.prompt.slice(0, 50)}...` : dashboard.prompt}
               </span>
             </div>
           ) : showReport ? (
             <div className="flex items-center gap-2 min-w-0">
-              <svg className="w-4 h-4 text-[#6366F1] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <svg className="w-4 h-4 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197M4.7 10a5.3 5.3 0 1010.6 0 5.3 5.3 0 00-10.6 0z" />
               </svg>
-              <span className="text-sm font-semibold text-[#E8E8ED] truncate">
+              <span className="text-sm font-semibold text-on-surface truncate">
                 {dashboard.title.startsWith('Investigation') ? dashboard.title : 'Investigation'}
               </span>
             </div>
@@ -488,13 +489,13 @@ export default function DashboardWorkspace() {
                 void saveTitle();
               }}
               onKeyDown={handleTitleKeyDown}
-              className="text-sm font-semibold text-[#E8E8ED] bg-transparent border-b border-[#6366F1] focus:outline-none w-full"
+              className="text-sm font-semibold text-on-surface bg-transparent border-b border-primary focus:outline-none w-full"
             />
           ) : (
             <button
               type="button"
               onClick={startEditTitle}
-              className="text-sm font-semibold text-[#E8E8ED] hover:text-[#818CF8] truncate text-left max-w-xs transition-colors"
+              className="text-sm font-semibold text-on-surface hover:text-primary-container truncate text-left max-w-xs transition-colors"
               title="Click to rename"
             >
               {dashboard.title}
@@ -502,7 +503,7 @@ export default function DashboardWorkspace() {
           )}
 
           {!showReport && !isGenerating && dashboard.folder && (
-            <span className="text-xs px-2 py-0.5 rounded bg-[#6366F1]/10 text-[#818CF8] border border-[#6366F1]/20 shrink-0">
+            <span className="text-xs px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 shrink-0">
               {dashboard.folder}
             </span>
           )}
@@ -535,7 +536,7 @@ export default function DashboardWorkspace() {
               }}
             />
 
-            <div className="w-px h-5 bg-[#2A2A3E]" />
+            <div className="w-px h-5 bg-outline-variant" />
 
             <button
               type="button"
@@ -543,7 +544,7 @@ export default function DashboardWorkspace() {
                 queryScheduler.clearCache();
                 window.dispatchEvent(new CustomEvent('dashboard:refresh-panels'));
               }}
-              className="group relative p-2 rounded-lg text-[#555570] hover:text-[#E8E8ED] hover:bg-[#1C1C2E] transition-colors"
+              className="group relative p-2 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-high transition-colors"
               title="Refresh"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -562,7 +563,7 @@ export default function DashboardWorkspace() {
             <button
               type="button"
               onClick={() => setShowDeleteConfirm(true)}
-              className="group relative p-2 rounded-lg text-[#555570] hover:text-[#EF4444] hover:bg-[#1C1C2E] transition-colors shrink-0"
+              className="group relative p-2 rounded-lg text-on-surface-variant hover:text-error hover:bg-surface-high transition-colors shrink-0"
               title="Delete"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -587,7 +588,7 @@ export default function DashboardWorkspace() {
               onClose={() => setShowReport(false)}
             />
           ) : (
-            <div className="flex-1 overflow-y-auto overscroll-contain p-4">
+            <div className="flex-1 overflow-y-auto overscroll-contain p-6 bg-surface-container">
               <DashboardGrid
                 panels={panels}
                 editMode={editMode}
@@ -604,9 +605,9 @@ export default function DashboardWorkspace() {
             </div>
           )}
 
-          <div className="shrink-0 px-4 py-2 border-t border-[#2A2A3E] flex items-center gap-2">
-            <span className={`w-1.5 h-1.5 rounded-full ${isGenerating ? 'bg-[#6366F1] animate-pulse' : 'bg-[#22C55E]'}`} />
-            <span className="text-xs text-[#555570]">
+          <div className="shrink-0 px-6 py-2 flex items-center gap-2">
+            <span className={`w-1.5 h-1.5 rounded-full ${isGenerating ? 'bg-primary animate-pulse' : 'bg-secondary'}`} />
+            <span className="text-xs text-on-surface-variant">
               {isGenerating ? 'Generating...' : `${panels.length} panel${panels.length !== 1 ? 's' : ''} ready`}
             </span>
           </div>
@@ -639,7 +640,7 @@ export default function DashboardWorkspace() {
         onConfirm={async () => {
           if (id) {
             const res = await apiClient.delete(`/dashboards/${id}`);
-            if (!res.error) navigate(showReport ? '/investigate' : '/dashboards');
+            if (!res.error) navigate(dashboard?.type === 'investigation' ? '/investigations' : '/dashboards');
           }
           setShowDeleteConfirm(false);
         }}

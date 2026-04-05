@@ -22,8 +22,8 @@ const PROVIDER_ICONS: Record<string, string> = {
 };
 
 const PROVIDER_COLORS: Record<string, string> = {
-  github: 'bg-[#1C1C2E] hover:bg-[#2A2A3E] text-white border border-[#2A2A3E]',
-  google: 'bg-[#1C1C2E] hover:bg-[#2A2A3E] text-[#E8E8ED] border border-[#2A2A3E]',
+  github: 'bg-[var(--color-surface-high)] hover:bg-[var(--color-outline-variant)] text-white border border-[var(--color-outline-variant)]',
+  google: 'bg-[var(--color-surface-high)] hover:bg-[var(--color-outline-variant)] text-[var(--color-on-surface)] border border-[var(--color-outline-variant)]',
   oidc: 'bg-indigo-600 hover:bg-indigo-700 text-white',
   saml: 'bg-indigo-600 hover:bg-indigo-700 text-white',
 };
@@ -128,8 +128,8 @@ export default function Login() {
           <p className="text-slate-300 mt-1">AI-native observability platform</p>
         </div>
 
-        <div className="bg-[#141420] border border-[#2A2A3E] rounded-2xl p-6">
-          <h2 className="text-xl font-semibold text-[#E8E8ED] mb-4 text-center">Sign in to your account</h2>
+        <div className="bg-[var(--color-surface-highest)] border border-[var(--color-outline-variant)] rounded-2xl p-6">
+          <h2 className="text-xl font-semibold text-[var(--color-on-surface)] mb-4 text-center">Sign in to your account</h2>
 
           {error && (
             <div className="mb-4 px-4 py-3 rounded-lg bg-red-900/20 border border-red-500/30 text-red-400 text-sm">
@@ -159,10 +159,10 @@ export default function Login() {
           {ssoProviders.length > 0 && hasLocal && (
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-[#2A2A3E]" />
+                <div className="w-full border-t border-[var(--color-outline-variant)]" />
               </div>
               <div className="relative flex justify-center text-xs">
-                <span className="bg-[#141420] px-3 text-[#8888AA] font-medium">or continue with email</span>
+                <span className="bg-[var(--color-surface-highest)] px-3 text-[var(--color-on-surface-variant)] font-medium">or continue with email</span>
               </div>
             </div>
           )}
@@ -170,7 +170,7 @@ export default function Login() {
           {hasLocal && (
             <form onSubmit={(e) => void handleLocalLogin(e)} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-[#E8E8ED] mb-1.5">Email address</label>
+                <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">Email address</label>
                 <input
                   type="email"
                   value={email}
@@ -178,12 +178,12 @@ export default function Login() {
                   placeholder="you@company.com"
                   required
                   autoComplete="email"
-                  className="w-full px-4 py-2.5 rounded-xl border border-[#2A2A3E] bg-[#1C1C2E] text-[#E8E8ED] placeholder:text-[#666680] focus:outline-none focus:ring-2 focus:ring-[#6366F1]/50 focus:border-[#6366F1]"
+                  className="w-full px-4 py-2.5 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] placeholder:text-[#666680] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/50 focus:border-[var(--color-primary)]"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[#E8E8ED] mb-1.5">Password</label>
+                <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">Password</label>
                 <input
                   type="password"
                   value={password}
@@ -191,17 +191,17 @@ export default function Login() {
                   placeholder="••••••••"
                   required
                   autoComplete="current-password"
-                  className="w-full px-4 py-2.5 rounded-xl border border-[#2A2A3E] bg-[#1C1C2E] text-[#E8E8ED] placeholder:text-[#666680] focus:outline-none focus:ring-2 focus:ring-[#6366F1]/50 focus:border-[#6366F1]"
+                  className="w-full px-4 py-2.5 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] placeholder:text-[#666680] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/50 focus:border-[var(--color-primary)]"
                 />
               </div>
 
               <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 text-sm text-[#8888AA] cursor-pointer">
+                <label className="flex items-center gap-2 text-sm text-[var(--color-on-surface-variant)] cursor-pointer">
                   <input
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="rounded border-[#2A2A3E] text-[#6366F1] focus:ring-[#6366F1]/30"
+                    className="rounded border-[var(--color-outline-variant)] text-[var(--color-primary)] focus:ring-[var(--color-primary)]/30"
                   />
                   Remember me
                 </label>
@@ -218,7 +218,7 @@ export default function Login() {
           )}
 
           {process.env['NODE_ENV'] !== 'production' && (
-            <p className="mt-6 text-center text-xs text-[#8888AA]">
+            <p className="mt-6 text-center text-xs text-[var(--color-on-surface-variant)]">
               Dev: `admin@example.com` / `admin123`
             </p>
           )}

@@ -45,7 +45,7 @@ export default function BarVisualization({ items }: Props) {
 
   if (chartData.length === 0) {
     return (
-      <div className="text-xs text-[#555570] italic py-4 text-center bg-[#141420] rounded-lg">
+      <div className="text-xs text-[var(--color-outline)] italic py-4 text-center bg-[var(--color-surface-highest)] rounded-lg">
         No data
       </div>
     );
@@ -54,26 +54,26 @@ export default function BarVisualization({ items }: Props) {
   const chartHeight = Math.max(chartData.length * 32 + 24, 160);
 
   return (
-    <div className="mt-1 bg-[#141420] rounded-lg p-2">
+    <div className="mt-1 bg-[var(--color-surface-highest)] rounded-lg p-2">
       <ResponsiveContainer width="100%" height={chartHeight}>
         <BarChart
           data={chartData}
           layout="vertical"
           margin={{ top: 4, right: 40, bottom: 4, left: 8 }}
         >
-          <CartesianGrid strokeDasharray="3 3" stroke="#2A2A3E" horizontal={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--color-outline-variant)" horizontal={false} />
           <XAxis
             type="number"
             tickFormatter={formatBarValue}
-            tick={{ fill: '#8888AA', fontSize: 11 }}
-            axisLine={{ stroke: '#2A2A3E' }}
+            tick={{ fill: 'var(--color-on-surface-variant)', fontSize: 11 }}
+            axisLine={{ stroke: 'var(--color-outline-variant)' }}
             tickLine={false}
           />
           <YAxis
             type="category"
             dataKey="label"
-            tick={{ fill: '#8888AA', fontSize: 11 }}
-            axisLine={{ stroke: '#2A2A3E' }}
+            tick={{ fill: 'var(--color-on-surface-variant)', fontSize: 11 }}
+            axisLine={{ stroke: 'var(--color-outline-variant)' }}
             tickLine={false}
             width={120}
           />
@@ -83,18 +83,18 @@ export default function BarVisualization({ items }: Props) {
               if (!active || !payload || payload.length === 0) return null;
               const data = payload[0]?.payload;
               return (
-                <div className="bg-[#141420] border border-[#2A2A3E] rounded-lg px-3 py-2 shadow-lg text-xs">
-                  <div className="text-[#E8E8ED] mb-1 max-w-[200px] break-words">{data.fullLabel}</div>
-                  <div className="text-[#E8E8ED] font-mono font-semibold">{formatBarValue(data.value ?? 0)}</div>
+                <div className="bg-[var(--color-surface-highest)] border border-[var(--color-outline-variant)] rounded-lg px-3 py-2 shadow-lg text-xs">
+                  <div className="text-[var(--color-on-surface)] mb-1 max-w-[200px] break-words">{data.fullLabel}</div>
+                  <div className="text-[var(--color-on-surface)] font-mono font-semibold">{formatBarValue(data.value ?? 0)}</div>
                 </div>
               );
             }}
           />
-          <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={24} fill="#6366F1" fillOpacity={0.85} />
+          <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={24} fill="var(--color-primary)" fillOpacity={0.85} />
         </BarChart>
       </ResponsiveContainer>
       {items.length > 15 && (
-        <p className="text-xs text-[#555570] mt-1 px-2 pb-1">+{items.length - 15} more</p>
+        <p className="text-xs text-[var(--color-outline)] mt-1 px-2 pb-1">+{items.length - 15} more</p>
       )}
     </div>
   );

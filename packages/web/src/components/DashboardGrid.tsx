@@ -126,7 +126,7 @@ function SectionGrid({
       width={width}
       cols={{ lg: 12, md: 12, sm: 6, xs: 2, xxs: 1 }}
       rowHeight={80}
-      margin={[12, 12]}
+      margin={[16, 16]}
       containerPadding={[0, 0]}
       dragConfig={{ enabled: !!editMode, bounded: false, handle: '.drag-handle', threshold: 3 }}
       resizeConfig={{ enabled: !!editMode, handles: ['se'] }}
@@ -164,16 +164,16 @@ function SectionHeader({
       className="flex items-center gap-3 px-2 pt-6 pb-2 w-full text-left group"
     >
       <svg
-        className={`w-3.5 h-3.5 text-[#555570] transition-transform duration-200 ${collapsed ? '' : 'rotate-90'}`}
+        className={`w-3.5 h-3.5 text-on-surface-variant transition-transform duration-200 ${collapsed ? '' : 'rotate-90'}`}
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
       >
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
       </svg>
-      <h3 className="text-sm font-semibold text-[#E8E8ED] tracking-wide">{label}</h3>
-      <span className="flex-1 h-px bg-[#2A2A3E]" />
-      <span className="text-[11px] text-[#555570]">{panelCount} panels</span>
+      <h3 className="text-sm font-semibold text-on-surface tracking-wide">{label}</h3>
+      <span className="flex-1 h-px bg-outline-variant" />
+      <span className="text-[11px] text-on-surface-variant">{panelCount} panels</span>
     </button>
   );
 }
@@ -210,28 +210,28 @@ export default function DashboardGrid({
           <>
             <div className="w-full max-w-2xl space-y-3 px-4">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="rounded-xl border border-[#2A2A3E] bg-[#141420] p-4 animate-pulse">
+                <div key={i} className="rounded-xl border border-outline-variant bg-surface-high p-4 animate-pulse">
                   <div className="flex gap-3">
                     <div className="flex-1">
-                      <div className="h-4 bg-[#1C1C2E] rounded w-2/5 mb-2" />
-                      <div className="h-20 bg-[#1C1C2E] rounded w-full" />
+                      <div className="h-4 bg-surface-highest rounded w-2/5 mb-2" />
+                      <div className="h-20 bg-surface-highest rounded w-full" />
                     </div>
                   </div>
                 </div>
               ))}
             </div>
             <div className="flex items-center gap-2 mt-2">
-              <span className="inline-block w-4 h-4 border-2 border-[#2A2A3E] border-t-[#6366F1] rounded-full animate-spin" />
-              <span className="text-[#8888AA]">Analyzing metrics and building panels...</span>
+              <span className="inline-block w-4 h-4 border-2 border-outline-variant border-t-primary rounded-full animate-spin" />
+              <span className="text-on-surface-variant">Analyzing metrics and building panels...</span>
             </div>
           </>
         ) : (
           <>
-            <svg className="w-10 h-10 text-[#555570]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-10 h-10 text-on-surface-variant" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 002-2V7a2 2 0 00-2-2h-3M5 11a2 2 0 01-2-2V7a2 2 0 012-2h3m0 0V3m0 2v6m0 0v8m0-8h8m-8 0H5" />
             </svg>
-            <span className="text-[#8888AA]">No panels yet</span>
-            <span className="text-xs text-[#555570]">Use the chat to describe what you want to monitor</span>
+            <span className="text-on-surface-variant">No panels yet</span>
+            <span className="text-xs text-on-surface-variant">Use the chat to describe what you want to monitor</span>
           </>
         )}
       </div>

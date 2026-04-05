@@ -37,7 +37,7 @@ function Popover({
         anchor === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'
       }`}
     >
-      <div className="bg-[#1C1C2E] rounded-xl border border-[#2A2A3E] shadow-2xl shadow-black/40 p-2 min-w-[180px]">
+      <div className="bg-[var(--color-surface-high)] rounded-xl border border-[var(--color-outline-variant)] shadow-2xl shadow-black/40 p-2 min-w-[180px]">
         {children}
       </div>
     </div>
@@ -64,8 +64,8 @@ function BarButton({
       title={label}
       className={`relative group p-2 rounded-lg transition-all duration-150 ${
         active
-          ? 'bg-[#6366F1]/15 text-[#818CF8]'
-          : 'text-[#555570] hover:text-[#E8E8ED] hover:bg-[#1C1C2E]'
+          ? 'bg-[var(--color-primary)]/15 text-[var(--color-primary)]'
+          : 'text-[var(--color-outline)] hover:text-[var(--color-on-surface)] hover:bg-[var(--color-surface-high)]'
       } ${className ?? ''}`}
     >
       {icon}
@@ -87,7 +87,7 @@ export default function FloatingToolbar({
   const [showPanelList, setShowPanelList] = useState(false);
 
   return (
-    <div className="inline-flex items-center gap-0.5 p-1 bg-[#111118] rounded-xl border border-[#2A2A3E]">
+    <div className="inline-flex items-center gap-0.5 p-1 bg-[#111118] rounded-xl border border-[var(--color-outline-variant)]">
       <BarButton
         icon={
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -111,7 +111,7 @@ export default function FloatingToolbar({
         onClick={onToggleEdit}
       />
 
-      <div className="w-px h-5 bg-[#2A2A3E] mx-0.5" />
+      <div className="w-px h-5 bg-[var(--color-outline-variant)] mx-0.5" />
 
       <BarButton
         icon={
@@ -141,11 +141,11 @@ export default function FloatingToolbar({
 
         {showPanelList && (
           <Popover anchor="bottom" onClose={() => setShowPanelList(false)}>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-[#555570] px-2 py-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-outline)] px-2 py-1.5">
               Panels ({panels.length})
             </p>
             {panels.length === 0 ? (
-              <p className="text-[#555570] text-xs px-2 py-2">No panels yet</p>
+              <p className="text-[var(--color-outline)] text-xs px-2 py-2">No panels yet</p>
             ) : (
               <div className="max-h-48 overflow-y-auto space-y-0.5">
                 {panels.map((p) => (
@@ -156,7 +156,7 @@ export default function FloatingToolbar({
                       onScrollToPanel?.(p.id);
                       setShowPanelList(false);
                     }}
-                    className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-[#BCC0D8] hover:bg-[#2A2A3E] hover:text-[#E8E8ED] transition-colors truncate"
+                    className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-[#BCC0D8] hover:bg-[var(--color-outline-variant)] hover:text-[var(--color-on-surface)] transition-colors truncate"
                   >
                     {p.title}
                   </button>
@@ -169,7 +169,7 @@ export default function FloatingToolbar({
 
       {onExport && (
         <>
-          <div className="w-px h-5 bg-[#2A2A3E] mx-0.5" />
+          <div className="w-px h-5 bg-[var(--color-outline-variant)] mx-0.5" />
           <BarButton
             icon={
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

@@ -7,7 +7,6 @@ import ConfirmDialog from '../components/ConfirmDialog.js';
 
 type AlertRuleState = 'normal' | 'pending' | 'firing' | 'resolved' | 'disabled';
 type AlertSeverity = 'critical' | 'high' | 'medium' | 'low';
-type HealthStatus = 'ok' | 'no_data' | 'error';
 
 interface AlertCondition {
   query: string;
@@ -47,6 +46,16 @@ function relativeTime(iso: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+/** Convert PascalCase/camelCase rule names to readable text: "PrometheusQueryLatencyHigh" → "Prometheus Query Latency High" */
+function humanizeName(name: string): string {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function nextEval(rule: AlertRule): string {
   if (!rule.lastEvaluatedAt) return 'pending';
   const lastMs = new Date(rule.lastEvaluatedAt).getTime();
@@ -56,34 +65,22 @@ function nextEval(rule: AlertRule): string {
   return `in ${Math.ceil(diffSec / 60)}m`;
 }
 
-function inferHealth(rule: AlertRule): HealthStatus {
-  if (rule.state === 'disabled') return 'ok';
-  if (!rule.lastEvaluatedAt) return 'no_data';
-  const sinceSec = (Date.now() - new Date(rule.lastEvaluatedAt).getTime()) / 1000;
-  if (sinceSec > rule.evaluationIntervalSec * 3) return 'error';
-  return 'ok';
-}
 
 const STATE_STYLES: Record<AlertRuleState, { dot: string; text: string; bg: string; label: string }> = {
   firing: { dot: 'bg-[#EF4444] animate-pulse', text: 'text-[#EF4444]', bg: 'bg-[#EF4444]/10', label: 'Firing' },
   pending: { dot: 'bg-[#F59E0B] animate-pulse', text: 'text-[#F59E0B]', bg: 'bg-[#F59E0B]/10', label: 'Pending' },
   normal: { dot: 'bg-[#22C55E]', text: 'text-[#22C55E]', bg: 'bg-[#22C55E]/10', label: 'Normal' },
-  resolved: { dot: 'bg-[#22C55E]', text: 'text-[#B8B8A0]', bg: 'bg-[#22C55E]/10', label: 'Resolved' },
-  disabled: { dot: 'bg-[#555570]', text: 'text-[#555570]', bg: 'bg-[#555570]/10', label: 'Disabled' },
+  resolved: { dot: 'bg-[#22C55E]', text: 'text-[var(--color-on-surface-variant)]', bg: 'bg-[#22C55E]/10', label: 'Resolved' },
+  disabled: { dot: 'bg-[var(--color-outline)]', text: 'text-[var(--color-outline)]', bg: 'bg-[var(--color-outline)]/10', label: 'Disabled' },
 };
 
 const SEVERITY_STYLES: Record<AlertSeverity, string> = {
   critical: 'bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20',
   high: 'bg-[#F97316]/10 text-[#F97316] border-[#F97316]/20',
   medium: 'bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/20',
-  low: 'bg-[#1C1C2E] text-[#B8B8A0] border-[#2A2A3E]',
+  low: 'bg-[var(--color-surface-high)] text-[var(--color-on-surface-variant)] border-[var(--color-outline-variant)]',
 };
 
-const HEALTH_STYLES: Record<HealthStatus, { icon: string; text: string; label: string }> = {
-  ok: { icon: 'text-[#22C55E]', text: 'text-[#22C55E]', label: 'OK' },
-  no_data: { icon: 'text-[#F59E0B]', text: 'text-[#F59E0B]', label: 'No Data' },
-  error: { icon: 'text-[#EF4444]', text: 'text-[#EF4444]', label: 'Error' },
-};
 
 // Expandable Rule Row
 
@@ -107,18 +104,16 @@ function AlertRuleRow({
   navigate: (path: string, opts?: { state?: unknown }) => void;
 }) {
   const stateStyle = STATE_STYLES[rule.state];
-  const health = inferHealth(rule);
-  const healthStyle = HEALTH_STYLES[health];
   const isDisabled = rule.state === 'disabled';
   const dashboardId = rule.labels?.dashboardId;
 
   return (
     <div className={`rounded-xl border transition-all ${
       rule.state === 'firing'
-        ? 'bg-[#141420] border-[#EF4444]/30'
+        ? 'bg-[var(--color-surface-highest)] border-[#EF4444]/30'
         : rule.state === 'pending'
-        ? 'bg-[#141420] border-[#F59E0B]/30'
-        : 'bg-[#141420] border-[#2A2A3E] hover:border-[#36364E]'
+        ? 'bg-[var(--color-surface-highest)] border-[#F59E0B]/30'
+        : 'bg-[var(--color-surface-highest)] border-[var(--color-outline-variant)] hover:border-[#36364E]'
     } ${isDisabled ? 'opacity-60' : ''}`}>
       {/* Summary row (always visible) */}
       <button
@@ -126,7 +121,7 @@ function AlertRuleRow({
         className="w-full text-left px-4 py-3 flex items-center gap-3"
       >
         {/* Expand chevron */}
-        <svg className={`w-3.5 h-3.5 text-[#555570] transition-transform shrink-0 ${expanded ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <svg className={`w-3.5 h-3.5 text-[var(--color-outline)] transition-transform shrink-0 ${expanded ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
         </svg>
 
@@ -136,16 +131,8 @@ function AlertRuleRow({
         </span>
 
         {/* Name */}
-        <span className="text-sm font-medium text-[#E8E8DE] truncate flex-1">
-          {rule.name}
-        </span>
-
-        {/* Health */}
-        <span className="flex items-center gap-1 text-xs font-medium shrink-0">
-          <svg className={`w-3 h-3 ${healthStyle.icon}`} fill="currentColor" viewBox="0 0 20 20">
-            <path d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11V5h-2v4H7v2h2v4h2v-4h2V9h-2z" />
-          </svg>
-          <span className={healthStyle.text}>{healthStyle.label}</span>
+        <span className="text-sm font-medium text-[var(--color-on-surface)] truncate flex-1">
+          {humanizeName(rule.name)}
         </span>
 
         {/* Severity */}
@@ -154,18 +141,18 @@ function AlertRuleRow({
         </span>
 
         {/* Next evaluation */}
-        <span className="text-[10px] text-[#555570] min-w-max">
+        <span className="text-[10px] text-[var(--color-outline)] min-w-max">
           {rule.state === 'disabled' ? '—' : nextEval(rule)}
         </span>
       </button>
 
       {/* Expanded detail section */}
       {expanded && (
-        <div className="px-4 pb-3.5 pt-0 border-t border-[#1C1C2E]">
+        <div className="px-4 pb-3.5 pt-0 border-t border-[var(--color-surface-high)]">
           {/* Query */}
           <div className="mt-3">
-            <span className="text-[10px] text-[#555570] uppercase tracking-wider font-medium">Condition</span>
-            <p className="mt-1 text-sm text-[#A9A9B7] font-mono bg-[#0B0B14] rounded-md px-3 py-2 break-all">
+            <span className="text-[10px] text-[var(--color-outline)] uppercase tracking-wider font-medium">Condition</span>
+            <p className="mt-1 text-sm text-[var(--color-on-surface-variant)] font-mono bg-[#0B0B14] rounded-md px-3 py-2 break-all">
               {rule.condition.query} {rule.condition.operator} {rule.condition.threshold}
               {rule.condition.forDurationSec > 0 ? ` for ${rule.condition.forDurationSec}s` : ''}
             </p>
@@ -173,26 +160,26 @@ function AlertRuleRow({
 
           {/* Description */}
           {rule.description && (
-            <p className="text-xs text-[#555570] mt-3">{rule.description}</p>
+            <p className="text-xs text-[var(--color-on-surface-variant)] mt-3">{rule.description}</p>
           )}
 
           {/* Stats grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
-            <div className="bg-[#0B0B14] rounded-lg px-3 py-2">
-              <span className="text-[10px] text-[#555570] uppercase tracking-wide">Interval</span>
-              <div className="text-sm font-medium mt-0.5">{rule.evaluationIntervalSec}s</div>
+            <div className="bg-[var(--color-surface-high)] rounded-lg px-3 py-2">
+              <span className="text-[10px] text-[var(--color-on-surface-variant)] uppercase tracking-wide">Interval</span>
+              <div className="text-sm font-medium text-[var(--color-on-surface)] mt-0.5">{rule.evaluationIntervalSec}s</div>
             </div>
-            <div className="bg-[#0B0B14] rounded-lg px-3 py-2">
-              <span className="text-[10px] text-[#555570] uppercase tracking-wide">Last Check</span>
-              <div className="text-sm font-medium mt-0.5">{rule.lastEvaluatedAt ? relativeTime(rule.lastEvaluatedAt) : 'Never'}</div>
+            <div className="bg-[var(--color-surface-high)] rounded-lg px-3 py-2">
+              <span className="text-[10px] text-[var(--color-on-surface-variant)] uppercase tracking-wide">Last Check</span>
+              <div className="text-sm font-medium text-[var(--color-on-surface)] mt-0.5">{rule.lastEvaluatedAt ? relativeTime(rule.lastEvaluatedAt) : 'Never'}</div>
             </div>
-            <div className="bg-[#0B0B14] rounded-lg px-3 py-2">
-              <span className="text-[10px] text-[#555570] uppercase tracking-wide">Times Fired</span>
-              <div className="text-sm font-medium mt-0.5">{rule.fireCount}</div>
+            <div className="bg-[var(--color-surface-high)] rounded-lg px-3 py-2">
+              <span className="text-[10px] text-[var(--color-on-surface-variant)] uppercase tracking-wide">Times Fired</span>
+              <div className="text-sm font-medium text-[var(--color-on-surface)] mt-0.5">{rule.fireCount}</div>
             </div>
-            <div className="bg-[#0B0B14] rounded-lg px-3 py-2">
-              <span className="text-[10px] text-[#555570] uppercase tracking-wide">Health</span>
-              <div className={`text-sm font-medium mt-0.5 ${healthStyle.text}`}>{healthStyle.label}</div>
+            <div className="bg-[var(--color-surface-high)] rounded-lg px-3 py-2">
+              <span className="text-[10px] text-[var(--color-on-surface-variant)] uppercase tracking-wide">State</span>
+              <div className={`text-sm font-medium mt-0.5 ${stateStyle.text}`}>{stateStyle.label}</div>
             </div>
           </div>
 
@@ -200,7 +187,7 @@ function AlertRuleRow({
           {Object.keys(rule.labels).length > 0 && (
             <div className="flex flex-wrap gap-1 mt-3">
               {Object.entries(rule.labels).map(([k, v]) => (
-                <span key={k} className="px-2 py-0.5 rounded bg-[#1C1C2E] text-[10px] text-[#B8B8A0] font-mono">
+                <span key={k} className="px-2 py-0.5 rounded bg-[var(--color-surface-high)] text-[10px] text-[var(--color-on-surface-variant)] font-mono">
                   {k}={v}
                 </span>
               ))}
@@ -210,29 +197,37 @@ function AlertRuleRow({
           {/* Original prompt */}
           {rule.originalPrompt && (
             <div className="mt-3">
-              <span className="text-[10px] text-[#555570] uppercase tracking-wide font-medium">Created from prompt</span>
-              <p className="text-xs text-[#63636F] italic mt-0.5">{rule.originalPrompt}</p>
+              <span className="text-[10px] text-[var(--color-on-surface-variant)] uppercase tracking-wide font-medium">Created from prompt</span>
+              <p className="text-xs text-[var(--color-on-surface-variant)] italic mt-0.5">{rule.originalPrompt}</p>
             </div>
           )}
 
           {/* Actions bar */}
-          <div className="flex items-center gap-3 pt-4 border-t border-[#1C1C2E] mt-3">
-            {dashboardId && (
-              <button
-                type="button"
-                onClick={() => navigate(`/dashboards/${dashboardId}`)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-[#6366F1]/10 text-[#6366F1] hover:bg-[#6366F1]/20 transition-colors"
-              >
-                Dashboard
-              </button>
-            )}
+          <div className="flex items-center gap-3 pt-4 border-t border-[var(--color-surface-high)] mt-3">
+            <button
+              type="button"
+              onClick={async () => {
+                if (dashboardId) {
+                  const res = await apiClient.get(`/dashboards/${dashboardId}`);
+                  if (!res.error) {
+                    navigate(`/dashboards/${dashboardId}`);
+                    return;
+                  }
+                }
+                const prompt = rule.description || `Monitor ${humanizeName(rule.name)}`;
+                navigate('/', { state: { initialPrompt: prompt } });
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-[var(--color-primary)]/10 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/20 transition-colors"
+            >
+              Dashboard
+            </button>
 
             {(rule.state === 'firing' || rule.state === 'pending') && !rule.investigationId && (
               <button
                 type="button"
                 onClick={onInvestigate}
                 disabled={investigating}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-[#6366F1]/10 text-[#6366F1] hover:bg-[#6366F1]/20 transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-[var(--color-primary)]/10 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/20 transition-colors disabled:opacity-50"
               >
                 {investigating ? 'Starting…' : 'Investigate'}
               </button>
@@ -242,7 +237,7 @@ function AlertRuleRow({
               <button
                 type="button"
                 onClick={() => navigate(`/dashboards/${rule.investigationId}`)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-[#6366F1]/10 text-[#6366F1] hover:bg-[#6366F1]/20 transition-colors"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-[var(--color-primary)]/10 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/20 transition-colors"
               >
                 View Investigation
               </button>
@@ -253,7 +248,7 @@ function AlertRuleRow({
                 type="button"
                 onClick={onInvestigate}
                 disabled={investigating}
-                className="px-2.5 py-1.5 rounded-lg text-xs text-[#555570] hover:text-[#B8B8A0] hover:bg-[#1C1C2E] transition-colors disabled:opacity-50"
+                className="px-2.5 py-1.5 rounded-lg text-xs text-[var(--color-outline)] hover:text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-high)] transition-colors disabled:opacity-50"
               >
                 {investigating ? 'Starting…' : 'Re-investigate'}
               </button>
@@ -264,7 +259,7 @@ function AlertRuleRow({
             <button
               type="button"
               onClick={onToggleState}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-[#B8B8A0] hover:bg-[#1C1C2E] transition-colors"
+              className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-high)] transition-colors"
             >
               {isDisabled ? 'Enable' : 'Disable'}
             </button>
@@ -272,7 +267,7 @@ function AlertRuleRow({
             <button
               type="button"
               onClick={onDelete}
-              className="px-2.5 py-1.5 rounded-lg text-xs text-[#555570] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors"
+              className="px-2.5 py-1.5 rounded-lg text-xs text-[var(--color-outline)] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors"
             >
               Delete
             </button>
@@ -381,7 +376,7 @@ export default function Alerts() {
       else if (r.state === 'pending') c.pending++;
       else if (r.state === 'disabled') c.disabled++;
       else c.normal++;
-      if (inferHealth(r) === 'error') c.error++;
+      if (r.state === 'firing') c.error++;
     }
     return c;
   }, [rules]);
@@ -411,27 +406,27 @@ export default function Alerts() {
   ];
 
   return (
-    <div>
-      <div>
+    <div className="flex-1 overflow-y-auto bg-surface-container">
+      <div className="p-8 max-w-5xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center justify-between mb-8">
           <div>
+            <h1 className="text-3xl font-bold tracking-tight text-on-surface font-[Manrope]">Alerts</h1>
+            <p className="text-on-surface-variant mt-1 text-sm">Monitor and manage alert rules.</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-2">
+              {counts.firing > 0 && <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-error/15 text-error">{counts.firing} firing</span>}
+              {counts.pending > 0 && <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-400/15 text-amber-400">{counts.pending} pending</span>}
+              {counts.normal > 0 && <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-secondary/10 text-secondary">{counts.normal} normal</span>}
+            </div>
             <button
               type="button"
               onClick={() => navigate('/')}
-              className="px-3 py-1.5 bg-[#6366F1] text-white text-sm font-medium rounded-lg hover:bg-[#4F46E5] transition-colors"
+              className="bg-primary text-on-primary-fixed px-4 py-2 rounded-lg font-semibold text-sm transition-transform active:scale-95"
             >
-              Create Rule
+              + Create Rule
             </button>
-          </div>
-
-          {/* Stats bar */}
-          <div className="flex flex-wrap items-center gap-2 md:gap-3">
-            <span className="text-sm text-[#E8E8DE] font-medium">{counts.total} rule{counts.total === 1 ? '' : 's'}</span>
-            {counts.firing > 0 && <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-[#EF4444]/15 text-[#EF4444]">{counts.firing} firing</span>}
-            {counts.error > 0 && <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-[#F97316]/15 text-[#F97316]">{counts.error} error</span>}
-            {counts.pending > 0 && <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-[#F59E0B]/15 text-[#F59E0B]">{counts.pending} pending</span>}
-            {counts.normal > 0 && <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-[#22C55E]/10 text-[#22C55E]">{counts.normal} normal</span>}
           </div>
         </div>
 
@@ -439,7 +434,7 @@ export default function Alerts() {
         <div className="flex flex-col sm:flex-row gap-3 mb-4">
           {/* Search */}
           <div className="relative flex-1">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-[#555570]" width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-outline)]" width="20" height="20" viewBox="0 0 20 20" fill="none">
               <path d="M14.31 14.31l3.69 3.69" stroke="currentColor" strokeWidth={2} strokeLinecap="round" />
               <circle cx="9" cy="9" r="5.75" stroke="currentColor" strokeWidth={2} />
             </svg>
@@ -449,13 +444,13 @@ export default function Alerts() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search rules, queries, labels…"
-              className="w-full bg-[#141420] border border-[#2A2A3E] rounded-lg pl-10 pr-9 py-2 text-sm text-[#E8E8DE] placeholder-[#555570] outline-none focus:border-[#6366F1] focus:ring-1 focus:ring-[#6366F1]"
+              className="w-full bg-surface-high rounded-lg pl-10 pr-9 py-2.5 text-sm text-on-surface placeholder:text-on-surface-variant/60 outline-none focus:ring-1 focus:ring-primary border-none"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#555570] hover:text-[#B8B8A0]"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--color-outline)] hover:text-[var(--color-on-surface-variant)]"
               >
                 ×
               </button>
@@ -463,7 +458,7 @@ export default function Alerts() {
           </div>
 
           {/* State filter pills */}
-          <div className="flex gap-1 bg-[#141420] rounded-lg border border-[#2A2A3E] p-0.5 shrink-0">
+          <div className="flex gap-1 bg-surface-high rounded-lg p-0.5 shrink-0">
             {STATE_TABS.map((tab) => (
               <button
                 key={tab.value}
@@ -471,8 +466,8 @@ export default function Alerts() {
                 onClick={() => setStateFilter(tab.value)}
                 className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
                   stateFilter === tab.value
-                    ? 'bg-[#1C1C2E] text-[#E8E8DE]'
-                    : 'text-[#555570] hover:text-[#B8B8A0]'
+                    ? 'bg-[var(--color-surface-high)] text-[var(--color-on-surface)]'
+                    : 'text-[var(--color-outline)] hover:text-[var(--color-on-surface-variant)]'
                 }`}
               >
                 {tab.label}
@@ -486,18 +481,18 @@ export default function Alerts() {
           </div>
 
           {/* Group by toggle */}
-          <div className="flex gap-1 bg-[#141420] rounded-lg border border-[#2A2A3E] p-0.5 shrink-0">
+          <div className="flex gap-1 bg-surface-high rounded-lg p-0.5 shrink-0">
             <button
               type="button"
               onClick={() => setGroupBy('none')}
-              className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${groupBy === 'none' ? 'bg-[#1C1C2E] text-[#E8E8DE]' : 'text-[#555570] hover:text-[#B8B8A0]'}`}
+              className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${groupBy === 'none' ? 'bg-[var(--color-surface-high)] text-[var(--color-on-surface)]' : 'text-[var(--color-outline)] hover:text-[var(--color-on-surface-variant)]'}`}
             >
               List
             </button>
             <button
               type="button"
               onClick={() => setGroupBy('severity')}
-              className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${groupBy === 'severity' ? 'bg-[#1C1C2E] text-[#E8E8DE]' : 'text-[#555570] hover:text-[#B8B8A0]'}`}
+              className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${groupBy === 'severity' ? 'bg-[var(--color-surface-high)] text-[var(--color-on-surface)]' : 'text-[var(--color-outline)] hover:text-[var(--color-on-surface-variant)]'}`}
             >
               Grouped
             </button>
@@ -507,23 +502,23 @@ export default function Alerts() {
         {/* Loading */}
         {loading && (
           <div className="flex justify-center py-16">
-            <span className="inline-block w-5 h-5 border-2 border-[#2A2A3E] border-t-[#6366F1] rounded-full animate-spin" />
+            <span className="inline-block w-5 h-5 border-2 border-[var(--color-outline-variant)] border-t-[var(--color-primary)] rounded-full animate-spin" />
           </div>
         )}
 
         {/* Empty state */}
         {!loading && !rules.length && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-12 h-12 rounded-full bg-[#141420] border border-[#2A2A3E] flex items-center justify-center mb-4">
+            <div className="w-12 h-12 rounded-full bg-[var(--color-surface-highest)] border border-[var(--color-outline-variant)] flex items-center justify-center mb-4">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86l-7.1 12.3A2 2 0 004.92 19h14.16a2 2 0 001.73-2.84l-7.1-12.3a2 2 0 00-3.46 0z" stroke="#6366F1" strokeWidth="1.8"/>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86l-7.1 12.3A2 2 0 004.92 19h14.16a2 2 0 001.73-2.84l-7.1-12.3a2 2 0 00-3.46 0z" stroke="var(--color-primary)" strokeWidth="1.8"/>
               </svg>
             </div>
-            <div className="text-sm text-[#B8B8A0] mb-1">No alert rules yet</div>
-            <p className="text-xs text-[#555570] mb-4">Create your first alert rule using natural language</p>
+            <div className="text-sm text-[var(--color-on-surface-variant)] mb-1">No alert rules yet</div>
+            <p className="text-xs text-[var(--color-outline)] mb-4">Create your first alert rule using natural language</p>
             <button
               onClick={() => navigate('/')}
-              className="px-4 py-2 bg-[#6366F1] text-white rounded-lg hover:bg-[#4F46E5] transition-colors"
+              className="px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:bg-[var(--color-primary)] transition-colors"
             >
               Create Alert Rule
             </button>
@@ -533,11 +528,11 @@ export default function Alerts() {
         {/* No search results */}
         {!loading && rules.length > 0 && !filteredRules.length && (
           <div className="flex flex-col items-center py-12 text-center">
-            <span className="text-[#B8B8A0]">No rules match "{searchQuery}"</span>
+            <span className="text-[var(--color-on-surface-variant)]">No rules match "{searchQuery}"</span>
             <button
               type="button"
               onClick={() => setSearchQuery('')}
-              className="mt-2 text-xs text-[#6366F1] hover:text-[#A3BCFB]"
+              className="mt-2 text-xs text-[var(--color-primary)] hover:text-[#A3BCFB]"
             >
               Clear search
             </button>
@@ -554,8 +549,8 @@ export default function Alerts() {
                     <span className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase ${SEVERITY_STYLES[group.key as AlertSeverity]}`}>
                       {group.label}
                     </span>
-                    <div className="flex-1 h-px bg-[#1C1C2E]" />
-                    <span className="text-[11px] text-[#555570]">{group.rules.length} rule{group.rules.length === 1 ? '' : 's'}</span>
+                    <div className="flex-1 h-px bg-[var(--color-surface-high)]" />
+                    <span className="text-[11px] text-[var(--color-outline)]">{group.rules.length} rule{group.rules.length === 1 ? '' : 's'}</span>
                   </div>
                 )}
 
@@ -578,18 +573,18 @@ export default function Alerts() {
             ))}
           </div>
         )}
-      </div>
 
-      <ConfirmDialog
-        open={deletingId !== null}
-        title="Delete alert rule?"
-        message="This alert rule and its evaluation history will be permanently deleted."
-        onConfirm={() => {
-          if (deletingId) void handleDelete(deletingId);
-          setDeletingId(null);
-        }}
-        onCancel={() => setDeletingId(null)}
-      />
+        <ConfirmDialog
+          open={deletingId !== null}
+          title="Delete alert rule?"
+          message="This alert rule and its evaluation history will be permanently deleted."
+          onConfirm={() => {
+            if (deletingId) void handleDelete(deletingId);
+            setDeletingId(null);
+          }}
+          onCancel={() => setDeletingId(null)}
+        />
+      </div>
     </div>
   );
 }

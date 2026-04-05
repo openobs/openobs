@@ -12,7 +12,7 @@ interface Props {
 
 function interpolateColor(t: number): string {
   // 0 = dark bg, low = cool blue, mid = indigo, high = hot cyan/white
-  if (t <= 0) return '#1C1C2E';
+  if (t <= 0) return 'var(--color-surface-high)';
   if (t < 0.25) {
     const s = t / 0.25;
     return `rgb(${Math.round(20 + s * 30)}, ${Math.round(20 + s * 60)}, ${Math.round(40 + s * 100)})`;
@@ -90,7 +90,7 @@ export default function HeatmapVisualization({ points }: Props) {
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
 
   if (points.length === 0 || grid.length === 0) {
-    return <div className="text-xs text-[#555570] italic py-4 text-center">No data</div>;
+    return <div className="text-xs text-[var(--color-outline)] italic py-4 text-center">No data</div>;
   }
 
   const marginLeft = Math.min(80, Math.max(50, yLabels.reduce((m, l) => Math.max(m, l.length * 6), 0) + 8));
@@ -107,7 +107,7 @@ export default function HeatmapVisualization({ points }: Props) {
   const svgH = marginTop + yLabels.length * cellH + marginBottom;
 
   return (
-    <div ref={containerRef} className="bg-[#141420] rounded-lg p-2 relative">
+    <div ref={containerRef} className="bg-[var(--color-surface-highest)] rounded-lg p-2 relative">
       <svg width={svgW} height={svgH} className="block">
         {yLabels.map((label, yi) => (
           <text
@@ -115,7 +115,7 @@ export default function HeatmapVisualization({ points }: Props) {
             x={marginLeft - 4}
             y={marginTop + yi * cellH + cellH / 2 + 4}
             textAnchor="end"
-            fill="#8888AA"
+            fill="var(--color-on-surface-variant)"
             fontSize={Math.min(11, cellH - 2)}
           >
             {label.length > 10 ? `${label.slice(0, 10)}...` : label}
@@ -160,7 +160,7 @@ export default function HeatmapVisualization({ points }: Props) {
                   x={marginLeft + xi * cellW + cellW / 2}
                   y={marginTop + yLabels.length * cellH + 14}
                   textAnchor="middle"
-                  fill="#8888AA"
+                  fill="var(--color-on-surface-variant)"
                   fontSize={10}
                 >
                   {formatTime(ts)}
@@ -172,7 +172,7 @@ export default function HeatmapVisualization({ points }: Props) {
 
       {tooltip && (
         <div
-          className="absolute pointer-events-none bg-[#1C1C2E] border border-[#2A2A3E] rounded-lg px-2.5 py-1.5 text-[11px] text-[#E8E8ED] shadow-xl z-10 whitespace-nowrap"
+          className="absolute pointer-events-none bg-[var(--color-surface-high)] border border-[var(--color-outline-variant)] rounded-lg px-2.5 py-1.5 text-[11px] text-[var(--color-on-surface)] shadow-xl z-10 whitespace-nowrap"
           style={{ left: tooltip.x, top: tooltip.y, transform: 'translateX(-50%)' }}
         >
           {tooltip.text}
@@ -180,13 +180,13 @@ export default function HeatmapVisualization({ points }: Props) {
       )}
 
       <div className="flex items-center gap-1.5 mt-1.5 px-1">
-        <span className="text-[10px] text-[#555570]">0</span>
+        <span className="text-[10px] text-[var(--color-outline)]">0</span>
         <div className="flex-1 h-2 rounded-full overflow-hidden flex">
           {Array.from({ length: 20 }, (_, i) => (
             <div key={i} className="flex-1 h-full" style={{ backgroundColor: interpolateColor(i / 19) }} />
           ))}
         </div>
-        <span className="text-[10px] text-[#555570]">{formatValue(maxVal)}</span>
+        <span className="text-[10px] text-[var(--color-outline)]">{formatValue(maxVal)}</span>
       </div>
     </div>
   );

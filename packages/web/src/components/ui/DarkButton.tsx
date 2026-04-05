@@ -12,8 +12,8 @@ export function DarkButton({
 }: DarkButtonProps) {
   const variantClass =
     variant === 'primary'
-      ? 'bg-[#6366F1] hover:bg-[#818CF8] text-white rounded-xl px-5 py-2.5'
-      : 'bg-transparent hover:bg-[#1C1C2E] text-[#8888AA] rounded-lg px-4 py-2';
+      ? 'bg-[var(--color-primary)] hover:bg-[var(--color-primary)] text-white rounded-xl px-5 py-2.5'
+      : 'bg-transparent hover:bg-[var(--color-surface-high)] text-[var(--color-on-surface-variant)] rounded-lg px-4 py-2';
 
   return (
     <button

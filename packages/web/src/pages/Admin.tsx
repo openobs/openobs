@@ -43,8 +43,8 @@ const ROLE_COLORS: Record<string, string> = {
   admin: 'bg-red-900/30 text-red-400',
   operator: 'bg-amber-900/30 text-amber-400',
   investigator: 'bg-violet-900/30 text-violet-400',
-  viewer: 'bg-[#2A2A3E] text-[#E8E8DE]',
-  readonly: 'bg-[#1C1C2E] text-[#B8B8A0]',
+  viewer: 'bg-[var(--color-outline-variant)] text-[var(--color-on-surface)]',
+  readonly: 'bg-[var(--color-surface-high)] text-[#B8B8A0]',
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -176,34 +176,34 @@ function UsersTab() {
       </div>
 
       {inviteOpen && (
-        <div className="mb-6 p-4 rounded-xl border border-[#4F46E5]/30 bg-[#1C1C2E] space-y-3">
-          <h3 className="font-semibold text-[#6366F1]">Invite new user</h3>
+        <div className="mb-6 p-4 rounded-xl border border-[var(--color-primary)]/30 bg-[var(--color-surface-high)] space-y-3">
+          <h3 className="font-semibold text-[var(--color-primary)]">Invite new user</h3>
           <div className="grid grid-cols-2 gap-3">
             <input
               type="email"
               placeholder="Email"
               value={invite.email}
               onChange={(e) => setInvite((i) => ({ ...i, email: e.target.value }))}
-              className="px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#141420] text-[#E8E8DE] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+              className="px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-highest)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
             />
             <input
               type="text"
               placeholder="Name"
               value={invite.name}
               onChange={(e) => setInvite((i) => ({ ...i, name: e.target.value }))}
-              className="px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#141420] text-[#E8E8DE] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+              className="px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-highest)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
             />
             <input
               type="password"
               placeholder="Initial password (optional)"
               value={invite.password}
               onChange={(e) => setInvite((i) => ({ ...i, password: e.target.value }))}
-              className="px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#141420] text-[#E8E8DE] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+              className="px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-highest)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
             />
             <select
               value={invite.role}
               onChange={(e) => setInvite((i) => ({ ...i, role: e.target.value }))}
-              className="px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#141420] text-[#E8E8DE] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+              className="px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-highest)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
             >
               {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
@@ -220,7 +220,7 @@ function UsersTab() {
             <button
               type="button"
               onClick={() => setInviteOpen(false)}
-              className="px-4 py-2 text-sm text-[#B8B8A0] hover:text-[#E8E8DE]"
+              className="px-4 py-2 text-sm text-[#B8B8A0] hover:text-[var(--color-on-surface)]"
             >
               Cancel
             </button>
@@ -229,9 +229,9 @@ function UsersTab() {
       )}
 
       {/* Users table */}
-      <div className="overflow-x-auto rounded-xl border border-[#2A2A3E]">
+      <div className="overflow-x-auto rounded-xl border border-[var(--color-outline-variant)]">
         <table className="w-full text-sm">
-          <thead className="bg-[#1C1C2E] border-b border-[#2A2A3E]">
+          <thead className="bg-[var(--color-surface-high)] border-b border-[var(--color-outline-variant)]">
             <tr>
               <th className="text-left px-4 py-3 text-[#B8B8A0] font-medium">User</th>
               <th className="text-left px-4 py-3 text-[#B8B8A0] font-medium">Provider</th>
@@ -240,7 +240,7 @@ function UsersTab() {
               <th className="text-left px-4 py-3 text-[#B8B8A0] font-medium">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#2A2A3E]">
+          <tbody className="divide-y divide-[var(--color-outline-variant)]">
             {users.map((u) => (
               <tr key={u.id} className={`${u.disabled ? 'opacity-50' : ''}`}>
                 <td className="px-4 py-3">
@@ -248,12 +248,12 @@ function UsersTab() {
                     {u.avatarUrl ? (
                       <img src={u.avatarUrl} alt="" className="h-8 w-8 rounded-full" />
                     ) : (
-                      <div className="h-8 w-8 rounded-full bg-[#6366F1]/20 flex items-center justify-center text-xs font-bold text-[#6366F1]">
+                      <div className="h-8 w-8 rounded-full bg-[var(--color-primary)]/20 flex items-center justify-center text-xs font-bold text-[var(--color-primary)]">
                         {u.name.charAt(0).toUpperCase()}
                       </div>
                     )}
                     <div>
-                      <div className="font-medium text-[#E8E8DE]">{u.name}</div>
+                      <div className="font-medium text-[var(--color-on-surface)]">{u.name}</div>
                       <div className="text-[#B8B8A0] text-xs">{u.email}</div>
                     </div>
                   </div>
@@ -274,7 +274,7 @@ function UsersTab() {
                     <button
                       type="button"
                       onClick={() => { void handleToggleDisable(u); }}
-                      className="text-xs text-[#B8B8A0] hover:text-[#E8E8DE] underline"
+                      className="text-xs text-[#B8B8A0] hover:text-[var(--color-on-surface)] underline"
                     >
                       {u.disabled ? 'Enable' : 'Disable'}
                     </button>
@@ -391,13 +391,13 @@ function TeamsTab() {
       </div>
 
       {creating && (
-        <div className="mb-6 p-4 rounded-xl border border-[#4F46E5]/30 bg-[#1C1C2E] flex gap-2">
+        <div className="mb-6 p-4 rounded-xl border border-[var(--color-primary)]/30 bg-[var(--color-surface-high)] flex gap-2">
           <input
             type="text"
             placeholder="Team name"
             value={newTeamName}
             onChange={(e) => setNewTeamName(e.target.value)}
-            className="flex-1 px-3 py-2 rounded-lg border border-[#2A2A3E] bg-[#141420] text-[#E8E8DE] text-sm focus:outline-none focus:ring-2 focus:ring-[#6366F1]/30 focus:border-[#6366F1]"
+            className="flex-1 px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-highest)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
           />
           <button
             type="button"
@@ -416,9 +416,9 @@ function TeamsTab() {
           const memberUsers = team.members.map((m) => ({ ...m, user: users.find((u) => u.id === m.userId) }));
           const nonMembers = users.filter((u) => !team.members.some((m) => m.userId === u.id));
           return (
-            <div key={team.id} className="border border-[#2A2A3E] rounded-xl p-4 bg-[#141420]">
+            <div key={team.id} className="border border-[var(--color-outline-variant)] rounded-xl p-4 bg-[var(--color-surface-highest)]">
               <div className="flex justify-between items-center mb-3">
-                <div className="font-semibold text-[#E8E8DE]">{team.name}</div>
+                <div className="font-semibold text-[var(--color-on-surface)]">{team.name}</div>
                 <button type="button" onClick={() => { void handleDelete(team.id); }} className="text-xs text-red-500 hover:text-red-700">
                   Delete
                 </button>
@@ -432,7 +432,7 @@ function TeamsTab() {
                         {user.name.charAt(0)}
                       </div>
                       <div className="flex-1">
-                        <div className="text-[#E8E8DE]">{user.name}</div>
+                        <div className="text-[var(--color-on-surface)]">{user.name}</div>
                         <span className="text-xs text-[#B8B8A0]">{role}</span>
                       </div>
                       <button
@@ -449,7 +449,7 @@ function TeamsTab() {
                 {nonMembers.length > 0 && (
                   <select
                     onChange={(e) => { if (e.target.value) void handleAddMember(team.id, e.target.value); e.target.value = ''; }}
-                    className="w-full mt-2 px-3 py-1.5 rounded-lg border border-dashed border-[#2A2A3E] text-sm bg-[#1C1C2E] focus:outline-none"
+                    className="w-full mt-2 px-3 py-1.5 rounded-lg border border-dashed border-[var(--color-outline-variant)] text-sm bg-[var(--color-surface-high)] focus:outline-none"
                     defaultValue=""
                   >
                     <option value="">Add member</option>
@@ -508,9 +508,9 @@ function AuditLogTab() {
   return (
     <div>
       <div className="text-sm text-[#B8B8A0] mb-4">{total} total entr{total === 1 ? 'y' : 'ies'}</div>
-      <div className="overflow-x-auto rounded-xl border border-[#2A2A3E]">
+      <div className="overflow-x-auto rounded-xl border border-[var(--color-outline-variant)]">
         <table className="w-full text-sm">
-          <thead className="bg-[#1C1C2E] border-b border-[#2A2A3E]">
+          <thead className="bg-[var(--color-surface-high)] border-b border-[var(--color-outline-variant)]">
             <tr>
               <th className="text-left px-4 py-3 text-[#B8B8A0] font-medium">Time</th>
               <th className="text-left px-4 py-3 text-[#B8B8A0] font-medium">Action</th>
@@ -519,14 +519,14 @@ function AuditLogTab() {
               <th className="text-left px-4 py-3 text-[#B8B8A0] font-medium">Provider</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#2A2A3E]">
+          <tbody className="divide-y divide-[var(--color-outline-variant)]">
             {entries.map((e) => (
               <tr key={e.id}>
                 <td className="px-4 py-2.5 text-[#B8B8A0] text-xs whitespace-nowrap">{new Date(e.timestamp).toLocaleString()}</td>
                 <td className={`px-4 py-2.5 font-medium text-xs ${ACTION_COLORS[e.action] ?? 'text-slate-700'}`}>{e.action.replace(/_/g, ' ')}</td>
-                <td className="px-4 py-2.5 text-xs text-[#E8E8DE]">{e.actorEmail ?? '-'}</td>
-                <td className="px-4 py-2.5 text-xs text-[#E8E8DE]">{e.targetEmail ?? '-'}</td>
-                <td className="px-4 py-2.5 text-xs text-[#E8E8DE]">{e.provider ?? '-'}</td>
+                <td className="px-4 py-2.5 text-xs text-[var(--color-on-surface)]">{e.actorEmail ?? '-'}</td>
+                <td className="px-4 py-2.5 text-xs text-[var(--color-on-surface)]">{e.targetEmail ?? '-'}</td>
+                <td className="px-4 py-2.5 text-xs text-[var(--color-on-surface)]">{e.provider ?? '-'}</td>
               </tr>
             ))}
           </tbody>
@@ -543,7 +543,7 @@ function AuditLogTab() {
             type="button"
             onClick={() => { const o = Math.max(0, offset - LIMIT); setOffset(o); void load(o); }}
             disabled={offset === 0}
-            className="px-4 py-2 text-sm text-[#B8B8A0] hover:text-[#E8E8DE] disabled:opacity-40"
+            className="px-4 py-2 text-sm text-[#B8B8A0] hover:text-[var(--color-on-surface)] disabled:opacity-40"
           >
             Previous
           </button>
@@ -554,7 +554,7 @@ function AuditLogTab() {
             type="button"
             onClick={() => { const o = offset + LIMIT; setOffset(o); void load(o); }}
             disabled={offset + LIMIT >= total}
-            className="px-4 py-2 text-sm text-[#B8B8A0] hover:text-[#E8E8DE] disabled:opacity-40"
+            className="px-4 py-2 text-sm text-[#B8B8A0] hover:text-[var(--color-on-surface)] disabled:opacity-40"
           >
             Next
           </button>
@@ -586,12 +586,12 @@ export default function Admin() {
   return (
     <div className="max-w-5xl mx-auto px-6 py-8">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-[#E8E8DE]">Administration</h1>
+        <h1 className="text-2xl font-bold text-[var(--color-on-surface)]">Administration</h1>
         <p className="text-[#B8B8A0] mt-1">Manage users, teams, and access control</p>
       </div>
 
       {/* Tab navigation */}
-      <div className="flex gap-1 mb-6 border-b border-[#2A2A3E]">
+      <div className="flex gap-1 mb-6 border-b border-[var(--color-outline-variant)]">
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -599,8 +599,8 @@ export default function Admin() {
             onClick={() => setTab(t.id)}
             className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
               tab === t.id
-                ? 'border-[#6366F1] text-[#6366F1]'
-                : 'border-transparent text-[#B8B8A0] hover:text-[#E8E8DE] hover:border-[#2A2A3E]'
+                ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
+                : 'border-transparent text-[#B8B8A0] hover:text-[var(--color-on-surface)] hover:border-[var(--color-outline-variant)]'
             }`}
           >
             {t.label}

@@ -15,7 +15,6 @@ import Admin from './pages/Admin.js';
 import Dashboards from './pages/Dashboards.js';
 import DashboardWorkspace from './pages/DashboardWorkspace.js';
 import Alerts from './pages/Alerts.js';
-import AlertingPage from './pages/AlertingPage.js';
 import Connections from './pages/Connections.js';
 import { apiClient } from './api/client.js';
 
@@ -73,6 +72,7 @@ export default function App() {
             >
               <Route path="/" element={<Home />} />
               <Route path="/feed" element={<Feed />} />
+              <Route path="/investigations" element={<Dashboards listType="investigation" />} />
               <Route path="/investigate" element={<Workspace />} />
               <Route path="/investigate/:id" element={<Workspace />} />
               <Route path="/evidence/:id" element={<Evidence />} />
@@ -83,7 +83,6 @@ export default function App() {
               <Route path="/dashboards" element={<Dashboards />} />
               <Route path="/dashboards/:id" element={<DashboardWorkspace />} />
               <Route path="/alerts" element={<Alerts />} />
-              <Route path="/alerting" element={<AlertingPage />} />
               <Route path="/connections" element={<Connections />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>

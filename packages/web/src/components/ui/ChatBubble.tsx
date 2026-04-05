@@ -15,14 +15,14 @@ export function ChatBubble({ role, content, timestamp }: ChatBubbleProps) {
         <div
           className={`px-4 py-2.5 text-sm leading-relaxed ${
             isUser
-              ? 'bg-[#6366F1] text-white rounded-2xl rounded-br-sm'
-              : 'bg-[#1C1C2E] text-[#E8E8ED] rounded-2xl rounded-bl-sm'
+              ? 'bg-[var(--color-primary)] text-white rounded-2xl rounded-br-sm'
+              : 'bg-[var(--color-surface-high)] text-[var(--color-on-surface)] rounded-2xl rounded-bl-sm'
           }`}
         >
           {content}
         </div>
         {timestamp && (
-          <span className="text-[#555570] text-xs px-1">{timestamp}</span>
+          <span className="text-[var(--color-outline)] text-xs px-1">{timestamp}</span>
         )}
       </div>
     </div>

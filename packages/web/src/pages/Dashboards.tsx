@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client.js';
-import DashboardCardPreview from '../components/DashboardCardPreview.js';
 import ConfirmDialog from '../components/ConfirmDialog.js';
 import type { PanelConfig } from '../components/DashboardPanelCard.js';
 
@@ -12,15 +11,14 @@ interface Dashboard {
   title: string;
   description?: string;
   status: 'generating' | 'ready' | 'error';
+  type?: string;
   panels: PanelConfig[];
   createdAt: string;
   updatedAt: string;
   folder?: string;
-  starred?: boolean;
 }
 
-type ViewMode = 'list' | 'grid';
-type SortKey = 'name' | 'date' | 'panels';
+type SortKey = 'date' | 'name';
 
 // Helpers
 
@@ -34,228 +32,60 @@ function relativeTime(iso: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-const STATUS_DOT: Record<Dashboard['status'], string> = {
-  generating: 'bg-amber-400 animate-pulse',
-  ready: 'bg-emerald-500',
-  error: 'bg-red-400',
+function StatusBadge({ status }: { status: Dashboard['status'] }) {
+  if (status === 'ready') {
+    return (
+      <span className="text-[10px] bg-secondary/10 text-secondary px-2 py-0.5 rounded uppercase font-bold tracking-tighter">
+        Ready
+      </span>
+    );
+  }
+  if (status === 'error') {
+    return (
+      <span className="text-[10px] bg-error/10 text-error px-2 py-0.5 rounded uppercase font-bold tracking-tighter">
+        Error
+      </span>
+    );
+  }
+  return (
+    <span className="text-[10px] bg-amber-400/10 text-amber-400 px-2 py-0.5 rounded uppercase font-bold tracking-tighter">
+      Generating
+    </span>
+  );
+}
+
+// Page config per list type
+const PAGE_CONFIG = {
+  dashboard: {
+    title: 'Dashboards',
+    subtitle: 'Monitor and visualize your infrastructure metrics.',
+    newLabel: '+ New Dashboard',
+    emptyTitle: 'No dashboards yet',
+    emptyDesc: 'Create a dashboard to start monitoring your infrastructure.',
+    icon: 'grid_view',
+    navTarget: '/dashboards',
+  },
+  investigation: {
+    title: 'Investigations',
+    subtitle: 'Diagnose and troubleshoot production issues.',
+    newLabel: '+ New Investigation',
+    emptyTitle: 'No investigations yet',
+    emptyDesc: 'Start an investigation to diagnose a production issue.',
+    icon: 'search',
+    navTarget: '/investigations',
+  },
 };
-
-// Folder Tree Row
-
-function FolderRow({
-  name,
-  dashboards,
-  expanded,
-  onToggle,
-  navigate,
-  onDelete,
-  onStar,
-}: {
-  name: string;
-  dashboards: Dashboard[];
-  expanded: boolean;
-  onToggle: () => void;
-  navigate: (path: string) => void;
-  onDelete: (id: string) => void;
-  onStar: (id: string) => void;
-}) {
-  return (
-    <>
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex items-center gap-2 w-full px-3 py-2 hover:bg-[#141420] transition-colors text-left group"
-      >
-        <svg
-          className={`w-3.5 h-3.5 text-[#555570] transition-transform shrink-0 ${
-            expanded ? 'rotate-90' : ''
-          }`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-        </svg>
-        <svg
-          className="w-4 h-4 text-[#555570] shrink-0"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-        >
-          <path d="M2 6A2 2 0 014 4h4l2 2h6a2 2 0 012 2v1H2V6z" />
-          <path d="M2 9h16v5a2 2 0 01-2 2H4a2 2 0 01-2-2V9z" />
-        </svg>
-        <span className="text-sm font-medium text-[#E8E8ED] flex-1 truncate">{name}</span>
-        <span className="text-xs text-[#555570]">{dashboards.length}</span>
-      </button>
-
-      {expanded &&
-        dashboards.map((dash) => (
-          <DashboardListRow
-            key={dash.id}
-            dash={dash}
-            indent
-            navigate={navigate}
-            onDelete={() => onDelete(dash.id)}
-            onStar={() => onStar(dash.id)}
-          />
-        ))}
-    </>
-  );
-}
-
-// Dashboard List Row
-
-function DashboardListRow({
-  dash,
-  indent,
-  navigate,
-  onDelete,
-  onStar,
-}: {
-  dash: Dashboard;
-  indent?: boolean;
-  navigate: (path: string) => void;
-  onDelete: () => void;
-  onStar: () => void;
-}) {
-  return (
-    <div
-      className={`flex items-center gap-3 px-3 py-2 hover:bg-[#141420] transition-colors group ${
-        indent ? 'pl-10' : 'px-3'
-      }`}
-    >
-      <span className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[dash.status]}`} />
-
-      <button
-        type="button"
-        onClick={() => navigate(`/dashboards/${dash.id}`)}
-        className="text-sm text-[#E8E8ED] hover:text-[#6366F1] truncate flex-1 text-left transition-colors font-medium"
-      >
-        {dash.title}
-      </button>
-
-      {!indent && dash.folder && (
-        <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1C1C2E] text-[#555570] shrink-0 hidden sm:inline">
-          {dash.folder}
-        </span>
-      )}
-
-      <span className="text-xs text-[#555570] w-16 text-right shrink-0 hidden md:block">
-        {dash.panels.length} {dash.panels.length === 1 ? 'panel' : 'panels'}
-      </span>
-
-      <span className="text-xs text-[#555570] w-16 text-right shrink-0 hidden md:block">
-        {relativeTime(dash.updatedAt ?? dash.createdAt)}
-      </span>
-
-      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button
-          type="button"
-          onClick={onStar}
-          className={`p-1 rounded transition-colors ${
-            dash.starred ? 'text-[#F59E0B]' : 'text-[#555570] hover:text-[#F59E0B]'
-          }`}
-          title={dash.starred ? 'Unstar' : 'Star'}
-        >
-          <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill={dash.starred ? 'currentColor' : 'none'}>
-            <path
-              stroke="currentColor"
-              strokeWidth={1.5}
-              d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.371 4.218a1 1 0 00.95.69h4.436c.969 0 1.371 1.24.588 1.81l-3.59 2.61a1 1 0 00-.364 1.118l1.37 4.218c.3.921-.755 1.688-1.54 1.118l-3.59-2.61a1 1 0 00-1.176 0l-3.59 2.61c-.784.57-1.838-.197-1.539-1.118l1.37-4.218a1 1 0 00-.363-1.118l-3.59-2.61c-.784-.57-.38-1.81.588-1.81h4.435a1 1 0 00.951-.69l1.37-4.218z"
-            />
-          </svg>
-        </button>
-        <button
-          type="button"
-          onClick={onDelete}
-          className="p-1 rounded text-[#555570] hover:text-[#EF4444] transition-colors"
-          title="Delete"
-        >
-          <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-            <path
-              fillRule="evenodd"
-              d="M8.5 2a1 1 0 00-1 1V4H5a1 1 0 000 2h.293l.853 9.386A2 2 0 008.138 17h3.724a2 2 0 001.992-1.614L14.707 6H15a1 1 0 100-2h-2.5V3a1 1 0 00-1-1h-3zM9.5 4h1V3h-1v1z"
-              clipRule="evenodd"
-            />
-          </svg>
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// Dashboard Grid Card
-
-function DashboardGridCard({
-  dash,
-  navigate,
-  onDelete,
-}: {
-  dash: Dashboard;
-  navigate: (path: string) => void;
-  onDelete: () => void;
-}) {
-  return (
-    <div className="relative group/card">
-      <button
-        type="button"
-        onClick={() => navigate(`/dashboards/${dash.id}`)}
-        className="w-full rounded-xl border border-[#2A2A3E] bg-[#141420] hover:border-[#6366F1]/40 hover:bg-[#1C1C2E] transition-colors p-3 flex flex-col gap-3"
-      >
-        <DashboardCardPreview
-          panels={dash.panels}
-          generating={dash.status === 'generating'}
-        />
-
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 text-left">
-            <h3 className="text-sm font-semibold text-[#E8E8ED] truncate">{dash.title}</h3>
-            <p className="text-xs text-[#555570] mt-0.5">
-              {dash.panels.length} panel{dash.panels.length === 1 ? '' : 's'}
-              {dash.folder ? <span className="text-[#555570]"> • {dash.folder}</span> : null}
-            </p>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className={`w-2 h-2 rounded-full ${STATUS_DOT[dash.status]}`} />
-            <span className="text-xs text-[#555570]">
-              {relativeTime(dash.updatedAt ?? dash.createdAt)}
-            </span>
-          </div>
-        </div>
-      </button>
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete();
-        }}
-        className="absolute top-2 right-2 p-1.5 rounded-lg bg-[#141420]/90 border border-[#2A2A3E] text-[#555570] hover:text-[#EF4444] hover:border-[#EF4444]/40 opacity-0 group-hover/card:opacity-100 transition-all"
-        title="Delete"
-      >
-        <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-          <path
-            fillRule="evenodd"
-            d="M8.5 2a1 1 0 00-1 1V4H5a1 1 0 000 2h.293l.853 9.386A2 2 0 008.138 17h3.724a2 2 0 001.992-1.614L14.707 6H15a1 1 0 100-2h-2.5V3a1 1 0 00-1-1h-3zM9.5 4h1V3h-1v1z"
-            clipRule="evenodd"
-          />
-        </svg>
-      </button>
-    </div>
-  );
-}
 
 // Main
 
-export default function Dashboards() {
+export default function Dashboards({ listType }: { listType?: string } = {}) {
   const navigate = useNavigate();
+  const config = PAGE_CONFIG[listType === 'investigation' ? 'investigation' : 'dashboard'];
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
   const [loadingList, setLoadingList] = useState(true);
   const [search, setSearch] = useState('');
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [sortKey, setSortKey] = useState<SortKey>('date');
-  const [showStarred, setShowStarred] = useState(false);
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['__none__']));
   const [deletingDashId, setDeletingDashId] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -272,10 +102,11 @@ export default function Dashboards() {
   }, []);
 
   const loadList = useCallback(async () => {
-    const res = await apiClient.get<Dashboard[]>('/dashboards');
+    const query = listType ? `?type=${listType}` : '';
+    const res = await apiClient.get<Dashboard[]>(`/dashboards${query}`);
     if (!res.error) setDashboards(res.data);
     setLoadingList(false);
-  }, []);
+  }, [listType]);
 
   useEffect(() => {
     void loadList();
@@ -286,300 +117,215 @@ export default function Dashboards() {
     if (!res.error) setDashboards((prev) => prev.filter((d) => d.id !== id));
   }, []);
 
-  const handleStar = useCallback(async (id: string) => {
-    const dash = dashboards.find((d) => d.id === id);
-    if (!dash) return;
-    const newStarred = !dash.starred;
-    setDashboards((prev) => prev.map((d) => (d.id === id ? { ...d, starred: newStarred } : d)));
-    // No backend API for starring yet; purely local state.
-  }, [dashboards]);
-
-  const toggleFolder = useCallback((folder: string) => {
+  const toggleFolder = (folder: string) => {
     setExpandedFolders((prev) => {
       const next = new Set(prev);
       if (next.has(folder)) next.delete(folder);
       else next.add(folder);
       return next;
     });
-  }, []);
+  };
 
-  // Derived data
-
-  const folders = useMemo(() => {
-    const set = new Set(dashboards.map((d) => d.folder).filter(Boolean) as string[]);
-    return [...set].sort();
-  }, [dashboards]);
-
+  // Sort & filter
   const sortFn = useCallback((a: Dashboard, b: Dashboard) => {
     if (sortKey === 'name') return a.title.localeCompare(b.title);
-    if (sortKey === 'panels') return b.panels.length - a.panels.length;
     return (b.updatedAt ?? b.createdAt).localeCompare(a.updatedAt ?? a.createdAt);
   }, [sortKey]);
 
   const filtered = useMemo(() => {
     let list = dashboards;
-    if (showStarred) list = list.filter((d) => d.starred);
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
         (d) =>
           d.title.toLowerCase().includes(q) ||
           (d.description ?? '').toLowerCase().includes(q) ||
-          (d.folder ?? '').toLowerCase().includes(q)
+          (d.folder ?? '').toLowerCase().includes(q),
       );
     }
     return list.sort(sortFn);
-  }, [dashboards, search, showStarred, sortFn]);
+  }, [dashboards, search, sortFn]);
 
-  // Group by folder for list view
+  // Group by folder
   const folderGroups = useMemo(() => {
-    const groups: Array<{ folder: string; dashboards: Dashboard[] }> = [];
-    const folderMap = new Map<string, Dashboard[]>();
-    const unfiled: Dashboard[] = [];
-
+    const groups = new Map<string, Dashboard[]>();
     for (const d of filtered) {
-      if (d.folder) {
-        const arr = folderMap.get(d.folder) ?? [];
-        arr.push(d);
-        folderMap.set(d.folder, arr);
-      } else {
-        unfiled.push(d);
-      }
+      const folder = d.folder || '__none__';
+      if (!groups.has(folder)) groups.set(folder, []);
+      groups.get(folder)!.push(d);
     }
-
-    // Sorted folders
-    for (const f of [...folderMap.keys()].sort()) {
-      groups.push({ folder: f, dashboards: folderMap.get(f)! });
-    }
-
-    return { groups, unfiled };
+    // Sort: __none__ first, then alphabetical
+    const entries = Array.from(groups.entries()).sort(([a], [b]) => {
+      if (a === '__none__') return -1;
+      if (b === '__none__') return 1;
+      return a.localeCompare(b);
+    });
+    return entries;
   }, [filtered]);
 
+  const itemLink = (id: string) => `/dashboards/${id}`;
+
   return (
-    <div className="min-h-full bg-[#0A0A0F]">
-      <div className="max-w-5xl mx-auto px-4 py-5 sm:px-6 sm:py-8">
-        <div className="flex items-center justify-between mb-3">
+    <div className="flex-1 overflow-y-auto bg-surface-container">
+      <div className="p-8 max-w-5xl mx-auto">
+        {/* Header */}
+        <div className="flex justify-between items-end mb-8">
           <div>
-            <h1 className="text-xl font-bold text-[#E8E8ED]">Dashboards</h1>
-            <p className="text-xs text-[#555570] mt-0.5">
-              Create and manage dashboards to visualize your data.
-            </p>
+            <h1 className="text-3xl font-bold tracking-tight text-on-surface font-[Manrope]">{config.title}</h1>
+            <p className="text-on-surface-variant mt-1 text-sm">{config.subtitle}</p>
           </div>
           <button
             type="button"
             onClick={() => navigate('/')}
-            className="px-3 py-1.5 bg-[#6366F1] text-white text-xs font-medium rounded-lg hover:bg-[#818CF8] transition-colors"
+            className="bg-primary text-on-primary-fixed px-4 py-2 rounded-lg font-semibold text-sm transition-transform active:scale-95"
           >
-            + New
+            {config.newLabel}
           </button>
         </div>
 
-        <div className="mb-4">
-          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
-            <div className="relative flex-1">
-              <svg
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#555570]"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-                fill="none"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M21 21l-5.197-5.197M4.7 10a5.3 5.3 0 1010.6 0 5.3 5.3 0 00-10.6 0z"
-                />
-              </svg>
-              <input
-                ref={searchRef}
-                type="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search for dashboards or folders"
-                className="w-full bg-[#141420] border border-[#2A2A3E] rounded-lg pl-9 pr-9 py-2 text-sm text-[#E8E8ED] placeholder-[#555570] focus:outline-none focus:border-[#6366F1] transition-colors"
-              />
-              {search && (
-                <button
-                  type="button"
-                  onClick={() => setSearch('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8888AA] hover:text-[#E8E8ED]"
-                >
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-                    <path
-                      fillRule="evenodd"
-                      d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </button>
-              )}
-              <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded bg-[#1C1C2E] text-[10px] text-[#555570] font-mono border border-[#2A2A3E]">
-                /
-              </kbd>
-            </div>
-
-            <label className="flex items-center gap-2 px-3 py-2 bg-[#141420] border border-[#2A2A3E] rounded-lg shrink-0">
-              <input
-                type="checkbox"
-                checked={showStarred}
-                onChange={(e) => setShowStarred(e.target.checked)}
-                className="sr-only"
-              />
-              <svg
-                className={`w-4 h-4 transition-colors ${showStarred ? 'text-[#F59E0B]' : 'text-[#555570]'}`}
-                viewBox="0 0 20 20"
-                fill={showStarred ? 'currentColor' : 'none'}
-              >
-                <path
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                  d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.371 4.218a1 1 0 00.95.69h4.436c.969 0 1.371 1.24.588 1.81l-3.59 2.61a1 1 0 00-.364 1.118l1.37 4.218c.3.921-.755 1.688-1.54 1.118l-3.59-2.61a1 1 0 00-1.176 0l-3.59 2.61c-.784.57-1.838-.197-1.539-1.118l1.37-4.218a1 1 0 00-.363-1.118l-3.59-2.61c-.784-.57-.38-1.81.588-1.81h4.435a1 1 0 00.951-.69l1.37-4.218z"
-                />
-              </svg>
-              <span className="text-xs text-[#8888AA]">Starred</span>
-            </label>
-
-            <div className="flex gap-1 bg-[#141420] rounded-lg border border-[#2A2A3E] p-0.5 shrink-0">
-              <button
-                type="button"
-                onClick={() => setViewMode('list')}
-                className={`p-1.5 rounded transition-colors ${viewMode === 'list' ? 'bg-[#1C1C2E] text-[#E8E8ED]' : 'text-[#555570]'}`}
-                title="Grid view"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('grid')}
-                className={`p-1.5 rounded transition-colors ${viewMode === 'grid' ? 'bg-[#1C1C2E] text-[#E8E8ED]' : 'text-[#555570]'}`}
-                title="Grid view"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z" />
-                </svg>
-              </button>
-            </div>
-
-            <select
-              value={sortKey}
-              onChange={(e) => setSortKey(e.target.value as SortKey)}
-              className="bg-[#141420] border border-[#2A2A3E] rounded-lg px-3 py-2 text-xs text-[#8888AA] focus:outline-none focus:border-[#6366F1] shrink-0 cursor-pointer"
-            >
-              <option value="date">Sort by Date</option>
-              <option value="name">Sort by Name</option>
-              <option value="panels">Sort by Panels</option>
-            </select>
+        {/* Search + sort bar */}
+        <div className="flex items-center gap-3 mb-6">
+          <div className="relative flex-1">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              ref={searchRef}
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={`Search ${config.title.toLowerCase()}...`}
+              className="w-full bg-surface-high rounded-lg pl-10 pr-4 py-2.5 text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:ring-1 focus:ring-primary border-none"
+            />
           </div>
+          <button
+            type="button"
+            onClick={() => setSortKey(sortKey === 'date' ? 'name' : 'date')}
+            className="bg-surface-high px-4 py-2.5 rounded-lg text-xs font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-bright transition-colors flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+            </svg>
+            {sortKey === 'date' ? 'Latest' : 'Name'}
+          </button>
         </div>
 
-        <div className="flex items-center gap-2 mb-4 text-xs text-[#555570]">
-          <span className="text-[#8888AA] font-medium">{filtered.length} dashboard{filtered.length !== 1 ? 's' : ''}</span>
-          <span>•</span>
-          <span>{dashboards.length} total</span>
-          {folders.length > 0 ? <span>• {folders.length} folder{folders.length !== 1 ? 's' : ''}</span> : null}
-        </div>
-
+        {/* Loading */}
         {loadingList && (
           <div className="flex justify-center py-16">
-            <span className="inline-block w-6 h-6 border-2 border-[#2A2A3E] border-t-[#6366F1] rounded-full animate-spin" />
+            <span className="inline-block w-6 h-6 border-2 border-outline border-t-primary rounded-full animate-spin" />
           </div>
         )}
 
+        {/* Empty state */}
         {!loadingList && dashboards.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-[#141420] border border-[#2A2A3E] flex items-center justify-center mb-3">
-              <svg className="w-6 h-6 text-[#8888AA]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7h18M3 12h18M3 17h12" />
+            <div className="w-14 h-14 rounded-xl bg-surface-high flex items-center justify-center mb-4">
+              <svg className="w-7 h-7 text-on-surface-variant" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
               </svg>
             </div>
-            <p className="text-sm text-[#8888AA] mb-1">No dashboards yet</p>
-            <p className="text-xs text-[#555570] mb-4">Create one dashboard to monitor and let AI build it</p>
+            <p className="text-sm text-on-surface-variant mb-1">{config.emptyTitle}</p>
+            <p className="text-xs text-on-surface-variant/60 mb-4">{config.emptyDesc}</p>
             <button
               type="button"
               onClick={() => navigate('/')}
-              className="px-4 py-2 bg-[#6366F1] text-white text-sm font-medium rounded-lg hover:bg-[#818CF8] transition-colors"
+              className="bg-primary text-on-primary-fixed px-4 py-2 rounded-lg font-semibold text-sm"
             >
-              Create Dashboard
+              {config.newLabel}
             </button>
           </div>
         )}
 
-        {!loadingList && dashboards.length > 0 && filtered.length === 0 && (
-          <div className="flex flex-col items-center py-12 text-center">
-            <p className="text-sm text-[#8888AA]">
-              No dashboards match <span className="text-[#60A5FA]">"{search}"</span>
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                setSearch('');
-                setShowStarred(false);
-              }}
-              className="mt-2 text-xs text-[#818CF8] hover:text-[#6366F1]"
-            >
-              Clear filters
-            </button>
-          </div>
-        )}
+        {/* Folder-grouped list */}
+        {!loadingList && filtered.length > 0 && (
+          <div className="space-y-2">
+            {folderGroups.map(([folder, items]) => (
+              <div key={folder} className="bg-surface-high rounded-xl overflow-hidden">
+                {/* Folder header */}
+                <button
+                  type="button"
+                  onClick={() => toggleFolder(folder)}
+                  className="w-full flex items-center gap-3 px-5 py-3 hover:bg-surface-bright/50 transition-colors"
+                >
+                  <svg
+                    className={`w-4 h-4 text-on-surface-variant transition-transform ${expandedFolders.has(folder) ? 'rotate-90' : ''}`}
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                  {folder === '__none__' ? (
+                    <span className="text-sm font-semibold text-on-surface">General</span>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                      </svg>
+                      <span className="text-sm font-semibold text-on-surface">{folder}</span>
+                    </>
+                  )}
+                  <span className="text-xs text-on-surface-variant ml-auto">{items.length}</span>
+                </button>
 
-        {!loadingList && filtered.length > 0 && viewMode === 'list' && (
-          <div className="rounded-xl border border-[#2A2A3E] overflow-hidden divide-y divide-[#1C1C2E]">
-            <div className="flex items-center gap-3 px-3 py-2 bg-[#0A0A0F] text-[11px] font-semibold uppercase tracking-wider text-[#555570]">
-              <span className="w-2" />
-              <span className="flex-1">Name</span>
-              <span className="w-16 text-right hidden md:block">Panels</span>
-              <span className="w-16 text-right hidden md:block">Updated</span>
-              <span className="w-16" />
-            </div>
+                {/* Items */}
+                {expandedFolders.has(folder) && (
+                  <div>
+                    {items.map((dash) => (
+                      <div
+                        key={dash.id}
+                        onClick={() => navigate(itemLink(dash.id))}
+                        className="px-5 py-3.5 flex items-center gap-4 hover:bg-white/[0.02] transition-colors cursor-pointer group border-t border-outline-variant/10"
+                      >
+                        {/* Type icon */}
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                          dash.type === 'investigation' ? 'bg-tertiary/10' : 'bg-primary/10'
+                        }`}>
+                          {dash.type === 'investigation' ? (
+                            <svg className="w-4 h-4 text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                          ) : (
+                            <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z" />
+                            </svg>
+                          )}
+                        </div>
 
-            {folderGroups.groups.map((group) => (
-              <FolderRow
-                key={group.folder}
-                name={group.folder}
-                dashboards={group.dashboards}
-                expanded={expandedFolders.has(group.folder)}
-                onToggle={() => toggleFolder(group.folder)}
-                navigate={navigate}
-                onDelete={(id) => setDeletingDashId(id)}
-                onStar={(id) => {
-                  void handleStar(id);
-                }}
-              />
-            ))}
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-sm font-semibold text-on-surface truncate">{dash.title}</h4>
+                            <StatusBadge status={dash.status} />
+                          </div>
+                          <span className="text-xs text-on-surface-variant">
+                            {dash.panels.length} panel{dash.panels.length !== 1 ? 's' : ''} · {relativeTime(dash.updatedAt ?? dash.createdAt)}
+                          </span>
+                        </div>
 
-            {folderGroups.unfiled.map((dash) => (
-              <DashboardListRow
-                key={dash.id}
-                dash={dash}
-                navigate={navigate}
-                onDelete={() => setDeletingDashId(dash.id)}
-                onStar={() => {
-                  void handleStar(dash.id);
-                }}
-              />
-            ))}
-          </div>
-        )}
-
-        {!loadingList && filtered.length > 0 && viewMode === 'grid' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map((dash) => (
-              <DashboardGridCard
-                key={dash.id}
-                dash={dash}
-                navigate={navigate}
-                onDelete={() => setDeletingDashId(dash.id)}
-              />
+                        {/* Delete button */}
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setDeletingDashId(dash.id); }}
+                          className="shrink-0 p-1.5 rounded-lg text-on-surface-variant hover:text-error hover:bg-error/10 transition-colors"
+                          title="Delete"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         )}
 
         <ConfirmDialog
           open={deletingDashId !== null}
-          title="Delete dashboard?"
-          message="This dashboard and all its panels will be permanently deleted."
+          title={`Delete ${listType === 'investigation' ? 'investigation' : 'dashboard'}?`}
+          message="This will be permanently deleted along with all its panels."
           onConfirm={() => {
             if (deletingDashId) void handleDelete(deletingDashId);
             setDeletingDashId(null);

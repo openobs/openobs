@@ -232,7 +232,7 @@ function extractErrorMessage(err: unknown): string {
 
 function Spinner() {
   return (
-    <span className="inline-block w-3.5 h-3.5 border-2 border-[#2C3036] border-t-[#6366F1] rounded-full animate-spin" />
+    <span className="inline-block w-3.5 h-3.5 border-2 border-outline-variant border-t-primary rounded-full animate-spin" />
   );
 }
 
@@ -241,15 +241,15 @@ function Spinner() {
 function QueryBadge({ queries }: { queries: PanelQuery[] }) {
   const [expanded, setExpanded] = useState(false);
   return (
-    <div className="bg-[#141420] border-t border-[#2A2A3E] px-3 py-1.5">
+    <div className="bg-surface-high px-4 py-1.5">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="text-[11px] text-[#8888AA] hover:text-[#E8E8ED] flex items-center gap-1 transition-colors"
+        className="text-[11px] text-on-surface-variant hover:text-on-surface flex items-center gap-1 transition-colors"
       >
         <span className="font-mono">PromQL</span>
         {queries.length > 1 && (
-          <span className="text-[10px] bg-[#6366F1]/20 text-[#818CF8] px-1.5 py-0.5 rounded font-mono">
+          <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded font-mono">
             {queries.length}
           </span>
         )}
@@ -266,9 +266,9 @@ function QueryBadge({ queries }: { queries: PanelQuery[] }) {
           {queries.map((q) => (
             <div key={q.refId}>
               {queries.length > 1 && (
-                <span className="text-[10px] text-[#818CF8] font-medium">{q.refId}</span>
+                <span className="text-[10px] text-primary font-medium">{q.refId}</span>
               )}
-              <pre className="inline-block w-full text-[11px] font-mono text-[#E6E7EB] bg-[#0B0D12] rounded p-2 overflow-x-auto whitespace-pre-wrap break-all">
+              <pre className="inline-block w-full text-[11px] font-mono text-on-surface bg-surface-lowest rounded p-2 overflow-x-auto whitespace-pre-wrap break-all">
                 {q.expr}
               </pre>
             </div>
@@ -514,8 +514,8 @@ export default function DashboardPanelCard({
 
     if (error) {
       return (
-        <div className="px-3 py-4 text-[11px] rounded mx-2 my-2 border flex flex-col gap-2 bg-[#EF4444]/10 border-[#EF4444]/20">
-          <div>{error}</div>
+        <div className="px-4 py-4 text-[11px] rounded-lg mx-3 my-2 flex flex-col gap-2 bg-error/10">
+          <div className="text-error">{error}</div>
           {isTransientError && (
             <button
               type="button"
@@ -526,7 +526,7 @@ export default function DashboardPanelCard({
                 setLoading(true);
                 void fetchData();
               }}
-              className="self-start text-[11px] text-[#6366F1] hover:text-[#818CF8] underline transition-colors"
+              className="self-start text-[11px] text-primary hover:text-primary-container underline transition-colors"
             >
               Retry
             </button>
@@ -536,7 +536,7 @@ export default function DashboardPanelCard({
     }
 
     if (effectiveQueries.length === 0) {
-      return <div className="flex items-center justify-center h-full text-xs text-[#555570] italic">No queries configured</div>;
+      return <div className="flex items-center justify-center h-full text-xs text-on-surface-variant italic">No queries configured</div>;
     }
 
     // Check for per-query errors in batch results
@@ -592,7 +592,7 @@ export default function DashboardPanelCard({
       }
       default:
         return (
-          <div className="flex items-center justify-center h-full text-xs text-[#555570] italic">
+          <div className="flex items-center justify-center h-full text-xs text-on-surface-variant italic">
             {panel.visualization} visualization not yet supported
           </div>
         );
@@ -603,37 +603,33 @@ export default function DashboardPanelCard({
 
   return (
     <div
-      className={`bg-[#141420] rounded-2xl border h-full flex flex-col overflow-hidden relative group transition-all duration-200 ${
-        editMode
-          ? 'border-dashed border-[#2A2A3E] hover:border-[#4F46E5]/50'
-          : 'border-[#2A2A3E] hover:border-[#4F46E5]/50'
+      className={`bg-surface-high rounded-xl h-full flex flex-col relative group transition-all duration-200 ${
+        editMode ? 'ring-1 ring-dashed ring-outline-variant' : ''
       }`}
     >
-      <div className="panel-drag-handle flex items-center justify-between px-3 py-1.5 bg-[#141420] border-b border-[#2A2A3E] cursor-grab active:cursor-grabbing min-h-[38px]">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="drag-handle text-[#2A2A3E] text-[10px] leading-none select-none" aria-hidden="true">
-            ..
-          </span>
+      <div className="panel-drag-handle flex items-center justify-between px-5 pt-5 pb-3 cursor-grab active:cursor-grabbing">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="drag-handle w-2 h-4 bg-primary rounded-full shrink-0" />
           {loading && <Spinner />}
-          <span className="text-[13px] font-medium text-[#E8E8ED] truncate">{panel.title}</span>
+          <span className="text-sm font-bold text-on-surface font-[Manrope] truncate">{panel.title}</span>
           {datasourceIds.length > 0 &&
             datasourceIds.map((id) => (
               <span
                 key={id}
                 title={`Datasource ${id}`}
-                className="px-1.5 py-0.5 rounded bg-[#6366F1]/10 text-[#818CF8] text-[10px] font-mono shrink-0 hidden md:inline"
+                className="px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-mono shrink-0 hidden md:inline"
               >
                 {String(id).slice(0, 8)}
               </span>
             ))}
         </div>
 
-        <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+        <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
             {onEdit && (
               <button
                 type="button"
                 onClick={onEdit}
-                className="p-1 rounded hover:bg-[#2A2A3E] text-[#8888AA] hover:text-[#E8E8ED] transition-colors"
+                className="p-1 rounded hover:bg-surface-highest text-on-surface-variant hover:text-on-surface transition-colors"
                 title="Edit panel"
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
@@ -645,7 +641,7 @@ export default function DashboardPanelCard({
               <button
                 type="button"
                 onClick={onDelete}
-                className="p-1 rounded hover:bg-[#EF5149]/10 text-[#8888AA] hover:text-[#EF5149] transition-colors"
+                className="p-1 rounded hover:bg-error/10 text-on-surface-variant hover:text-error transition-colors"
                 title="Delete panel"
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
@@ -657,10 +653,10 @@ export default function DashboardPanelCard({
       </div>
 
       {panel.description && (
-        <p className="px-3 pt-1 text-[11px] text-[#8888AA] line-clamp-1">{panel.description}</p>
+        <p className="px-5 text-[11px] text-on-surface-variant line-clamp-1">{panel.description}</p>
       )}
 
-      <div className="flex-1 min-h-0">{renderContent()}</div>
+      <div className="flex-1 min-h-0 overflow-hidden">{renderContent()}</div>
 
       <QueryBadge queries={effectiveQueries} />
     </div>

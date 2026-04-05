@@ -48,20 +48,20 @@ function ReportCard({
         onClick={onClick}
         className={`w-full text-left px-3 py-3 rounded-lg transition-colors border ${
           active
-            ? 'bg-[#1C1C2E] border-[#6366F1]'
-            : 'bg-transparent border-transparent hover:border-[#2A2A3E] hover:bg-[#1C1C2E]'
+            ? 'bg-[var(--color-surface-high)] border-[var(--color-primary)]'
+            : 'bg-transparent border-transparent hover:border-[var(--color-outline-variant)] hover:bg-[var(--color-surface-high)]'
         }`}
       >
-        <p className="text-sm font-medium text-[#E8E8ED] truncate leading-snug">{report.goal}</p>
-        <p className="text-xs text-[#8888AA] mt-1 line-clamp-2 leading-relaxed">{report.summary}</p>
-        <p className="text-xs text-[#555570] mt-1.5">{relativeTime(report.createdAt)}</p>
+        <p className="text-sm font-medium text-[var(--color-on-surface)] truncate leading-snug">{report.goal}</p>
+        <p className="text-xs text-[var(--color-on-surface-variant)] mt-1 line-clamp-2 leading-relaxed">{report.summary}</p>
+        <p className="text-xs text-[var(--color-outline)] mt-1.5">{relativeTime(report.createdAt)}</p>
       </button>
 
       <button
         type="button"
         onClick={onDelete}
         aria-label="Delete report"
-        className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded text-[#555570] hover:text-[#EF4444] bg-[#2A2A3E] opacity-0 group-hover:opacity-100 transition-opacity"
+        className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded text-[var(--color-outline)] hover:text-[#EF4444] bg-[var(--color-outline-variant)] opacity-0 group-hover:opacity-100 transition-opacity"
       >
         <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
           <path
@@ -153,7 +153,7 @@ export default function Workspace() {
       if (!res.error) {
         setReports((prev) => prev.filter((r) => r.id !== reportId));
         if (id === reportId) {
-          navigate('/investigate');
+          navigate('/investigations');
         }
       }
     });
@@ -167,24 +167,24 @@ export default function Workspace() {
   // Render
 
   return (
-    <div className="flex h-full bg-[#0A0A0F]">
+    <div className="flex h-full bg-[var(--color-surface-lowest)]">
       <aside
-        className={`bg-[#141420] border-r border-[#2A2A3E] flex flex-col shrink-0 ${
+        className={`bg-[var(--color-surface-highest)] border-r border-[var(--color-outline-variant)] flex flex-col shrink-0 ${
           id ? 'hidden md:flex' : 'flex'
         } md:w-72`}
       >
-        <div className="px-4 py-3 border-b border-[#2A2A3E]">
-          <h2 className="text-sm font-semibold text-[#E8E8ED]">Investigation Reports</h2>
-          <p className="text-xs text-[#555570] mt-0.5">Saved investigation reports</p>
+        <div className="px-4 py-3 border-b border-[var(--color-outline-variant)]">
+          <h2 className="text-sm font-semibold text-[var(--color-on-surface)]">Investigation Reports</h2>
+          <p className="text-xs text-[var(--color-outline)] mt-0.5">Saved investigation reports</p>
         </div>
 
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {listLoading ? (
             <div className="flex items-center justify-center py-10">
-              <span className="inline-block w-4 h-4 border-2 border-[#2A2A3E] border-t-[#6366F1] rounded-full animate-spin" />
+              <span className="inline-block w-4 h-4 border-2 border-[var(--color-outline-variant)] border-t-[var(--color-primary)] rounded-full animate-spin" />
             </div>
           ) : reports.length === 0 ? (
-            <p className="text-sm text-[#8888AA] text-center py-8 px-3 leading-relaxed">
+            <p className="text-sm text-[var(--color-on-surface-variant)] text-center py-8 px-3 leading-relaxed">
               No saved investigations yet. Start from the dashboard chat.
             </p>
           ) : (
@@ -193,7 +193,7 @@ export default function Workspace() {
                 key={report.id}
                 report={report}
                 active={report.id === id}
-                onClick={() => navigate(`/investigate/${report.id}`)}
+                onClick={() => navigate(`/dashboards/${report.dashboardId ?? report.id}`)}
                 onDelete={(e) => {
                   e.stopPropagation();
                   setDeletingReportId(report.id);
@@ -206,11 +206,11 @@ export default function Workspace() {
 
       <div className={`flex-1 overflow-hidden flex flex-col ${id ? 'flex' : 'hidden md:flex'}`}>
         {id && (
-          <div className="md:hidden shrink-0 px-4 py-2 border-b border-[#2A2A3E]">
+          <div className="md:hidden shrink-0 px-4 py-2 border-b border-[var(--color-outline-variant)]">
             <button
               type="button"
-              onClick={() => navigate('/investigate')}
-              className="inline-flex items-center gap-2 text-sm text-[#6366F1] hover:text-[#818CF8] font-medium"
+              onClick={() => navigate('/investigations')}
+              className="inline-flex items-center gap-2 text-sm text-[var(--color-primary)] hover:text-[var(--color-primary)] font-medium"
             >
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                 <path
@@ -226,7 +226,7 @@ export default function Workspace() {
 
         {reportLoading && (
           <div className="flex-1 flex items-center justify-center">
-            <span className="inline-block w-6 h-6 border-2 border-[#2A2A3E] border-t-[#6366F1] rounded-full animate-spin" />
+            <span className="inline-block w-6 h-6 border-2 border-[var(--color-outline-variant)] border-t-[var(--color-primary)] rounded-full animate-spin" />
           </div>
         )}
 
@@ -234,7 +234,7 @@ export default function Workspace() {
           <div className="flex-1 overflow-hidden">
             <InvestigationReportView
               report={reportForView}
-              onClose={() => navigate('/investigate')}
+              onClose={() => navigate('/investigations')}
             />
           </div>
         )}
@@ -242,14 +242,14 @@ export default function Workspace() {
         {!reportLoading && !reportForView && (
           <div className="flex-1 flex flex-col">
             <div className="flex-1 flex flex-col items-center justify-center gap-4 px-4 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#6366F1]/20 to-[#58C5C6]/20 border border-[#6366F1]/20 flex items-center justify-center">
-                <svg className="w-7 h-7 text-[#6366F1]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[var(--color-primary)]/20 to-[var(--color-secondary)]/20 border border-[var(--color-primary)]/20 flex items-center justify-center">
+                <svg className="w-7 h-7 text-[var(--color-primary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197M4.7 10a5.3 5.3 0 1010.6 0 5.3 5.3 0 00-10.6 0z" />
                 </svg>
               </div>
               <div>
-                <h1 className="text-xl font-semibold text-[#E8E8ED] mb-1">Start an Investigation</h1>
-                <p className="text-sm text-[#555570]">
+                <h1 className="text-xl font-semibold text-[var(--color-on-surface)] mb-1">Start an Investigation</h1>
+                <p className="text-sm text-[var(--color-outline)]">
                   Describe a service to investigate, a high latency, error spikes, resource issues, or any infrastructure concern.
                 </p>
               </div>
@@ -266,13 +266,13 @@ export default function Workspace() {
                   }}
                   placeholder="e.g. Why is API latency increasing?"
                   disabled={creating}
-                  className="w-full bg-[#141420] border border-[#2A2A3E] rounded-xl px-4 py-3.5 text-sm text-[#E8E8ED] placeholder-[#555570] focus:outline-none focus:border-[#6366F1]"
+                  className="w-full bg-[var(--color-surface-highest)] border border-[var(--color-outline-variant)] rounded-xl px-4 py-3.5 text-sm text-[var(--color-on-surface)] placeholder-[var(--color-outline)] focus:outline-none focus:border-[var(--color-primary)]"
                 />
                 <button
                   type="button"
                   onClick={() => void handleNewInvestigation()}
                   disabled={!newPrompt.trim() || creating}
-                  className="mt-3 inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-[#6366F1] text-white text-sm font-medium rounded-xl hover:bg-[#818CF8] disabled:opacity-50 transition-colors"
+                  className="mt-3 inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-[var(--color-primary)] text-white text-sm font-medium rounded-xl hover:bg-[var(--color-primary)] disabled:opacity-50 transition-colors"
                 >
                   {creating && (
                     <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -282,7 +282,7 @@ export default function Workspace() {
               </div>
 
               {reports.length === 0 && (
-                <p className="text-xs text-[#555570] mt-3">
+                <p className="text-xs text-[var(--color-outline)] mt-3">
                   No past investigations yet. Your investigation history will appear in the sidebar.
                 </p>
               )}
@@ -302,7 +302,7 @@ export default function Workspace() {
               .then((res) => {
                 if (!res.error) {
                   setReports((prev) => prev.filter((r) => r.id !== deletingReportId));
-                  if (id === deletingReportId) navigate('/investigate');
+                  if (id === deletingReportId) navigate('/investigations');
                 }
               });
           }

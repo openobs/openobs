@@ -24,7 +24,7 @@ const TYPE_META: Record<FeedEventType, { icon: string; color: string; label: str
   anomaly_detected: { icon: '!', color: 'bg-[#EF4444]/15 text-[#EF4444] border-[#EF4444]/20', label: 'Anomaly' },
   investigation_complete: {
     icon: 'i',
-    color: 'bg-[#6366F1]/15 text-[#6366F1] border-[#6366F1]/20',
+    color: 'bg-[var(--color-primary)]/15 text-[var(--color-primary)] border-[var(--color-primary)]/20',
     label: 'Investigation',
   },
   change_impact: { icon: '~', color: 'bg-[#F59E0B]/15 text-[#F59E0B] border-[#F59E0B]/20', label: 'Change' },
@@ -40,7 +40,7 @@ const SEVERITY_COLORS: Record<FeedSeverity, string> = {
   critical: 'bg-[#EF4444]/10 text-[#EF4444]',
   high: 'bg-[#F97316]/10 text-[#F97316]',
   medium: 'bg-[#F59E0B]/10 text-[#F59E0B]',
-  low: 'bg-[#1C1C2E] text-[#8888AA]',
+  low: 'bg-[var(--color-surface-high)] text-[var(--color-on-surface-variant)]',
 };
 
 function formatRelativeTime(isoString: string): string {
@@ -62,11 +62,11 @@ export default function FeedItem({ item, onMarkRead }: FeedItemProps) {
     <div
       className={`relative rounded-xl border transition-all group ${
         isUnread
-          ? 'bg-[#141420] border-[#2A2A3E] hover:border-[#6366F1]/30'
+          ? 'bg-[var(--color-surface-highest)] border-[var(--color-outline-variant)] hover:border-[var(--color-primary)]/30'
           : 'bg-[#0F0F1A] border-[#24243A] opacity-95 hover:opacity-100'
       }`}
     >
-      {isUnread && <div className="absolute left-0 top-3 bottom-3 w-0.5 rounded-full bg-[#6366F1]" />}
+      {isUnread && <div className="absolute left-0 top-3 bottom-3 w-0.5 rounded-full bg-[var(--color-primary)]" />}
 
       <div className="p-3.5">
         <div className="flex items-start gap-3">
@@ -76,24 +76,24 @@ export default function FeedItem({ item, onMarkRead }: FeedItemProps) {
 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-0.5">
-              <span className="text-sm font-medium truncate text-[#E8E8ED]">{item.title}</span>
-              {isUnread && <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase bg-[#6366F1]/10 text-[#818CF8]">New</span>}
+              <span className="text-sm font-medium truncate text-[var(--color-on-surface)]">{item.title}</span>
+              {isUnread && <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase bg-[var(--color-primary)]/10 text-[var(--color-primary)]">New</span>}
               <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${SEVERITY_COLORS[item.severity]}`}>
                 {item.severity}
               </span>
             </div>
 
-            <p className="text-xs text-[#8888AA] leading-relaxed line-clamp-2 mb-2">{item.summary}</p>
+            <p className="text-xs text-[var(--color-on-surface-variant)] leading-relaxed line-clamp-2 mb-2">{item.summary}</p>
 
             <div className="flex items-center gap-3 text-xs">
-              <span className="text-[#555570]">{TYPE_LABELS[item.type]}</span>
-              <span className="text-[#555570]">{formatRelativeTime(item.createdAt)}</span>
+              <span className="text-[var(--color-outline)]">{TYPE_LABELS[item.type]}</span>
+              <span className="text-[var(--color-outline)]">{formatRelativeTime(item.createdAt)}</span>
 
               {item.investigationId && (
                 <button
                   type="button"
-                  onClick={() => navigate(`/investigate/${item.investigationId}`)}
-                  className="text-[#6366F1] hover:text-[#818CF8] font-medium transition-colors"
+                  onClick={() => navigate(`/dashboards/${item.investigationId}`)}
+                  className="text-[var(--color-primary)] hover:text-[var(--color-primary)] font-medium transition-colors"
                 >
                   View Report
                 </button>
@@ -102,7 +102,7 @@ export default function FeedItem({ item, onMarkRead }: FeedItemProps) {
               <button
                 type="button"
                 onClick={() => navigate('/', { state: { prefill: `Investigate: ${item.title}` } })}
-                className="text-[#6366F1] hover:text-[#818CF8] font-medium transition-colors"
+                className="text-[var(--color-primary)] hover:text-[var(--color-primary)] font-medium transition-colors"
               >
                 Investigate
               </button>
@@ -111,7 +111,7 @@ export default function FeedItem({ item, onMarkRead }: FeedItemProps) {
                 <button
                   type="button"
                   onClick={() => onMarkRead(item.id)}
-                  className="ml-auto text-[#555570] hover:text-[#8888AA] transition-colors"
+                  className="ml-auto text-[var(--color-outline)] hover:text-[var(--color-on-surface-variant)] transition-colors"
                 >
                   Mark read
                 </button>

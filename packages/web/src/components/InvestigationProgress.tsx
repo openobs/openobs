@@ -57,8 +57,8 @@ export default function InvestigationProgress({ status }: Props) {
                     done
                       ? 'bg-indigo-600 text-white'
                       : active
-                        ? 'bg-[#6366F1]/20 text-[#6366F1] ring-2 ring-[#6366F1]/40'
-                        : 'bg-[#2A2A3E] text-[#8888AA]'
+                        ? 'bg-[var(--color-primary)]/20 text-[var(--color-primary)] ring-2 ring-[var(--color-primary)]/40'
+                        : 'bg-[var(--color-outline-variant)] text-[var(--color-on-surface-variant)]'
                   }`}
                 >
                   {done ? (
@@ -71,7 +71,7 @@ export default function InvestigationProgress({ status }: Props) {
                 </div>
                 <span
                   className={`mt-1 text-xs ${
-                    active ? 'text-[#6366F1] font-medium' : pending ? 'text-[#8888AA]' : 'text-[#E8E8ED]'
+                    active ? 'text-[var(--color-primary)] font-medium' : pending ? 'text-[var(--color-on-surface-variant)]' : 'text-[var(--color-on-surface)]'
                   }`}
                 >
                   {step.label}
@@ -81,7 +81,7 @@ export default function InvestigationProgress({ status }: Props) {
               {idx < STEPS.length - 1 && (
                 <div
                   className={`flex-1 h-0.5 mx-4 transition-colors ${
-                    idx < currentIdx ? 'bg-indigo-600' : 'bg-[#2A2A3E]'
+                    idx < currentIdx ? 'bg-indigo-600' : 'bg-[var(--color-outline-variant)]'
                   }`}
                 />
               )}
@@ -91,7 +91,7 @@ export default function InvestigationProgress({ status }: Props) {
       </div>
 
       {status !== 'completed' && (
-        <p className="text-xs text-[#8888AA] text-center animate-pulse">
+        <p className="text-xs text-[var(--color-on-surface-variant)] text-center animate-pulse">
           {status === 'planning' && 'Parsing your question...'}
           {status === 'investigating' && 'Gathering context...'}
           {status === 'evidencing' && 'Binding evidence to hypotheses...'}

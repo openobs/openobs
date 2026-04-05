@@ -33,7 +33,7 @@ function gaugeColor(pct: number): string {
 }
 
 function gaugeTrackColor(_pct: number): string {
-  return '#2A2A3E';
+  return 'var(--color-outline-variant)';
 }
 
 export default function GaugeVisualization({ value, max = 100, unit }: Props) {
@@ -53,7 +53,7 @@ export default function GaugeVisualization({ value, max = 100, unit }: Props) {
   const displayValue = Number.isInteger(value) ? String(value) : (value ?? 0).toFixed(1);
 
   return (
-    <div className="flex flex-col items-center justify-center h-full p-1 bg-[#141420] rounded-lg">
+    <div className="flex flex-col items-center justify-center h-full p-1 bg-[var(--color-surface-highest)] rounded-lg">
       <svg viewBox="0 0 200 150" className="w-full max-w-[10rem] flex-shrink-0">
         <defs>
           <linearGradient id={`gauge-grad-${pct.toFixed(2)}`} x1="0%" y1="0%" x2="100%" y2="0%">
@@ -86,7 +86,7 @@ export default function GaugeVisualization({ value, max = 100, unit }: Props) {
           y={CY - 2}
           textAnchor="middle"
           dominantBaseline="middle"
-          fill="#E8E8ED"
+          fill="var(--color-on-surface)"
           fontSize="28"
           fontWeight="700"
           fontFamily="ui-monospace, monospace"
@@ -95,18 +95,18 @@ export default function GaugeVisualization({ value, max = 100, unit }: Props) {
         </text>
 
         {unit && (
-          <text x={CX} y={CY + 24} textAnchor="middle" fill="#8888AA" fontSize="12">
+          <text x={CX} y={CY + 24} textAnchor="middle" fill="var(--color-on-surface-variant)" fontSize="12">
             {unit}
           </text>
         )}
 
-        <text x="29" y="130" textAnchor="middle" fill="#555570" fontSize="11">
+        <text x="29" y="130" textAnchor="middle" fill="var(--color-outline)" fontSize="11">
           0
         </text>
-        <text x="171" y="130" textAnchor="middle" fill="#555570" fontSize="11">
+        <text x="171" y="130" textAnchor="middle" fill="var(--color-outline)" fontSize="11">
           {max}
         </text>
-        <text x={CX} y="145" textAnchor="middle" fill="#8888AA" fontSize="11" fontFamily="ui-monospace, monospace">
+        <text x={CX} y="145" textAnchor="middle" fill="var(--color-on-surface-variant)" fontSize="11" fontFamily="ui-monospace, monospace">
           {(pct * 100).toFixed(0)}%
         </text>
       </svg>

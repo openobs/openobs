@@ -50,14 +50,14 @@ function getUnitSuffix(unit?: string): string {
 function getBackgroundGradient(value: number, unit?: string): string {
   // Only apply color gradient for percentage/ratio-like values
   const isRatio = unit === 'percentunit' || unit === 'percent';
-  if (!isRatio) return 'bg-[#141420]';
+  if (!isRatio) return 'bg-[var(--color-surface-highest)]';
 
   const pct = unit === 'percentunit'
     ? (Math.abs(value) > 1.5 ? value : value * 100)
     : value;
-  if (pct < 20) return 'bg-gradient-to-t from-emerald-900/30 to-[#141420]';
-  if (pct < 80) return 'bg-gradient-to-t from-amber-900/30 to-[#141420]';
-  return 'bg-gradient-to-t from-red-900/30 to-[#141420]';
+  if (pct < 20) return 'bg-gradient-to-t from-emerald-900/30 to-[var(--color-surface-highest)]';
+  if (pct < 80) return 'bg-gradient-to-t from-amber-900/30 to-[var(--color-surface-highest)]';
+  return 'bg-gradient-to-t from-red-900/30 to-[var(--color-surface-highest)]';
 }
 
 export default function StatVisualization({ value, unit, title }: Props) {
@@ -68,13 +68,13 @@ export default function StatVisualization({ value, unit, title }: Props) {
   return (
     <div className={`flex flex-col items-center justify-center h-full py-6 gap-2 rounded-lg ${bgClass}`}>
       {title && (
-        <p className="text-xs text-[#8888AA] uppercase tracking-wide font-medium">{title}</p>
+        <p className="text-xs text-[var(--color-on-surface-variant)] uppercase tracking-wide font-medium">{title}</p>
       )}
       <div className="flex items-baseline gap-1.5">
-        <span className="text-5xl font-bold text-[#E8E8ED] font-mono tabular-nums leading-none">
+        <span className="text-5xl font-bold text-[var(--color-on-surface)] font-mono tabular-nums leading-none">
           {displayValue}
         </span>
-        {suffix && <span className="text-xl text-[#8888AA] font-medium">{suffix}</span>}
+        {suffix && <span className="text-xl text-[var(--color-on-surface-variant)] font-medium">{suffix}</span>}
       </div>
     </div>
   );

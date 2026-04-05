@@ -17,7 +17,7 @@ interface Props {
 }
 
 const COLORS = [
-  '#6366f1',
+  'var(--color-primary)',
   '#22d3ee',
   '#a78bfa',
   '#f472b6',
@@ -42,11 +42,11 @@ export default function PieVisualization({ items }: Props) {
   const total = useMemo(() => data.reduce((s, d) => s + d.value, 0), [data]);
 
   if (data.length === 0) {
-    return <div className="text-xs text-[#555570] italic py-4 text-center">No data</div>;
+    return <div className="text-xs text-[var(--color-outline)] italic py-4 text-center">No data</div>;
   }
 
   return (
-    <div className="flex items-center gap-2 bg-[#141420] rounded-lg p-2 h-full">
+    <div className="flex items-center gap-2 bg-[var(--color-surface-highest)] rounded-lg p-2 h-full">
       <div className="flex-1 min-w-0" style={{ minHeight: 140 }}>
         <ResponsiveContainer width="100%" height={140}>
           <PieChart>
@@ -71,9 +71,9 @@ export default function PieVisualization({ items }: Props) {
                 const entry = payload[0]?.payload as PieItem;
                 const pct = total > 0 ? `${((entry.value / total) * 100).toFixed(1)}%` : '0%';
                 return (
-                  <div className="bg-[#141420] border border-[#2A2A3E] rounded-lg px-3 py-2 shadow-xl text-xs">
-                    <p className="text-[#E8E8ED] mb-0.5">{entry.label}</p>
-                    <div className="text-[#E8E8ED] font-mono font-semibold">
+                  <div className="bg-[var(--color-surface-highest)] border border-[var(--color-outline-variant)] rounded-lg px-3 py-2 shadow-xl text-xs">
+                    <p className="text-[var(--color-on-surface)] mb-0.5">{entry.label}</p>
+                    <div className="text-[var(--color-on-surface)] font-mono font-semibold">
                       {formatValue(entry.value as number)} | {pct}
                     </div>
                   </div>
@@ -86,7 +86,7 @@ export default function PieVisualization({ items }: Props) {
 
       <div className="shrink-0 space-y-1 max-h-[140px] overflow-y-auto pr-1">
         {data.map((d, i) => (
-          <div key={i} className="flex items-center gap-1.5 text-[11px] text-[#8888AA]">
+          <div key={i} className="flex items-center gap-1.5 text-[11px] text-[var(--color-on-surface-variant)]">
             <span
               className="w-2 h-2 rounded-full shrink-0"
               style={{ backgroundColor: COLORS[i % COLORS.length] }}

@@ -23,12 +23,12 @@ const STATUS_COLORS: Record<string, string> = {
   critical: '#EF4444',
   error: '#EF4444',
   fail: '#EF4444',
-  unknown: '#555570',
-  maintenance: '#6366F1',
+  unknown: 'var(--color-outline)',
+  maintenance: 'var(--color-primary)',
 };
 
 function getStatusColor(status: string): string {
-  return STATUS_COLORS[status.toLowerCase()] ?? '#555570';
+  return STATUS_COLORS[status.toLowerCase()] ?? 'var(--color-outline)';
 }
 
 function formatTime(ts: number): string {
@@ -60,7 +60,7 @@ export default function StatusTimelineVisualization({ spans }: Props) {
   }, [spans]);
 
   if (rows.length === 0) {
-    return <div className="text-xs text-[#555570] italic py-4 text-center">No data</div>;
+    return <div className="text-xs text-[var(--color-outline)] italic py-4 text-center">No data</div>;
   }
 
   const marginLeft = 80;
@@ -72,7 +72,7 @@ export default function StatusTimelineVisualization({ spans }: Props) {
   const duration = timeMax - timeMin || 1;
 
   return (
-    <div className="bg-[#141420] rounded-lg p-2 overflow-x-auto">
+    <div className="bg-[var(--color-surface-highest)] rounded-lg p-2 overflow-x-auto">
       <svg width={Math.max(chartWidth, 560)} height={svgH} className="block">
         {rows.map((row, ri) => {
           const y = ri * (barHeight + rowGap) + 2;
@@ -82,7 +82,7 @@ export default function StatusTimelineVisualization({ spans }: Props) {
                 x={marginLeft - 8}
                 y={y + barHeight / 2 + 4}
                 textAnchor="end"
-                fill="#8888AA"
+                fill="var(--color-on-surface-variant)"
                 fontSize={11}
               >
                 {row.label.length > 10 ? `${row.label.slice(0, 10)}...` : row.label}
@@ -94,7 +94,7 @@ export default function StatusTimelineVisualization({ spans }: Props) {
                 width={chartWidth}
                 height={barHeight}
                 rx={4}
-                fill="#1C1C2E"
+                fill="var(--color-surface-high)"
               />
 
               {row.spans.map((s, si) => {
@@ -128,7 +128,7 @@ export default function StatusTimelineVisualization({ spans }: Props) {
               x={x}
               y={svgH - 4}
               textAnchor="middle"
-              fill="#8888AA"
+              fill="var(--color-on-surface-variant)"
               fontSize={10}
             >
               {formatTime(t)}

@@ -7,8 +7,8 @@ interface DashboardCardPreviewProps {
 }
 
 const PANEL_COLORS = [
-  'bg-[#6366F1]/30',
-  'bg-[#58C5C6]/30',
+  'bg-[var(--color-primary)]/30',
+  'bg-[var(--color-secondary)]/30',
   'bg-[#E86B84]/25',
   'bg-[#F59E0B]/25',
   'bg-[#EC4899]/25',
@@ -21,7 +21,7 @@ export default function DashboardCardPreview({
   const hasPanels = panels.length > 0;
 
   return (
-    <div className={`h-20 w-full rounded-lg overflow-hidden bg-[#0A0A0F] p-1.5 ${generating ? 'animate-pulse' : ''}`}>
+    <div className={`h-20 w-full rounded-lg overflow-hidden bg-[var(--color-surface-lowest)] p-1.5 ${generating ? 'animate-pulse' : ''}`}>
       <div className="grid grid-cols-12 gap-0.5 h-full auto-rows-fr">
         {hasPanels
           ? panels.slice(0, 8).map((panel, i) => {

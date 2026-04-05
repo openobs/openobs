@@ -66,16 +66,16 @@ function VariablePill({ variable, dashboardId, onChange }: DropdownProps) {
         onClick={() => void openDropdown()}
         className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all duration-150 ${
           open
-            ? 'bg-[#1C1C2E] border-[#6366F1] text-[#E8E8ED]'
-            : 'bg-[#141420] border-[#2A2A3E] hover:border-[#4F46E5]/60 hover:text-[#E8E8ED]'
+            ? 'bg-[var(--color-surface-high)] border-[var(--color-primary)] text-[var(--color-on-surface)]'
+            : 'bg-[var(--color-surface-highest)] border-[var(--color-outline-variant)] hover:border-[var(--color-primary)]/60 hover:text-[var(--color-on-surface)]'
         }`}
       >
-        <span className="text-[#6366F1] font-mono">$</span>
+        <span className="text-[var(--color-primary)] font-mono">$</span>
         <span>{variable.label ?? variable.name}</span>
         {selected && (
           <>
-            <span className="text-[#555570]">:</span>
-            <span className="text-[#E8E8ED] max-w-[100px] truncate">{selected}</span>
+            <span className="text-[var(--color-outline)]">:</span>
+            <span className="text-[var(--color-on-surface)] max-w-[100px] truncate">{selected}</span>
           </>
         )}
         <svg
@@ -88,13 +88,13 @@ function VariablePill({ variable, dashboardId, onChange }: DropdownProps) {
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-1.5 z-50 min-w-[160px] max-h-48 overflow-y-auto bg-[#141420] border border-[#2A2A3E] rounded-xl shadow-2xl py-1">
+        <div className="absolute top-full left-0 mt-1.5 z-50 min-w-[160px] max-h-48 overflow-y-auto bg-[var(--color-surface-highest)] border border-[var(--color-outline-variant)] rounded-xl shadow-2xl py-1">
           {loading ? (
             <div className="flex items-center justify-center py-4">
-              <span className="inline-block w-3.5 h-3.5 border-2 border-[#2A2A3E] border-t-[#6366F1] rounded-full animate-spin" />
+              <span className="inline-block w-3.5 h-3.5 border-2 border-[var(--color-outline-variant)] border-t-[var(--color-primary)] rounded-full animate-spin" />
             </div>
           ) : options.length === 0 ? (
-            <p className="text-[#555570] text-xs px-3 py-2">No options</p>
+            <p className="text-[var(--color-outline)] text-xs px-3 py-2">No options</p>
           ) : (
             options.map((opt) => (
               <button
@@ -103,8 +103,8 @@ function VariablePill({ variable, dashboardId, onChange }: DropdownProps) {
                 onClick={() => select(opt)}
                 className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${
                   opt === selected
-                    ? 'bg-[#6366F1]/20 text-[#818CF8]'
-                    : 'text-[#E8E8ED] hover:bg-[#1C1C2E]'
+                    ? 'bg-[var(--color-primary)]/20 text-[var(--color-primary)]'
+                    : 'text-[var(--color-on-surface)] hover:bg-[var(--color-surface-high)]'
                 }`}
               >
                 {opt}
@@ -121,7 +121,7 @@ export default function VariableBar({ dashboardId, variables, onChange }: Props)
   if (!variables.length) return null;
 
   return (
-    <div className="flex items-center gap-2 px-4 py-2 bg-[#0A0A0F]/50 border-b border-[#2A2A3E] flex-wrap">
+    <div className="flex items-center gap-2 px-4 py-2 bg-[var(--color-surface-lowest)]/50 border-b border-[var(--color-outline-variant)] flex-wrap">
       {variables.map((variable) => (
         <VariablePill
           key={variable.name}

@@ -32,8 +32,8 @@ const SEVERITY_PILL_STYLES: Record<
     inactive: 'bg-[#F59E0B]/10 text-[#F59E0B] hover:bg-[#F59E0B]/20',
   },
   low: {
-    active: 'bg-[#8888AA] text-white',
-    inactive: 'bg-[#1C1C2E] text-[#8888AA] hover:bg-[#2A2A3E]',
+    active: 'bg-[var(--color-on-surface-variant)] text-white',
+    inactive: 'bg-[var(--color-surface-high)] text-[var(--color-on-surface-variant)] hover:bg-[var(--color-outline-variant)]',
   },
 };
 
@@ -104,12 +104,12 @@ export default function Feed() {
   const unreadCount = items.filter((i) => i.status === 'unread').length;
 
   return (
-    <div className="min-h-full bg-[#0A0A0F]">
+    <div className="min-h-full bg-[var(--color-surface-lowest)]">
       <div className="max-w-3xl mx-auto px-4 py-6 sm:px-6 sm:py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-xl font-bold text-[#E8E8ED]">Feed</h1>
-            <p className="text-xs text-[#555570] mt-0.5">
+            <h1 className="text-xl font-bold text-[var(--color-on-surface)]">Feed</h1>
+            <p className="text-xs text-[var(--color-outline)] mt-0.5">
               {total} event{total === 1 ? '' : 's'} {unreadCount > 0 ? `• ${unreadCount} unread` : ''}
             </p>
           </div>
@@ -121,7 +121,7 @@ export default function Feed() {
                 onClick={() => {
                   void handleMarkAllRead();
                 }}
-                className="text-xs text-[#8888AA] hover:text-[#E8E8ED] px-3 py-1.5 rounded-lg border border-[#2A2A3E] hover:bg-[#1C1C2E] transition-colors"
+                className="text-xs text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)] px-3 py-1.5 rounded-lg border border-[var(--color-outline-variant)] hover:bg-[var(--color-surface-high)] transition-colors"
               >
                 Mark all read
               </button>
@@ -133,7 +133,7 @@ export default function Feed() {
                 void fetchFeed();
               }}
               disabled={loading}
-              className="p-1.5 rounded-lg text-[#555570] hover:text-[#E8E8ED] hover:bg-[#1C1C2E] transition-colors disabled:opacity-40"
+              className="p-1.5 rounded-lg text-[var(--color-outline)] hover:text-[var(--color-on-surface)] hover:bg-[var(--color-surface-high)] transition-colors disabled:opacity-40"
               title="Refresh"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -149,8 +149,8 @@ export default function Feed() {
             onClick={() => setSeverity('')}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               severity === ''
-                ? 'bg-[#6366F1] text-white'
-                : 'bg-[#1C1C2E] text-[#8888AA] hover:bg-[#2A2A3E]'
+                ? 'bg-[var(--color-primary)] text-white'
+                : 'bg-[var(--color-surface-high)] text-[var(--color-on-surface-variant)] hover:bg-[var(--color-outline-variant)]'
             }`}
           >
             All
@@ -177,7 +177,7 @@ export default function Feed() {
 
           <div className="flex-1" />
 
-          <div className="flex bg-[#141420] rounded-lg border border-[#2A2A3E]">
+          <div className="flex bg-[var(--color-surface-highest)] rounded-lg border border-[var(--color-outline-variant)]">
             {([
               ['', 'All'],
               ['unread', 'Unread'],
@@ -189,8 +189,8 @@ export default function Feed() {
                 onClick={() => setStatusFilter(val as typeof statusFilter)}
                 className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
                   statusFilter === val
-                    ? 'bg-[#1C1C2E] text-[#E8E8ED]'
-                    : 'text-[#555570] hover:text-[#8888AA]'
+                    ? 'bg-[var(--color-surface-high)] text-[var(--color-on-surface)]'
+                    : 'text-[var(--color-outline)] hover:text-[var(--color-on-surface-variant)]'
                 }`}
               >
                 {label}
@@ -208,13 +208,13 @@ export default function Feed() {
         {loading && items.length === 0 && (
           <div className="space-y-3">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="rounded-xl border border-[#2A2A3E] bg-[#141420] p-4 animate-pulse">
+              <div key={i} className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-highest)] p-4 animate-pulse">
                 <div className="flex gap-3">
-                  <div className="w-7 h-7 rounded-lg bg-[#1C1C2E]" />
+                  <div className="w-7 h-7 rounded-lg bg-[var(--color-surface-high)]" />
                   <div className="flex-1 space-y-2">
-                    <div className="h-4 bg-[#1C1C2E] rounded w-3/4" />
-                    <div className="h-3 bg-[#1C1C2E] rounded w-1/2" />
-                    <div className="h-3 bg-[#1C1C2E] rounded w-5/6" />
+                    <div className="h-4 bg-[var(--color-surface-high)] rounded w-3/4" />
+                    <div className="h-3 bg-[var(--color-surface-high)] rounded w-1/2" />
+                    <div className="h-3 bg-[var(--color-surface-high)] rounded w-5/6" />
                   </div>
                 </div>
               </div>
@@ -224,13 +224,13 @@ export default function Feed() {
 
         {!loading && items.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-[#141420] border border-[#2A2A3E] flex items-center justify-center mb-3">
-              <svg className="w-6 h-6 text-[#555570]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <div className="w-12 h-12 rounded-2xl bg-[var(--color-surface-highest)] border border-[var(--color-outline-variant)] flex items-center justify-center mb-3">
+              <svg className="w-6 h-6 text-[var(--color-outline)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 12h18M3 7h12M3 17h8" />
               </svg>
             </div>
-            <p className="text-sm text-[#8888AA] mb-1">No events found</p>
-            <p className="text-xs text-[#555570]">
+            <p className="text-sm text-[var(--color-on-surface-variant)] mb-1">No events found</p>
+            <p className="text-xs text-[var(--color-outline)]">
               {severity || statusFilter
                 ? 'Try changing the filters above'
                 : 'Events will appear here when anomalies are detected'}
@@ -247,17 +247,17 @@ export default function Feed() {
         )}
 
         {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-6 pt-4 border-t border-[#2A2A3E]">
+          <div className="flex items-center justify-between mt-6 pt-4 border-t border-[var(--color-outline-variant)]">
             <button
               type="button"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="text-xs px-3 py-1.5 rounded-lg border border-[#2A2A3E] text-[#8888AA] hover:bg-[#1C1C2E] hover:text-[#E8E8ED] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="text-xs px-3 py-1.5 rounded-lg border border-[var(--color-outline-variant)] text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-high)] hover:text-[var(--color-on-surface)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               Previous
             </button>
 
-            <span className="text-xs text-[#555570]">
+            <span className="text-xs text-[var(--color-outline)]">
               Page {page} / {totalPages}
             </span>
 
@@ -265,7 +265,7 @@ export default function Feed() {
               type="button"
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
-              className="text-xs px-3 py-1.5 rounded-lg border border-[#2A2A3E] text-[#8888AA] hover:bg-[#1C1C2E] hover:text-[#E8E8ED] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="text-xs px-3 py-1.5 rounded-lg border border-[var(--color-outline-variant)] text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-high)] hover:text-[var(--color-on-surface)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               Next
             </button>
