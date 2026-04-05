@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { apiClient } from '../api/client.js';
 import { queryScheduler } from '../api/query-scheduler.js';
@@ -28,159 +29,249 @@ interface Dashboard {
   folder?: string;
 }
 
-// Save to Folder Dropdown
+// Time Range Picker
 
-function SaveDropdown({
-  dashboardId,
-  currentFolder,
-  onSaved,
-}: {
-  dashboardId: string;
-  currentFolder?: string;
-  onSaved: (folder: string) => void;
+const QUICK_RANGES = [
+  { value: '5m', label: 'Last 5 min' },
+  { value: '15m', label: 'Last 15 min' },
+  { value: '30m', label: 'Last 30 min' },
+  { value: '1h', label: 'Last 1 hour' },
+  { value: '3h', label: 'Last 3 hours' },
+  { value: '6h', label: 'Last 6 hours' },
+  { value: '12h', label: 'Last 12 hours' },
+  { value: '24h', label: 'Last 24 hours' },
+  { value: '2d', label: 'Last 2 days' },
+  { value: '7d', label: 'Last 7 days' },
+];
+
+function TimeRangePicker({ value, onChange, onRefresh }: {
+  value: string;
+  onChange: (v: string) => void;
+  onRefresh: () => void;
 }) {
   const [open, setOpen] = React.useState(false);
+  const [customFrom, setCustomFrom] = React.useState('');
+  const [customTo, setCustomTo] = React.useState('');
+  const ref = React.useRef<HTMLDivElement>(null);
+  const btnRef = React.useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = React.useState({ top: 0, left: 0 });
+
+  React.useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node) && !btnRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    if (open) { document.addEventListener('mousedown', handler); return () => document.removeEventListener('mousedown', handler); }
+  }, [open]);
+
+  React.useEffect(() => {
+    if (open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, left: rect.left });
+    }
+  }, [open]);
+
+  const displayLabel = QUICK_RANGES.find((r) => r.value === value)?.label
+    ?? (value.includes('|') ? 'Custom' : value);
+
+  const applyCustom = () => {
+    if (customFrom && customTo) {
+      onChange(`${customFrom}|${customTo}`);
+      setOpen(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-1 shrink-0">
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 bg-surface-high text-on-surface text-xs rounded-lg px-3 py-1.5 hover:bg-surface-bright transition-colors"
+      >
+        <svg className="w-3.5 h-3.5 text-on-surface-variant" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        {displayLabel}
+        <svg className="w-3 h-3 text-on-surface-variant" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && ReactDOM.createPortal(
+        <div ref={ref} className="fixed bg-surface-highest rounded-xl shadow-2xl shadow-black/40 min-w-[260px] py-2" style={{ top: pos.top, left: pos.left, zIndex: 9999 }}>
+            <p className="px-3 py-1 text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Quick ranges</p>
+            <div className="grid grid-cols-2 gap-0.5 px-2">
+              {QUICK_RANGES.map((r) => (
+                <button
+                  key={r.value}
+                  type="button"
+                  onClick={() => { onChange(r.value); setOpen(false); }}
+                  className={`text-left px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                    value === r.value ? 'bg-primary/15 text-primary' : 'text-on-surface hover:bg-surface-bright'
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="border-t border-outline-variant/20 mt-2 pt-2 px-3">
+              <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-2">Custom range</p>
+              <div className="space-y-2">
+                <div>
+                  <label className="text-[10px] text-on-surface-variant mb-0.5 block">From</label>
+                  <input
+                    type="datetime-local"
+                    value={customFrom}
+                    onChange={(e) => setCustomFrom(e.target.value)}
+                    className="w-full bg-surface-high text-on-surface text-xs rounded-lg px-2.5 py-1.5 border-none focus:ring-1 focus:ring-primary"
+                    style={{ colorScheme: 'dark' }}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-on-surface-variant mb-0.5 block">To</label>
+                  <input
+                    type="datetime-local"
+                    value={customTo}
+                    onChange={(e) => setCustomTo(e.target.value)}
+                    className="w-full bg-surface-high text-on-surface text-xs rounded-lg px-2.5 py-1.5 border-none focus:ring-1 focus:ring-primary"
+                    style={{ colorScheme: 'dark' }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={applyCustom}
+                  disabled={!customFrom || !customTo}
+                  className="w-full bg-primary text-on-primary-fixed text-xs font-semibold rounded-lg py-1.5 disabled:opacity-40 transition-colors"
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+          </div>,
+        document.body,
+      )}
+
+      <button
+        type="button"
+        onClick={onRefresh}
+        className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-high transition-colors"
+        title="Refresh"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m14.836 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0A8.003 8.003 0 015.163 13M15 15h5" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+// Move to Folder Dialog
+
+function FolderDialog({ dashboardId, currentFolder, onSaved, open, onClose }: {
+  dashboardId: string; currentFolder?: string; onSaved: (folder: string) => void; open: boolean; onClose: () => void;
+}) {
   const [folders, setFolders] = React.useState<string[]>([]);
+  const [selected, setSelected] = React.useState(currentFolder || '');
+  const [creatingNew, setCreatingNew] = React.useState(false);
   const [newFolder, setNewFolder] = React.useState('');
-  const [saving, setSaving] = React.useState(false);
-  const [savedLabel, setSavedLabel] = React.useState(false);
-  const dropdownRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
-  // Load folders from all dashboards when dropdown opens
   React.useEffect(() => {
     if (!open) return;
+    setSelected(currentFolder || '');
+    setCreatingNew(false);
+    setNewFolder('');
     void apiClient.get<Dashboard[]>('/dashboards').then((res) => {
       if (!res.error) {
         const set = new Set((Array.isArray(res.data) ? res.data : []).map((d: Dashboard) => d.folder).filter(Boolean) as string[]);
         setFolders([...set].sort());
       }
     });
-    setTimeout(() => inputRef.current?.focus(), 50);
-  }, [open]);
+  }, [open, currentFolder]);
 
-  // Close on outside click
   React.useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
+    if (creatingNew) setTimeout(() => inputRef.current?.focus(), 50);
+  }, [creatingNew]);
 
-  const saveToFolder = async (folder: string) => {
-    if (!folder.trim()) return;
-    setSaving(true);
-    const res = await apiClient.put<Dashboard>(`/dashboards/${dashboardId}`, {
-      folder: folder.trim(),
-    });
-    setSaving(false);
-    if (!res.error) {
-      onSaved(folder.trim());
-      setSavedLabel(true);
-      setTimeout(() => setSavedLabel(false), 1500);
-    }
-    setOpen(false);
-    setNewFolder('');
+  const save = async () => {
+    const res = await apiClient.put<Dashboard>(`/dashboards/${dashboardId}`, { folder: selected || undefined });
+    if (!res.error) onSaved(selected);
+    onClose();
   };
 
-  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') void saveToFolder(newFolder);
-    if (e.key === 'Escape') setOpen(false);
-  };
+  if (!open) return null;
 
-  return (
-    <div className="relative shrink-0" ref={dropdownRef}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className={`p-1.5 rounded-lg transition-colors shrink-0 ${
-          savedLabel
-            ? 'bg-primary/20 text-primary'
-            : 'hover:bg-surface-high text-on-surface-variant hover:text-on-surface'
-        }`}
-        title="Save to folder"
-        disabled={saving}
-      >
-        {savedLabel ? (
-          <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-            <path
-              fillRule="evenodd"
-              d="M16.707 5.293a1 1 0 010 1.414l-7.25 7.25a1 1 0 01-1.414 0l-3.25-3.25a1 1 0 111.414-1.414l2.543 2.543 6.543-6.543a1 1 0 011.414 0z"
-              clipRule="evenodd"
-            />
-          </svg>
-        ) : (
-          <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M2 6a2 2 0 012-2h12a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zm2 0v2h12V6H4z" />
-          </svg>
-        )}
-      </button>
-
-      {open && (
-        <div className="absolute top-full right-0 mt-1 w-52 bg-surface-container border border-outline-variant rounded-xl shadow-xl z-50 overflow-hidden">
-          <div className="px-3 pt-2.5 pb-1">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">
-              Save to folder
-            </div>
-          </div>
-
-          {folders.length > 0 && (
-            <div className="px-1">
-              {folders.map((folder) => (
-                <button
-                  key={folder}
-                  type="button"
-                  onClick={() => void saveToFolder(folder)}
-                  className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs transition-colors text-left ${
-                    currentFolder === folder
-                      ? 'text-primary bg-primary/10'
-                      : 'text-on-surface hover:bg-surface-high'
-                  }`}
-                >
-                  <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M2 6a2 2 0 012-2h4l2 2h6a2 2 0 012 2v1H2V6z" />
-                    <path d="M2 9h16v5a2 2 0 01-2 2H4a2 2 0 01-2-2V9z" />
-                  </svg>
-                  <span className="flex-1 truncate">{folder}</span>
-                  {currentFolder === folder && (
-                    <svg className="w-3 h-3 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                      <path
-                        fillRule="evenodd"
-                        d="M16.707 5.293a1 1 0 010 1.414l-7.25 7.25a1 1 0 01-1.414 0l-3.25-3.25a1 1 0 111.414-1.414l2.543 2.543 6.543-6.543a1 1 0 011.414 0z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {folders.length > 0 && <div className="border-t border-outline-variant" />}
-
-          <div className="p-2">
-            <input
-              ref={inputRef}
-              type="text"
-              value={newFolder}
-              onChange={(e) => setNewFolder(e.target.value)}
-              onKeyDown={handleInputKeyDown}
-              placeholder="New folder name"
-              className="w-full bg-surface-high border border-outline-variant rounded-lg px-2.5 py-1.5 text-xs text-on-surface placeholder-on-surface-variant focus:outline-none focus:border-primary"
-            />
-            <p className="text-[10px] text-on-surface-variant mt-1 px-0.5">Press Enter to save</p>
-          </div>
+  return ReactDOM.createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+      <div className="relative bg-surface-highest rounded-2xl shadow-2xl w-80 max-h-[70vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+          <h3 className="text-sm font-bold text-on-surface font-[Manrope]">Move to folder</h3>
+          <button type="button" onClick={onClose} className="p-1 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-bright transition-colors">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
         </div>
-      )}
-    </div>
+
+        {/* Folder list */}
+        <div className="flex-1 overflow-y-auto px-3 pb-2">
+          {/* General */}
+          <button type="button" onClick={() => setSelected('')}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-left transition-colors ${selected === '' ? 'bg-primary/10 text-primary' : 'text-on-surface hover:bg-surface-bright'}`}>
+            <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955a1.126 1.126 0 011.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg>
+            General
+            {selected === '' && <svg className="w-4 h-4 ml-auto" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-7.25 7.25a1 1 0 01-1.414 0l-3.25-3.25a1 1 0 111.414-1.414l2.543 2.543 6.543-6.543a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
+          </button>
+
+          {folders.map((f) => (
+            <button key={f} type="button" onClick={() => setSelected(f)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-left transition-colors ${selected === f ? 'bg-primary/10 text-primary' : 'text-on-surface hover:bg-surface-bright'}`}>
+              <svg className="w-5 h-5 shrink-0 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
+              <span className="flex-1 truncate">{f}</span>
+              {selected === f && <svg className="w-4 h-4 ml-auto" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-7.25 7.25a1 1 0 01-1.414 0l-3.25-3.25a1 1 0 111.414-1.414l2.543 2.543 6.543-6.543a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
+            </button>
+          ))}
+
+          {/* New folder inline */}
+          {creatingNew ? (
+            <div className="flex items-center gap-2 px-3 py-2">
+              <svg className="w-5 h-5 shrink-0 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
+              <input ref={inputRef} type="text" value={newFolder} onChange={(e) => setNewFolder(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newFolder.trim()) { setSelected(newFolder.trim()); setCreatingNew(false); }
+                  if (e.key === 'Escape') setCreatingNew(false);
+                }}
+                placeholder="Folder name"
+                className="flex-1 bg-surface-high text-on-surface text-sm rounded-lg px-2.5 py-1.5 border-none focus:ring-1 focus:ring-primary outline-none" />
+            </div>
+          ) : (
+            <button type="button" onClick={() => setCreatingNew(true)}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-bright transition-colors text-left">
+              <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+              New folder
+            </button>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-outline-variant/20">
+          <button type="button" onClick={onClose}
+            className="px-4 py-2 text-sm text-on-surface-variant hover:text-on-surface rounded-lg hover:bg-surface-bright transition-colors">
+            Cancel
+          </button>
+          <button type="button" onClick={() => void save()}
+            className="px-4 py-2 text-sm font-semibold bg-primary text-on-primary-fixed rounded-lg transition-transform active:scale-95">
+            Move
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
-// Status badge
+// Main
 
 // Main
 
@@ -200,6 +291,7 @@ export default function DashboardWorkspace() {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showFolderDialog, setShowFolderDialog] = useState(false);
 
   // pollRef removed — no more polling; SSE pushes all updates
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -495,39 +587,18 @@ export default function DashboardWorkspace() {
 
         {/* Center: time range + refresh */}
         {!showReport && !isGenerating && (
-          <div className="flex items-center gap-2 shrink-0">
-            <select
-              value={timeRange}
-              onChange={(e) => {
-                setTimeRange(e.target.value);
-                queryScheduler.clearCache();
-                window.dispatchEvent(new CustomEvent('dashboard:refresh-panels'));
-              }}
-              className="bg-surface-high text-on-surface text-xs rounded-lg px-3 py-1.5 border-none focus:ring-1 focus:ring-primary cursor-pointer appearance-none"
-            >
-              <option value="5m">Last 5m</option>
-              <option value="15m">Last 15m</option>
-              <option value="30m">Last 30m</option>
-              <option value="1h">Last 1h</option>
-              <option value="3h">Last 3h</option>
-              <option value="6h">Last 6h</option>
-              <option value="12h">Last 12h</option>
-              <option value="24h">Last 24h</option>
-            </select>
-            <button
-              type="button"
-              onClick={() => {
-                queryScheduler.clearCache();
-                window.dispatchEvent(new CustomEvent('dashboard:refresh-panels'));
-              }}
-              className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-high transition-colors"
-              title="Refresh"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m14.836 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0A8.003 8.003 0 015.163 13M15 15h5" />
-              </svg>
-            </button>
-          </div>
+          <TimeRangePicker
+            value={timeRange}
+            onChange={(v) => {
+              setTimeRange(v);
+              queryScheduler.clearCache();
+              window.dispatchEvent(new CustomEvent('dashboard:refresh-panels'));
+            }}
+            onRefresh={() => {
+              queryScheduler.clearCache();
+              window.dispatchEvent(new CustomEvent('dashboard:refresh-panels'));
+            }}
+          />
         )}
 
         {!showReport && (
@@ -567,11 +638,16 @@ export default function DashboardWorkspace() {
             </button>
 
             {id && (
-              <SaveDropdown
-                dashboardId={id}
-                currentFolder={dashboard.folder}
-                onSaved={(folder) => setDashboard((prev) => (prev ? { ...prev, folder } : prev))}
-              />
+              <button
+                type="button"
+                onClick={() => setShowFolderDialog(true)}
+                className="p-1.5 rounded-lg transition-colors hover:bg-surface-high text-on-surface-variant hover:text-on-surface"
+                title={dashboard.folder ? `Folder: ${dashboard.folder}` : 'Move to folder'}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                </svg>
+              </button>
             )}
 
             <button
@@ -607,6 +683,7 @@ export default function DashboardWorkspace() {
                 panels={panels}
                 editMode={editMode}
                 isGenerating={isGenerating}
+                timeRange={timeRange}
                 onEditPanel={(panelId) => {
                   const p = panels.find((x) => x.id === panelId);
                   if (p) setEditingPanel(p);
@@ -644,6 +721,16 @@ export default function DashboardWorkspace() {
             void handleSavePanel(updated);
           }}
           onCancel={() => setEditingPanel(null)}
+        />
+      )}
+
+      {id && (
+        <FolderDialog
+          dashboardId={id}
+          currentFolder={dashboard?.folder}
+          open={showFolderDialog}
+          onClose={() => setShowFolderDialog(false)}
+          onSaved={(folder) => setDashboard((prev) => (prev ? { ...prev, folder } : prev))}
         />
       )}
 

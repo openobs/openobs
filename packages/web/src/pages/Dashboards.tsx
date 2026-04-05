@@ -18,6 +18,13 @@ interface Dashboard {
   folder?: string;
 }
 
+interface Folder {
+  id: string;
+  name: string;
+  parentId?: string;
+  createdAt: string;
+}
+
 type SortKey = 'date' | 'name';
 
 // Helpers
@@ -90,6 +97,7 @@ export default function Dashboards({ listType }: { listType?: string } = {}) {
   const [movingDashId, setMovingDashId] = useState<string | null>(null);
   const [newFolderName, setNewFolderName] = useState('');
   const [showNewFolder, setShowNewFolder] = useState(false);
+  const [folders, setFolders] = useState<Folder[]>([]);
   const searchRef = useRef<HTMLInputElement>(null);
   const newFolderRef = useRef<HTMLInputElement>(null);
 
@@ -106,9 +114,12 @@ export default function Dashboards({ listType }: { listType?: string } = {}) {
   }, []);
 
   const loadList = useCallback(async () => {
-    const query = listType ? `?type=${listType}` : '';
-    const res = await apiClient.get<Dashboard[]>(`/dashboards${query}`);
-    if (!res.error) setDashboards(res.data);
+    const [dashRes, folderRes] = await Promise.all([
+      apiClient.get<Dashboard[]>(`/dashboards${listType ? `?type=${listType}` : ''}`),
+      apiClient.get<Folder[]>('/folders'),
+    ]);
+    if (!dashRes.error) setDashboards(dashRes.data);
+    if (!folderRes.error) setFolders(folderRes.data);
     setLoadingList(false);
   }, [listType]);
 
@@ -130,10 +141,6 @@ export default function Dashboards({ listType }: { listType?: string } = {}) {
     setMovingDashId(null);
   }, []);
 
-  const existingFolders = useMemo(() => {
-    const set = new Set(dashboards.map((d) => d.folder).filter(Boolean) as string[]);
-    return Array.from(set).sort();
-  }, [dashboards]);
 
   const toggleFolder = (folder: string) => {
     setExpandedFolders((prev) => {
@@ -164,22 +171,29 @@ export default function Dashboards({ listType }: { listType?: string } = {}) {
     return list.sort(sortFn);
   }, [dashboards, search, sortFn]);
 
-  // Group by folder
+  // Build folder lookup
+  const folderMap = useMemo(() => new Map(folders.map((f) => [f.id, f])), [folders]);
+  const folderName = (id: string) => folderMap.get(id)?.name ?? id;
+
+  // Group dashboards by folder (including empty folders from API)
   const folderGroups = useMemo(() => {
     const groups = new Map<string, Dashboard[]>();
     for (const d of filtered) {
-      const folder = d.folder || '__none__';
-      if (!groups.has(folder)) groups.set(folder, []);
-      groups.get(folder)!.push(d);
+      const fid = d.folder || '__none__';
+      if (!groups.has(fid)) groups.set(fid, []);
+      groups.get(fid)!.push(d);
     }
-    // Sort: __none__ first, then alphabetical
+    // Add empty folders from API
+    for (const f of folders) {
+      if (!groups.has(f.id)) groups.set(f.id, []);
+    }
     const entries = Array.from(groups.entries()).sort(([a], [b]) => {
       if (a === '__none__') return -1;
       if (b === '__none__') return 1;
-      return a.localeCompare(b);
+      return folderName(a).localeCompare(folderName(b));
     });
     return entries;
-  }, [filtered]);
+  }, [filtered, folders, folderName]);
 
   const itemLink = (id: string) => `/dashboards/${id}`;
 
@@ -250,7 +264,13 @@ export default function Dashboards({ listType }: { listType?: string } = {}) {
               onChange={(e) => setNewFolderName(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && newFolderName.trim()) {
-                  setExpandedFolders((prev) => { const n = new Set(prev); n.add(newFolderName.trim()); return n; });
+                  const name = newFolderName.trim();
+                  void apiClient.post<Folder>('/folders', { name }).then((res) => {
+                    if (!res.error) {
+                      setFolders((prev) => [...prev, res.data]);
+                      setExpandedFolders((prev) => { const n = new Set(prev); n.add(res.data.id); return n; });
+                    }
+                  });
                   setShowNewFolder(false);
                   setNewFolderName('');
                 }
@@ -320,7 +340,7 @@ export default function Dashboards({ listType }: { listType?: string } = {}) {
                       <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                       </svg>
-                      <span className="text-sm font-semibold text-on-surface">{folder}</span>
+                      <span className="text-sm font-semibold text-on-surface">{folderName(folder)}</span>
                     </>
                   )}
                   <span className="text-xs text-on-surface-variant ml-auto">{items.length}</span>
@@ -384,14 +404,14 @@ export default function Dashboards({ listType }: { listType?: string } = {}) {
                               >
                                 General
                               </button>
-                              {existingFolders.map((f) => (
+                              {folders.map((f) => (
                                 <button
-                                  key={f}
+                                  key={f.id}
                                   type="button"
-                                  onClick={(e) => { e.stopPropagation(); void handleMoveToFolder(dash.id, f); }}
-                                  className={`w-full px-3 py-2 text-left text-sm hover:bg-surface-bright transition-colors ${dash.folder === f ? 'text-primary' : 'text-on-surface'}`}
+                                  onClick={(e) => { e.stopPropagation(); void handleMoveToFolder(dash.id, f.id); }}
+                                  className={`w-full px-3 py-2 text-left text-sm hover:bg-surface-bright transition-colors ${dash.folder === f.id ? 'text-primary' : 'text-on-surface'}`}
                                 >
-                                  {f}
+                                  {f.name}
                                 </button>
                               ))}
                             </div>

@@ -83,6 +83,11 @@ export {
   // Alert Rule Provider Adapter
   AlertRuleStoreProvider,
 
+  // Folder Store
+  FolderStore,
+  defaultFolderStore,
+  type Folder,
+
   // Workspace Store
   WorkspaceStore,
   defaultWorkspaceStore,

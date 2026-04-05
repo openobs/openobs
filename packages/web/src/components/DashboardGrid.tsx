@@ -7,6 +7,7 @@ interface Props {
   panels: PanelConfig[];
   editMode?: boolean;
   isGenerating?: boolean;
+  timeRange?: string;
   onEditPanel?: (id: string) => void;
   onDeletePanel?: (id: string) => void;
   onLayoutChange?: (layout: Array<{ i: string; x: number; y: number; w: number; h: number }>) => void;
@@ -105,6 +106,7 @@ function SectionGrid({
   section,
   width,
   editMode,
+  timeRange,
   onEditPanel,
   onDeletePanel,
   onLayoutChange,
@@ -112,6 +114,7 @@ function SectionGrid({
   section: Section;
   width: number;
   editMode: boolean;
+  timeRange?: string;
   onEditPanel?: (id: string) => void;
   onDeletePanel?: (id: string) => void;
   onLayoutChange?: Props['onLayoutChange'];
@@ -137,6 +140,7 @@ function SectionGrid({
           <DashboardPanelCard
             panel={panel}
             editMode={!!editMode}
+            timeRange={timeRange}
             onEdit={() => onEditPanel?.(panel.id)}
             onDelete={() => onDeletePanel?.(panel.id)}
           />
@@ -184,6 +188,7 @@ export default function DashboardGrid({
   panels,
   editMode,
   isGenerating,
+  timeRange,
   onEditPanel,
   onDeletePanel,
   onLayoutChange,
@@ -257,6 +262,7 @@ export default function DashboardGrid({
                 section={section}
                 width={width}
                 editMode={!!editMode}
+                timeRange={timeRange}
                 onEditPanel={onEditPanel}
                 onDeletePanel={onDeletePanel}
                 onLayoutChange={onLayoutChange}

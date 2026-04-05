@@ -29,6 +29,7 @@ import { notificationsRouter } from './routes/notifications.js';
 import { createIntentRouter } from './routes/intent.js';
 import { createWorkspaceRouter } from './routes/workspaces.js';
 import { createVersionRouter } from './routes/versions.js';
+import { createFolderRouter } from './routes/folders.js';
 import {
   createRepositories,
   createInMemoryRepositories,
@@ -118,6 +119,7 @@ export function createApp(): Application {
   app.use('/api/query', createQueryRouter());
   app.use('/api/dashboards', createDashboardRouter({ store: stores.dashboards }));
   app.use('/api/alert-rules', alertRulesRouter);
+  app.use('/api/folders', createFolderRouter());
   app.use('/api/workspaces', createWorkspaceRouter());
   app.use('/api/versions', createVersionRouter());
 
@@ -148,6 +150,7 @@ export function startServer(port = 3000): void {
       defaultInvestigationStore,
       defaultShareStore,
       defaultNotificationStore,
+      defaultFolderStore,
     } = await import('@agentic-obs/data-layer');
 
     registerStore('dashboards', defaultDashboardStore);
@@ -157,6 +160,7 @@ export function startServer(port = 3000): void {
     registerStore('investigations', defaultInvestigationStore);
     registerStore('shares', defaultShareStore);
     registerStore('notifications', defaultNotificationStore);
+    registerStore('folders', defaultFolderStore);
     await loadAll();
     log.info('Persisted store data loaded');
   })().catch((err) => {

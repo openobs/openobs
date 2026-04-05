@@ -279,11 +279,31 @@ function QueryBadge({ queries }: { queries: PanelQuery[] }) {
   );
 }
 
+/** Convert a relative time range string to {start, end} ISO timestamps */
+function resolveTimeRange(range: string): { start: string; end: string } {
+  const end = new Date();
+  let ms = 30 * 60 * 1000; // default 30m
+  const match = range.match(/^(\d+)(m|h|d)$/);
+  if (match) {
+    const [, n, unit] = match;
+    const num = parseInt(n ?? '30', 10);
+    if (unit === 'm') ms = num * 60 * 1000;
+    else if (unit === 'h') ms = num * 3600 * 1000;
+    else if (unit === 'd') ms = num * 86400 * 1000;
+  } else if (range.includes('|')) {
+    // Custom: "2024-01-01T00:00|2024-01-02T00:00"
+    const parts = range.split('|');
+    return { start: new Date(parts[0] ?? '').toISOString(), end: new Date(parts[1] ?? '').toISOString() };
+  }
+  return { start: new Date(end.getTime() - ms).toISOString(), end: end.toISOString() };
+}
+
 interface Props {
   panel: PanelConfig;
   onEdit?: () => void;
   onDelete?: () => void;
   editMode?: boolean;
+  timeRange?: string;
 }
 
 export default function DashboardPanelCard({
@@ -291,6 +311,7 @@ export default function DashboardPanelCard({
   onEdit,
   onDelete,
   editMode = false,
+  timeRange = '1h',
 }: Props) {
   const [loading, setLoading] = useState(true);
   const [multiRangeData, setMultiRangeData] = useState<QueryResult[]>([]);
@@ -317,8 +338,8 @@ export default function DashboardPanelCard({
 
   // Build a stable dedup key from queries
   const queryKey = useMemo(
-    () => effectiveQueries.map((q) => q.expr).join('|'),
-    [effectiveQueries]
+    () => effectiveQueries.map((q) => q.expr).join('|') + `@${timeRange}`,
+    [effectiveQueries, timeRange]
   );
 
   const cacheMaxAgeMs = (panel.refreshIntervalSec ?? 30) * 1000;
@@ -372,6 +393,7 @@ export default function DashboardPanelCard({
             () =>
               apiClient.post('/query/batch', {
                 queries: effectiveQueries.map((q) => ({ refId: q.refId, expr: q.expr, instant: q.instant })),
+                ...resolveTimeRange(timeRange),
               }) as Promise<{
                 data: { results: Record<string, { status: string; data: RangeResponse; error?: string }> } | null;
                 error?: unknown;
