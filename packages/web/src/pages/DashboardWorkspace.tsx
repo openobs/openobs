@@ -52,6 +52,7 @@ function TimeRangePicker({ value, onChange, onRefresh }: {
   const [open, setOpen] = React.useState(false);
   const [customFrom, setCustomFrom] = React.useState('');
   const [customTo, setCustomTo] = React.useState('');
+  const [spinning, setSpinning] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
   const btnRef = React.useRef<HTMLButtonElement>(null);
   const [pos, setPos] = React.useState({ top: 0, left: 0 });
@@ -154,11 +155,15 @@ function TimeRangePicker({ value, onChange, onRefresh }: {
 
       <button
         type="button"
-        onClick={onRefresh}
+        onClick={() => {
+          setSpinning(true);
+          onRefresh();
+          setTimeout(() => setSpinning(false), 700);
+        }}
         className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-high transition-colors"
         title="Refresh"
       >
-        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <svg className={`w-3.5 h-3.5 transition-transform ${spinning ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m14.836 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0A8.003 8.003 0 015.163 13M15 15h5" />
         </svg>
       </button>

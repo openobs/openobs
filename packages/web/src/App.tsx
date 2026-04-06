@@ -15,7 +15,6 @@ import Admin from './pages/Admin.js';
 import Dashboards from './pages/Dashboards.js';
 import DashboardWorkspace from './pages/DashboardWorkspace.js';
 import Alerts from './pages/Alerts.js';
-import Connections from './pages/Connections.js';
 import { apiClient } from './api/client.js';
 
 // Redirect to /setup on first visit if not yet configured
@@ -83,7 +82,7 @@ export default function App() {
               <Route path="/dashboards" element={<Dashboards />} />
               <Route path="/dashboards/:id" element={<DashboardWorkspace />} />
               <Route path="/alerts" element={<Alerts />} />
-              <Route path="/connections" element={<Connections />} />
+              <Route path="/connections" element={<Navigate to="/settings" replace />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>

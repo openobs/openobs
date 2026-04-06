@@ -4,18 +4,51 @@ import { useAuth } from '../contexts/AuthContext.js';
 
 /* ───── Icon components ───── */
 
-function DashboardIcon({ className }: { className?: string }) {
+/* Prism logo — a triangular prism / light refraction motif */
+function PrismLogo({ className }: { className?: string }) {
   return (
-    <svg className={className ?? 'w-5 h-5'} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+    <svg className={className ?? 'w-6 h-6'} viewBox="0 0 24 24" fill="none">
+      <path d="M12 2L2 20h20L12 2z" stroke="currentColor" strokeWidth={1.6} strokeLinejoin="round" />
+      <path d="M12 2L18 20" stroke="url(#prism-grad)" strokeWidth={1.4} strokeLinecap="round" opacity={0.7} />
+      <path d="M8 13l10 7" stroke="url(#prism-grad2)" strokeWidth={1.2} strokeLinecap="round" opacity={0.5} />
+      <defs>
+        <linearGradient id="prism-grad" x1="12" y1="2" x2="18" y2="20">
+          <stop stopColor="#818cf8" /><stop offset="1" stopColor="#c084fc" />
+        </linearGradient>
+        <linearGradient id="prism-grad2" x1="8" y1="13" x2="18" y2="20">
+          <stop stopColor="#60a5fa" /><stop offset="1" stopColor="#34d399" />
+        </linearGradient>
+      </defs>
     </svg>
   );
 }
 
+/* Home — pulse/activity overview */
+function HomeIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className ?? 'w-5 h-5'} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2 12h4l3-9 4 18 3-9h6" />
+    </svg>
+  );
+}
+
+function DashboardIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className ?? 'w-5 h-5'} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <rect x="3" y="3" width="7" height="9" rx="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="14" y="3" width="7" height="5" rx="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="3" y="16" width="7" height="5" rx="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="14" y="12" width="7" height="9" rx="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/* Investigation — compass/explore icon */
 function InvestigationIcon({ className }: { className?: string }) {
   return (
     <svg className={className ?? 'w-5 h-5'} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      <circle cx="12" cy="12" r="9" strokeLinecap="round" strokeLinejoin="round" />
+      <polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88" stroke="currentColor" strokeWidth={1.8} strokeLinejoin="round" fill="none" />
     </svg>
   );
 }
@@ -24,14 +57,6 @@ function AlertsIcon({ className }: { className?: string }) {
   return (
     <svg className={className ?? 'w-5 h-5'} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-    </svg>
-  );
-}
-
-function CanvasIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className ?? 'w-5 h-5'} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z" />
     </svg>
   );
 }
@@ -45,20 +70,17 @@ function SettingsIcon({ className }: { className?: string }) {
   );
 }
 
-function SupportIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className ?? 'w-5 h-5'} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  );
-}
+/* ───── Sidebar toggle icon (shown on hover) ───── */
 
-/* ───── Toggle icon ───── */
-
-function ChevronIcon({ expanded, className }: { expanded: boolean; className?: string }) {
+function SidebarToggleIcon({ expanded, className }: { expanded: boolean; className?: string }) {
   return (
-    <svg className={className ?? 'w-4 h-4'} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d={expanded ? 'M15 19l-7-7 7-7' : 'M9 5l7 7-7 7'} />
+    <svg className={className ?? 'w-5 h-5'} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}>
+      <rect x="3" y="3" width="18" height="18" rx="3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9 3v18" strokeLinecap="round" />
+      {expanded
+        ? <path d="M15 10l-2 2 2 2" strokeLinecap="round" strokeLinejoin="round" />
+        : <path d="M14 10l2 2-2 2" strokeLinecap="round" strokeLinejoin="round" />
+      }
     </svg>
   );
 }
@@ -114,26 +136,49 @@ export default function Navigation() {
       }`}
     >
       {/* App logo + toggle */}
-      <div className={`flex items-center mb-4 ${expanded ? 'justify-between px-1' : 'justify-center'}`}>
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/15 text-primary font-bold text-sm select-none shrink-0">
-            OC
+      <div className={`flex items-center mb-5 ${expanded ? 'justify-between px-1' : 'flex-col gap-1'}`}>
+        {/* Logo — collapsed: hover to show toggle; expanded: always show logo */}
+        {expanded ? (
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary/10 text-primary shrink-0">
+              <PrismLogo />
+            </div>
+            <span className="text-sm font-bold text-on-surface truncate">Prism</span>
           </div>
-          {expanded && <span className="text-sm font-bold text-on-surface truncate">Prism</span>}
-        </div>
-        <button
-          type="button"
-          onClick={() => setExpanded(!expanded)}
-          className={`p-1 rounded text-on-surface-variant hover:text-on-surface hover:bg-surface-high/60 transition-colors ${expanded ? '' : 'mt-2'}`}
-          title={expanded ? 'Collapse' : 'Expand'}
-        >
-          <ChevronIcon expanded={expanded} />
-        </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            title="Open sidebar"
+            className="group"
+          >
+            <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-primary/10 text-primary shrink-0 group-hover:bg-surface-high transition-colors">
+              <span className="transition-opacity duration-150 group-hover:opacity-0">
+                <PrismLogo />
+              </span>
+              <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100 text-on-surface">
+                <SidebarToggleIcon expanded={false} />
+              </span>
+            </div>
+          </button>
+        )}
+
+        {/* Close button — only visible when expanded */}
+        {expanded && (
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            title="Close sidebar"
+            className="flex items-center justify-center w-8 h-8 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-high/60 transition-colors"
+          >
+            <SidebarToggleIcon expanded={true} className="w-[18px] h-[18px]" />
+          </button>
+        )}
       </div>
 
       {/* Primary nav items */}
       <div className={`flex flex-col gap-1 flex-1 ${expanded ? '' : 'items-center'}`}>
-        <SidebarItem to="/" label="Home" icon={<CanvasIcon />} end expanded={expanded} />
+        <SidebarItem to="/" label="Home" icon={<HomeIcon />} end expanded={expanded} />
         <SidebarItem to="/dashboards" label="Dashboards" icon={<DashboardIcon />} expanded={expanded} />
         <SidebarItem to="/investigations" label="Investigations" icon={<InvestigationIcon />} expanded={expanded} />
         <SidebarItem to="/alerts" label="Alerts" icon={<AlertsIcon />} expanded={expanded} />
@@ -141,7 +186,6 @@ export default function Navigation() {
 
       {/* Bottom nav items */}
       <div className={`flex flex-col gap-1 mt-auto ${expanded ? '' : 'items-center'}`}>
-        <SidebarItem to="/connections" label="Connections" icon={<SupportIcon />} expanded={expanded} />
         <SidebarItem to="/settings" label="Settings" icon={<SettingsIcon />} expanded={expanded} />
 
         {/* User avatar */}
