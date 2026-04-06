@@ -48,11 +48,10 @@ export function createSearchRouter(): Router {
       }
     }
 
-    // Search dashboards + investigations
+    // Search dashboards
     for (const d of defaultDashboardStore.findAll()) {
       if (results.length >= limit) break
-      const isInv = d.type === 'investigation'
-      const type = isInv ? 'investigation' : 'dashboard'
+      const type = 'dashboard'
       const nav = `/dashboards/${d.id}`
 
       // Title match

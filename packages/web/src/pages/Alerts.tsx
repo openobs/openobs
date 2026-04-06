@@ -236,7 +236,7 @@ function AlertRuleRow({
             {rule.investigationId && (
               <button
                 type="button"
-                onClick={() => navigate(`/dashboards/${rule.investigationId}`)}
+                onClick={() => navigate(`/investigations/${rule.investigationId}`)}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-[var(--color-primary)]/10 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/20 transition-colors"
               >
                 View Investigation
@@ -340,9 +340,7 @@ export default function Alerts() {
     setInvestigatingId(null);
     if (!res.error && res.data.investigationId) {
       setRules((prev) => prev.map((r) => r.id === rule.id ? { ...r, investigationId: res.data.investigationId } : r));
-      navigate(`/dashboards/${res.data.investigationId}`, {
-        state: { initialPrompt: res.data.prompt },
-      });
+      navigate(`/investigations/${res.data.investigationId}`);
     }
   }, [navigate]);
 

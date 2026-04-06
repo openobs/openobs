@@ -333,10 +333,9 @@ ${existingContext}${metricsContext}
       return `- ${e.description}\nQuery: ${e.expr}\nType: ${data?.resultType ?? 'unknown'}, ${resultCount} series/data\n${truncated}`
     }).join('\n\n')
 
-    const systemPrompt = `You are a senior SRE writing an investigation report. Analyze the Prometheus evidence and produce a structured report.
+    const systemPrompt = `You are a senior SRE writing an investigation report for your team. Write it like a real post-incident analysis — with your reasoning process, what you checked and why, what the data told you, and what conclusions you drew.
 
-The report will be displayed as a document with alternating text explanations and evidence panels.
-Each section should either be a text explanation or a text explanation paired with a supporting panel.
+The report is a narrative document with embedded metric panels. It should read like a story: "We started by looking at X because... The data showed Y, which told us... This led us to check Z..."
 
 ## Initial hypothesis
 ${plan.hypothesis}
@@ -349,35 +348,43 @@ ${evidenceSummary}
 
 ## Output (JSON)
 {
-  "summary": "1-2 sentence conclusion for the chat sidebar (e.g. high CPU usage on pod-xyz is causing request timeouts. Recommend scaling up or investigating the memory leak.)",
+  "summary": "1-2 sentence conclusion for the chat sidebar",
   "sections": [
     {
-      "explanation": "Markdown text explaining the finding. Reference specific values. This text appears above/alongside the panel.",
+      "explanation": "Markdown narrative text. Write like a person thinking through the problem.",
       "panel": null
     },
     {
-      "explanation": "CPU usage has been consistently above 90% for the past 30 minutes on pod-xyz, which directly correlates with the latency spike observed at 14:32 UTC.",
+      "explanation": "Narrative text explaining WHY you looked at this metric, WHAT the data shows, and WHAT it means for the investigation.",
       "panel": {
-        "title": "CPU Usage - pod-xyz",
-        "description": "Shows the CPU spike correlating with the latency increase",
+        "title": "Panel Title",
+        "description": "Brief panel description",
         "visualization": "time_series",
-        "queries": [{ "refId": "A", "expr": "rate(container_cpu_usage_seconds_total{pod=\\"pod-xyz\\"}[5m])", "legendFormat": "{{container}}", "instant": false }],
+        "queries": [{ "refId": "A", "expr": "promql_here", "legendFormat": "{{label}}", "instant": false }],
         "width": 12,
         "height": 3,
-        "unit": "percentunit"
+        "unit": "short"
       }
     }
   ]
+}
 
-## Rules
-- Start with a summary section (text only) giving the high-level conclusion
-- Follow with evidence sections - each important finding gets its own section with explanation + panel
-- End with recommendations section (text only)
-- Only create panels for evidence that supports findings (use the SAME working PromQL from evidence)
+## Writing Style
+- Write in first person plural ("We checked...", "Our investigation found...")
+- Structure as a logical narrative: context → hypothesis → evidence → interpretation → conclusion
+- Start with a text section setting the scene: what the problem is, what your initial thinking was, and how you approached the investigation
+- For each evidence panel, explain your REASONING: why you checked this metric, what you expected to see, and what the actual data revealed. Connect each finding to the next — "This ruled out X, so we turned our attention to Y..."
+- Don't just describe data mechanically ("The value is 0.043"). Instead, interpret it ("The error rate of 4.3% is significantly above the normal baseline of <0.1%, confirming our hypothesis that...")
+- End with TWO text sections (no panels):
+  1. **Conclusion**: what you found, what the root cause is (or isn't)
+  2. **Recommendations**: If a root cause was found, give specific remediation steps (e.g. "Scale the payment-gateway deployment to 3 replicas", "Add a circuit breaker on the checkout→payment call"). If no root cause was found, give concrete next-step investigation suggestions — what logs to check, what services to trace, what dashboards to look at, what teams to contact (e.g. "Check application logs for checkout-service for unhandled exceptions", "Trace a failing checkout request end-to-end through Jaeger", "Review recent deployments to checkout and payment services")
+- Be honest — if evidence is inconclusive or shows normal behavior, explain why that's actually an important finding ("The fact that CPU/memory are normal tells us this is NOT a resource issue, narrowing our search to...")
+
+## Panel Rules
+- Only create panels for the most important 3-6 findings
+- Use the SAME working PromQL from evidence (don't invent new queries)
 - stat/gauge panels need "instant": true in queries
-- Keep 3-6 evidence panels each with a clear explanation of what it shows and why it matters
-- Explanations should be specific - cite actual metric values, time ranges, thresholds, etc.
-- CRITICAL: Be honest about what the data shows. If metrics look normal, say so clearly. Do NOT fabricate issues or over-interpret normal data. It is perfectly valid to conclude "the metrics investigated appear healthy - the issue may be in application logic, external dependencies, or areas not covered by current metrics." Never force root cause if the evidence doesn't support one.`
+- CRITICAL: Be honest. If metrics look normal, say so. Don't fabricate issues.`
 
     try {
       const resp = await this.deps.gateway.complete([

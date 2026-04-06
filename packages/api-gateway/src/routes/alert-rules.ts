@@ -163,19 +163,28 @@ router.post('/:id/investigate', async (req: Request, res: Response, next: NextFu
       return;
     }
 
-    const { defaultDashboardStore } = await import('@agentic-obs/data-layer');
-    const dashboard = defaultDashboardStore.create({
-      title: `Investigation for alert ${rule.name}`,
-      description: `Investigation for alert: ${rule.condition.query} ${rule.condition.operator} ${rule.condition.threshold}`,
-      prompt: '',
+    const { defaultInvestigationStore, feedStore } = await import('@agentic-obs/data-layer');
+    const { LiveOrchestratorRunner } = await import('../routes/investigation/live-orchestrator-runner.js');
+
+    const question = `Investigate alert "${rule.name}": ${rule.condition.query} ${rule.condition.operator} ${rule.condition.threshold}`;
+    const investigation = await defaultInvestigationStore.create({
+      question,
+      sessionId: `ses_alert_${Date.now()}`,
       userId: 'alert-system',
-      datasourceIds: [],
-      useExistingMetrics: true,
     });
 
-    defaultAlertRuleStore.update(rule.id, { investigationId: dashboard.id });
+    // Async orchestration — does not block the HTTP response
+    const orchestrator = new LiveOrchestratorRunner(defaultInvestigationStore, feedStore);
+    orchestrator.run({
+      investigationId: investigation.id,
+      question: investigation.intent,
+      sessionId: investigation.sessionId,
+      userId: investigation.userId,
+    });
 
-    res.json({ investigationId: dashboard.id, prompt: 'investigatePrompt', existing: false });
+    defaultAlertRuleStore.update(rule.id, { investigationId: investigation.id });
+
+    res.json({ investigationId: investigation.id, existing: false });
   } catch (err) {
     next(err);
   }

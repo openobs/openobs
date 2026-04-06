@@ -61,33 +61,21 @@ function StatusBadge({ status }: { status: Dashboard['status'] }) {
   );
 }
 
-// Page config per list type
+// Page config
 const PAGE_CONFIG = {
-  dashboard: {
-    title: 'Dashboards',
-    subtitle: 'Monitor and visualize your infrastructure metrics.',
-    newLabel: '+ New Dashboard',
-    emptyTitle: 'No dashboards yet',
-    emptyDesc: 'Create a dashboard to start monitoring your infrastructure.',
-    icon: 'grid_view',
-    navTarget: '/dashboards',
-  },
-  investigation: {
-    title: 'Investigations',
-    subtitle: 'Diagnose and troubleshoot production issues.',
-    newLabel: '+ New Investigation',
-    emptyTitle: 'No investigations yet',
-    emptyDesc: 'Start an investigation to diagnose a production issue.',
-    icon: 'search',
-    navTarget: '/investigations',
-  },
+  title: 'Dashboards',
+  subtitle: 'Monitor and visualize your infrastructure metrics.',
+  newLabel: '+ New Dashboard',
+  emptyTitle: 'No dashboards yet',
+  emptyDesc: 'Create a dashboard to start monitoring your infrastructure.',
+  navTarget: '/dashboards',
 };
 
 // Recursive folder tree node
 
 interface FolderNode { folder: Folder | null; id: string; dashboards: Dashboard[]; children: FolderNode[] }
 
-function FolderTreeNode({ node, depth, expandedFolders, toggleFolder, navigate, itemLink, onDeleteDash, onMoveDash, folders, onCreateSubFolder, creatingInFolder, subFolderName, setSubFolderName, onSubmitSubFolder, onCancelSubFolder, onDeleteFolder, listType }: {
+function FolderTreeNode({ node, depth, expandedFolders, toggleFolder, navigate, itemLink, onDeleteDash, onMoveDash, folders, onCreateSubFolder, creatingInFolder, subFolderName, setSubFolderName, onSubmitSubFolder, onCancelSubFolder, onDeleteFolder }: {
   node: FolderNode; depth: number;
   expandedFolders: Set<string>; toggleFolder: (id: string) => void;
   navigate: (path: string) => void; itemLink: (id: string) => string;
@@ -100,7 +88,6 @@ function FolderTreeNode({ node, depth, expandedFolders, toggleFolder, navigate, 
   onSubmitSubFolder: (parentId: string, name: string) => void;
   onCancelSubFolder: () => void;
   onDeleteFolder: (id: string) => void;
-  listType?: string;
 }) {
   const isExpanded = expandedFolders.has(node.id);
   const totalItems = node.dashboards.length + node.children.length;
@@ -182,8 +169,7 @@ function FolderTreeNode({ node, depth, expandedFolders, toggleFolder, navigate, 
               onCreateSubFolder={onCreateSubFolder}
               creatingInFolder={creatingInFolder} subFolderName={subFolderName}
               setSubFolderName={setSubFolderName} onSubmitSubFolder={onSubmitSubFolder}
-              onCancelSubFolder={onCancelSubFolder} onDeleteFolder={onDeleteFolder} listType={listType}
-            />
+              onCancelSubFolder={onCancelSubFolder} onDeleteFolder={onDeleteFolder}            />
           ))}
 
           {/* Dashboards in this folder */}
@@ -191,18 +177,10 @@ function FolderTreeNode({ node, depth, expandedFolders, toggleFolder, navigate, 
             <div key={dash.id} onClick={() => navigate(itemLink(dash.id))}
               className="flex items-center gap-3 py-2.5 hover:bg-white/[0.02] transition-colors cursor-pointer group border-t border-outline-variant/10"
               style={{ paddingLeft: (depth + 1) * 20 + 16, paddingRight: 16 }}>
-              <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                dash.type === 'investigation' ? 'bg-tertiary/10' : 'bg-primary/10'
-              }`}>
-                {dash.type === 'investigation' ? (
-                  <svg className="w-3.5 h-3.5 text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                ) : (
-                  <svg className="w-3.5 h-3.5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z" />
-                  </svg>
-                )}
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-primary/10">
+                <svg className="w-3.5 h-3.5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z" />
+                </svg>
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -235,10 +213,10 @@ function FolderTreeNode({ node, depth, expandedFolders, toggleFolder, navigate, 
 
 // Main
 
-export default function Dashboards({ listType }: { listType?: string } = {}) {
+export default function Dashboards() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const config = PAGE_CONFIG[listType === 'investigation' ? 'investigation' : 'dashboard'];
+  const config = PAGE_CONFIG;
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
   const [loadingList, setLoadingList] = useState(true);
   const [search, setSearch] = useState('');
@@ -284,13 +262,13 @@ export default function Dashboards({ listType }: { listType?: string } = {}) {
 
   const loadList = useCallback(async () => {
     const [dashRes, folderRes] = await Promise.all([
-      apiClient.get<Dashboard[]>(`/dashboards${listType ? `?type=${listType}` : ''}`),
+      apiClient.get<Dashboard[]>('/dashboards'),
       apiClient.get<Folder[]>('/folders'),
     ]);
     if (!dashRes.error) setDashboards(dashRes.data);
     if (!folderRes.error) setFolders(folderRes.data);
     setLoadingList(false);
-  }, [listType]);
+  }, []);
 
   useEffect(() => {
     void loadList();
@@ -544,8 +522,7 @@ export default function Dashboards({ listType }: { listType?: string } = {}) {
               }}
                 className="px-5 py-3 flex items-center gap-3 hover:bg-white/[0.02] transition-colors cursor-pointer border-t border-outline-variant/10 first:border-t-0">
                 <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                  r.type === 'investigation' ? 'bg-tertiary/10 text-tertiary'
-                    : r.type === 'alert' ? 'bg-error/10 text-error'
+                  r.type === 'alert' ? 'bg-error/10 text-error'
                     : r.type === 'folder' ? 'bg-primary/10 text-primary'
                     : r.type === 'panel' ? 'bg-secondary/10 text-secondary'
                     : 'bg-primary/10 text-primary'
@@ -604,15 +581,14 @@ export default function Dashboards({ listType }: { listType?: string } = {}) {
                   await apiClient.delete(`/folders/${id}`);
                   setFolders((prev) => prev.filter((f) => f.id !== id));
                 }}
-                listType={listType}
-              />
+                             />
             ))}
           </div>
         )}
 
         <ConfirmDialog
           open={deletingDashId !== null}
-          title={`Delete ${listType === 'investigation' ? 'investigation' : 'dashboard'}?`}
+          title="Delete dashboard?"
           message="This will be permanently deleted along with all its panels."
           onConfirm={() => {
             if (deletingDashId) void handleDelete(deletingDashId);

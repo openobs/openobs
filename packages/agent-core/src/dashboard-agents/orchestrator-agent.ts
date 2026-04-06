@@ -457,7 +457,7 @@ export class OrchestratorAgent {
               : 0,
           })
 
-          await this.deps.store.update(dashboardId, { type: 'investigation' })
+          // Investigation type is now handled by the independent Investigation system
           await this.actionExecutor.execute(dashboardId, [{
             type: 'set_title',
             title: `Investigation: ${goal.length > 60 ? goal.slice(0, 60) + '...' : goal}`,

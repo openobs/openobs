@@ -5,7 +5,7 @@ import { randomUUID } from 'crypto'
 import type { AuthenticatedRequest } from '../../middleware/auth.js'
 import { authMiddleware } from '../../middleware/auth.js'
 import { requirePermission } from '../../middleware/rbac.js'
-import { defaultConversationStore, defaultInvestigationReportStore } from '@agentic-obs/data-layer'
+import { defaultConversationStore } from '@agentic-obs/data-layer'
 import type { IGatewayDashboardStore, IConversationStore } from '@agentic-obs/data-layer'
 import { handleChatMessage } from './chat-handler.js'
 import { VariableResolver } from './variable-resolver.js'
@@ -80,60 +80,15 @@ export function createDashboardRouter(deps: DashboardRouterDeps = {}): ExpressRo
   // GET /dashboards
   router.get('/', requirePermission('dashboard:read'), async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const typeFilter = req.query['type'] as string | undefined
       const workspaceId = getWorkspaceId(req)
       let all = await store.findAll()
       // Filter by workspace
       all = all.filter((d) => (d.workspaceId ?? 'default') === workspaceId)
-      if (typeFilter) {
-        all = all.filter((d) => d.type === typeFilter)
-      }
-      else {
-        // By default, exclude investigations from the dashboard list
-        all = all.filter((d) => d.type !== 'investigation')
-      }
       res.json(all)
     }
     catch (err) {
       next(err)
     }
-  })
-
-  // GET /dashboards/investigations
-  // IMPORTANT: these routes must be defined before /:id to avoid Express treating investigations as an id
-  router.get('/investigations', requirePermission('dashboard:read'), (_req: Request, res: Response) => {
-    res.json(defaultInvestigationReportStore.findAll())
-  })
-
-  // GET /dashboards/investigations/:reportId
-  router.get('/investigations/:reportId', requirePermission('dashboard:read'), (req: Request, res: Response) => {
-    const report = defaultInvestigationReportStore.findById(req.params['reportId'] ?? '')
-    if (!report) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Investigation report not found' })
-      return
-    }
-    res.json(report)
-  })
-
-  // DELETE /dashboards/investigations/:reportId
-  router.delete('/investigations/:reportId', requirePermission('dashboard:write'), (req: Request, res: Response) => {
-    const deleted = defaultInvestigationReportStore.delete(req.params['reportId'] ?? '')
-    if (!deleted) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Investigation report not found' })
-      return
-    }
-    res.status(204).send()
-  })
-
-  // GET /dashboards/:id/investigation-report
-  router.get('/:id/investigation-report', requirePermission('dashboard:read'), (req: Request, res: Response) => {
-    const reports = defaultInvestigationReportStore.findByDashboard(req.params['id'] ?? '')
-    if (!reports.length) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'No investigation report for this dashboard' })
-      return
-    }
-    // Return the most recent one
-    res.json(reports[reports.length - 1])
   })
 
   // GET /dashboards/:id/export — download as JSON file

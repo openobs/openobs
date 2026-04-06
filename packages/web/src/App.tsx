@@ -4,7 +4,8 @@ import { AuthProvider, useAuth } from './contexts/AuthContext.js';
 import Layout from './components/Layout.js';
 import Home from './pages/Home.js';
 import Feed from './pages/Feed.js';
-import Workspace from './pages/Workspace.js';
+import Investigations from './pages/Investigations.js';
+import InvestigationDetail from './pages/InvestigationDetail.js';
 import Evidence from './pages/Evidence.js';
 import ActionCenter from './pages/ActionCenter.js';
 import PostMortem from './pages/PostMortem.js';
@@ -71,9 +72,10 @@ export default function App() {
             >
               <Route path="/" element={<Home />} />
               <Route path="/feed" element={<Feed />} />
-              <Route path="/investigations" element={<Dashboards listType="investigation" />} />
-              <Route path="/investigate" element={<Workspace />} />
-              <Route path="/investigate/:id" element={<Workspace />} />
+              <Route path="/investigations" element={<Investigations />} />
+              <Route path="/investigations/:id" element={<InvestigationDetail />} />
+              <Route path="/investigate" element={<Navigate to="/investigations" replace />} />
+              <Route path="/investigate/:id" element={<Navigate to="/investigations" replace />} />
               <Route path="/evidence/:id" element={<Evidence />} />
               <Route path="/actions" element={<ActionCenter />} />
               <Route path="/settings" element={<Settings />} />

@@ -19,12 +19,18 @@ export interface IntentAlertResult {
 }
 
 export interface IntentDashboardResult {
-  intent: 'dashboard' | 'investigate';
+  intent: 'dashboard';
   dashboardId: string;
   navigate: string;
 }
 
-export type IntentResult = IntentAlertResult | IntentDashboardResult;
+export interface IntentInvestigateResult {
+  intent: 'investigate';
+  investigationId: string;
+  navigate: string;
+}
+
+export type IntentResult = IntentAlertResult | IntentDashboardResult | IntentInvestigateResult;
 
 export interface IntentProgress {
   type: 'thinking' | 'intent';
@@ -115,13 +121,11 @@ export class IntentService {
   }
 
   /**
-   * Execute a dashboard/investigate intent: create a workspace.
+   * Execute a dashboard intent: create a dashboard workspace.
    */
-  async executeDashboardIntent(message: string, intent: 'dashboard' | 'investigate'): Promise<IntentDashboardResult> {
-    const title = intent === 'investigate' ? 'Investigation' : 'Untitled Dashboard';
-
+  async executeDashboardIntent(message: string): Promise<IntentDashboardResult> {
     const dashboard = await this.dashboardStore.create({
-      title,
+      title: 'Untitled Dashboard',
       description: '',
       prompt: message,
       userId: 'anonymous',
@@ -130,9 +134,37 @@ export class IntentService {
     });
 
     return {
-      intent,
+      intent: 'dashboard',
       dashboardId: dashboard.id,
       navigate: `/dashboards/${dashboard.id}`,
+    };
+  }
+
+  /**
+   * Execute an investigate intent: create a real Investigation.
+   */
+  async executeInvestigateIntent(message: string): Promise<IntentInvestigateResult> {
+    const { defaultInvestigationStore, feedStore } = await import('@agentic-obs/data-layer');
+    const { LiveOrchestratorRunner } = await import('../routes/investigation/live-orchestrator-runner.js');
+
+    const investigation = await defaultInvestigationStore.create({
+      question: message,
+      sessionId: `ses_${Date.now()}`,
+      userId: 'anonymous',
+    });
+
+    const orchestrator = new LiveOrchestratorRunner(defaultInvestigationStore, feedStore);
+    orchestrator.run({
+      investigationId: investigation.id,
+      question: investigation.intent,
+      sessionId: investigation.sessionId,
+      userId: investigation.userId,
+    });
+
+    return {
+      intent: 'investigate',
+      investigationId: investigation.id,
+      navigate: `/investigations/${investigation.id}`,
     };
   }
 
@@ -152,18 +184,13 @@ export class IntentService {
 
     if (intent === 'alert') {
       onProgress({ type: 'thinking', data: { content: 'Creating alert rule...' } });
-      const result = await this.executeAlertIntent(message);
-      return result;
+      return this.executeAlertIntent(message);
+    } else if (intent === 'investigate') {
+      onProgress({ type: 'thinking', data: { content: 'Starting investigation...' } });
+      return this.executeInvestigateIntent(message);
     } else {
-      onProgress({
-        type: 'thinking',
-        data: {
-          content: intent === 'investigate'
-            ? 'Starting investigation...'
-            : 'Setting up dashboard workspace...',
-        },
-      });
-      return this.executeDashboardIntent(message, intent);
+      onProgress({ type: 'thinking', data: { content: 'Setting up dashboard workspace...' } });
+      return this.executeDashboardIntent(message);
     }
   }
 }

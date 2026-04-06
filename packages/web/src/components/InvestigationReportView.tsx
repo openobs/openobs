@@ -4,6 +4,7 @@ import DashboardPanelCard from './DashboardPanelCard.js';
 
 interface Props {
   report: InvestigationReport;
+  title?: string;
   onClose?: () => void;
 }
 
@@ -141,7 +142,7 @@ function TextSection({ section }: { section: InvestigationReportSection }) {
 
 /* ── Main component ── */
 
-export default function InvestigationReportView({ report }: Props) {
+export default function InvestigationReportView({ report, title }: Props) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto">
@@ -156,9 +157,7 @@ export default function InvestigationReportView({ report }: Props) {
             </div>
 
             <h1 className="text-4xl font-extrabold font-[Manrope] tracking-tight text-on-surface leading-tight">
-              {report.summary.length > 120
-                ? report.summary.slice(0, 120) + '...'
-                : report.summary}
+              {title ?? report.summary}
             </h1>
           </header>
 

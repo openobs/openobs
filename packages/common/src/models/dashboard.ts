@@ -111,7 +111,7 @@ export type DashboardSseEvent =
   | { type: 'done'; messageId: string }
   | { type: 'error'; message: string };
 
-export type DashboardType = 'dashboard' | 'investigation';
+export type DashboardType = 'dashboard';
 
 export interface Dashboard {
   id: string;

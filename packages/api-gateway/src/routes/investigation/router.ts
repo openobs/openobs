@@ -8,7 +8,7 @@ import type { AuthenticatedRequest } from '../../middleware/auth.js';
 import { authMiddleware } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/rbac.js';
 import { investigationOpenApiSpec } from './openapi.js';
-import { defaultInvestigationStore, feedStore as defaultFeed, defaultShareStore } from '@agentic-obs/data-layer';
+import { defaultInvestigationStore, feedStore as defaultFeed, defaultShareStore, defaultInvestigationReportStore } from '@agentic-obs/data-layer';
 import type { SharePermission, IGatewayInvestigationStore, IGatewayFeedStore, IGatewayShareStore } from '@agentic-obs/data-layer';
 import type { CreateInvestigationBody, FollowUpBody, FeedbackBody } from './types.js';
 import { initSse, sendSseEvent, sendSseKeepAlive, closeSse } from './sse.js';
@@ -133,6 +133,58 @@ export function createInvestigationRouter(
         return;
       }
       res.json(inv);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // -- DELETE /investigations/:id
+
+  router.delete('/:id', requirePermission('investigation:write'), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const inv = await store.findById(id);
+      if (!inv) {
+        res.status(404).json({ code: 'NOT_FOUND', message: 'Investigation not found' });
+        return;
+      }
+      const workspaceId = getWorkspaceId(req);
+      if ((inv.workspaceId ?? 'default') !== workspaceId) {
+        res.status(404).json({ code: 'NOT_FOUND', message: 'Investigation not found' });
+        return;
+      }
+      // Use delete if available, otherwise cast to access internal maps
+      if (typeof (store as any).delete === 'function') {
+        (store as any).delete(id);
+      } else {
+        // Fallback: access the in-memory maps directly
+        const s = store as any;
+        s.investigations?.delete?.(id);
+        s.archivedItems?.delete?.(id);
+      }
+      res.status(204).end();
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // -- GET /investigations/:id/report
+
+  router.get('/:id/report', requirePermission('investigation:read'), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const inv = await store.findById(id);
+      if (!inv) {
+        res.status(404).json({ code: 'NOT_FOUND', message: 'Investigation not found' });
+        return;
+      }
+      // Reports are stored with investigationId in the dashboardId field
+      const reports = defaultInvestigationReportStore.findByDashboard(id);
+      if (!reports.length) {
+        res.status(404).json({ code: 'NOT_FOUND', message: 'Report not yet available' });
+        return;
+      }
+      res.json(reports[reports.length - 1]);
     } catch (err) {
       next(err);
     }
