@@ -164,10 +164,10 @@ export interface IGatewayDashboardStore {
 // -- ConversationStore
 
 export interface IConversationStore {
-  addMessage(dashboardId: string, msg: DashboardMessage): DashboardMessage
-  getMessages(dashboardId: string): DashboardMessage[]
-  clearMessages(dashboardId: string): void
-  deleteConversation(dashboardId: string): void
+  addMessage(dashboardId: string, msg: DashboardMessage): MaybeAsync<DashboardMessage>
+  getMessages(dashboardId: string): MaybeAsync<DashboardMessage[]>
+  clearMessages(dashboardId: string): MaybeAsync<void>
+  deleteConversation(dashboardId: string): MaybeAsync<void>
 }
 
 // -- Aggregate

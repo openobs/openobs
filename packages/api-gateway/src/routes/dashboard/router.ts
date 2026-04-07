@@ -168,7 +168,7 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
         return
       }
       // Cascade: remove associated conversation messages
-      conversationStore.deleteConversation(id)
+      await conversationStore.deleteConversation(id)
       res.status(204).send()
     }
     catch (err) {
@@ -327,7 +327,7 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
         return
       }
 
-      res.json({ messages: conversationStore.getMessages(id) })
+      res.json({ messages: await conversationStore.getMessages(id) })
     }
     catch (err) {
       next(err)

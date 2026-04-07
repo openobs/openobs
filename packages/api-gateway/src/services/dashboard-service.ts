@@ -96,7 +96,7 @@ export class DashboardService {
 
     // Save user message
     const userMessageId = randomUUID();
-    this.conversationStore.addMessage(dashboardId, {
+    await this.conversationStore.addMessage(dashboardId, {
       id: userMessageId,
       role: 'user',
       content: message,
@@ -132,7 +132,7 @@ export class DashboardService {
 
     // Save assistant message
     const assistantMessageId = randomUUID();
-    this.conversationStore.addMessage(dashboardId, {
+    await this.conversationStore.addMessage(dashboardId, {
       id: assistantMessageId,
       role: 'assistant',
       content: replyContent,
