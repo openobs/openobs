@@ -699,6 +699,7 @@ export class OrchestratorAgent {
           const patch = (args.patch ?? args) as Record<string, unknown>
           if (!ruleId) return 'Error: ruleId is required for modify_alert_rule.'
           if (!this.deps.alertRuleStore.update) return 'Error: alert rule store does not support updates.'
+          if (!this.deps.alertRuleStore.findById) return 'Error: alert rule store does not support findById.'
 
           this.deps.sendEvent({
             type: 'tool_call',
@@ -707,17 +708,27 @@ export class OrchestratorAgent {
             displayText: `Updating alert rule ${ruleId}...`,
           })
 
-          // Build the update patch — map flat args to nested condition if needed
+          // Fetch existing rule to merge condition fields
+          const existingRule = await this.deps.alertRuleStore.findById(ruleId) as Record<string, unknown> | undefined
+          if (!existingRule) return `Error: alert rule ${ruleId} not found.`
+
           const updatePatch: Record<string, unknown> = {}
           if (patch.severity) updatePatch.severity = patch.severity
           if (patch.evaluationIntervalSec) updatePatch.evaluationIntervalSec = patch.evaluationIntervalSec
+          if (patch.name) updatePatch.name = patch.name
 
-          const conditionPatch: Record<string, unknown> = {}
-          if (patch.threshold !== undefined) conditionPatch.threshold = patch.threshold
-          if (patch.operator) conditionPatch.operator = patch.operator
-          if (patch.forDurationSec !== undefined) conditionPatch.forDurationSec = patch.forDurationSec
-          if (patch.query) conditionPatch.query = patch.query
-          if (Object.keys(conditionPatch).length > 0) updatePatch.condition = conditionPatch
+          // Merge condition: start from existing, overlay changes
+          const existingCondition = (existingRule.condition ?? {}) as Record<string, unknown>
+          const hasConditionChanges = patch.threshold !== undefined || patch.operator || patch.forDurationSec !== undefined || patch.query
+          if (hasConditionChanges) {
+            updatePatch.condition = {
+              ...existingCondition,
+              ...(patch.threshold !== undefined ? { threshold: patch.threshold } : {}),
+              ...(patch.operator ? { operator: patch.operator } : {}),
+              ...(patch.forDurationSec !== undefined ? { forDurationSec: patch.forDurationSec } : {}),
+              ...(patch.query ? { query: patch.query } : {}),
+            }
+          }
 
           await this.deps.alertRuleStore.update(ruleId, updatePatch)
 
