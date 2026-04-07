@@ -60,26 +60,49 @@ export class SqliteInvestigationRepository implements IInvestigationRepository {
   }
 
   async create(
-    data: Omit<Investigation, 'id' | 'createdAt'> & { id?: string },
+    data: (Omit<Investigation, 'id' | 'createdAt'> & { id?: string })
+      | { question: string; sessionId: string; userId: string; entity?: string; timeRange?: { start: string; end: string }; tenantId?: string; workspaceId?: string },
   ): Promise<Investigation> {
     const now = new Date().toISOString();
-    const id = data.id ?? `inv_${randomUUID().slice(0, 8)}`;
+
+    // Support both IGatewayInvestigationStore.create({ question }) and
+    // IRepository<Investigation>.create({ intent }) signatures.
+    const isGatewayParams = 'question' in data;
+    const intent = isGatewayParams ? (data as { question: string }).question : (data as Investigation).intent;
+    const sessionId = data.sessionId;
+    const userId = data.userId;
+    const tenantId = (data as Record<string, unknown>).tenantId as string | undefined ?? 'default';
+    const workspaceId = (data as Record<string, unknown>).workspaceId as string | undefined;
+    const entity = isGatewayParams ? (data as { entity?: string }).entity ?? '' : '';
+    const timeRange = isGatewayParams
+      ? (data as { timeRange?: { start: string; end: string } }).timeRange ?? { start: new Date(Date.now() - 3600_000).toISOString(), end: now }
+      : { start: new Date(Date.now() - 3600_000).toISOString(), end: now };
+
+    const structuredIntent = isGatewayParams
+      ? { taskType: 'general_query' as const, entity, timeRange, goal: intent }
+      : (data as Investigation).structuredIntent;
+    const plan = isGatewayParams
+      ? { entity, objective: intent, steps: [] as unknown[], stopConditions: [] as string[] }
+      : (data as Investigation).plan;
+    const status = isGatewayParams ? 'planning' : (data as Investigation).status;
+
+    const id = ('id' in data && data.id) ? data.id as string : `inv_${randomUUID().slice(0, 8)}`;
     const [row] = await this.db
       .insert(investigations)
       .values({
         id,
-        tenantId: (data as Investigation & { tenantId?: string }).tenantId ?? 'default',
-        sessionId: data.sessionId,
-        userId: data.userId,
-        intent: data.intent,
-        structuredIntent: data.structuredIntent as unknown as Record<string, unknown>,
-        plan: data.plan as unknown as Record<string, unknown>,
-        status: data.status,
-        hypotheses: data.hypotheses,
-        actions: data.actions ?? [],
-        evidence: data.evidence,
-        symptoms: data.symptoms,
-        workspaceId: (data as Investigation & { workspaceId?: string }).workspaceId,
+        tenantId,
+        sessionId,
+        userId,
+        intent,
+        structuredIntent: structuredIntent as unknown as Record<string, unknown>,
+        plan: plan as unknown as Record<string, unknown>,
+        status,
+        hypotheses: isGatewayParams ? [] : (data as Investigation).hypotheses,
+        actions: isGatewayParams ? [] : ((data as Investigation).actions ?? []),
+        evidence: isGatewayParams ? [] : (data as Investigation).evidence,
+        symptoms: isGatewayParams ? [] : (data as Investigation).symptoms,
+        workspaceId,
         createdAt: now,
         updatedAt: now,
       })
