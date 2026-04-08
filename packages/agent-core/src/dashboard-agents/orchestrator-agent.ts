@@ -97,6 +97,7 @@ export class OrchestratorAgent {
     this.panelEditorAgent = new PanelEditorAgent({
       gateway: deps.gateway,
       model: deps.model,
+      panelAdderAgent: this.panelAdderAgent,
     })
 
     if (deps.metricsAdapter) {
@@ -211,6 +212,7 @@ export class OrchestratorAgent {
           .map((issue) => issue.message)
           .join('; ')
         await this.deps.store.updatePanels(dashboardId, currentDash.panels)
+        await this.deps.store.updateVariables(dashboardId, currentDash.variables)
       }
     }
 
@@ -218,7 +220,7 @@ export class OrchestratorAgent {
       ? verificationIssues
         ? `Panel edit was reverted because verification failed: ${verificationIssues}`
         : 'Panel edit was reverted because verification failed.'
-      : plan.summary
+      : `${plan.summary} No further dashboard mutation is needed for this request.`
 
     this.deps.sendEvent({
       type: 'tool_result',
@@ -1117,7 +1119,7 @@ ${historySection}${datasourceSection}${alertRulesSection}${structuredAlertHistor
 ## Direct tools (immediate dashboard changes)
 - remove_panels(panelIds: string[]) -> remove panels by ID
 - modify_panel(panelId: string, patch: object) -> patch a panel's properties (title, queries, visualization, etc.)
-- rearrange(layout: Array<{ panelId, row, col, width, height }>) -> change panel layout positions
+- rearrange(layout: Array<{ panelId, row, col }>) -> change panel positions only. Do NOT use this tool to resize panels.
 - add_variable(variable: DashboardVariable) -> add a template variable
 - set_title(title: string, description?: string) -> update dashboard title/description
 
@@ -1134,6 +1136,7 @@ Classify the user's intent based on what they are trying to accomplish, not by m
 **generate_dashboard** — The user wants to set up ongoing monitoring or visibility for a topic, service, or area. They are building a view for the future, not reacting to a current problem.
 
 **add_panels** — The user wants to extend an existing dashboard that already has panels with a small addition.
+Use this only when the user is asking to add net-new monitoring content. Do NOT use add_panels for requests that are really edits to existing panels.
 
 **create_alert_rule** — The user wants to create a NEW alert to be notified when something happens.
 
@@ -1142,11 +1145,14 @@ Classify the user's intent based on what they are trying to accomplish, not by m
 **delete_alert_rule** — The user wants to remove/delete an existing alert rule.
 
 **Direct tools** (modify_panel, remove_panels, rearrange, add_variable, set_title) — The user wants to make a specific change to an existing panel or the dashboard structure.
+Choose **modify_panel** for any edit that evolves existing panel content, even if the downstream editor may decide to replace it with newly generated panels. This includes merge, split, duplicate/clone, change visualization, or "make this panel show X instead".
+For rearrange, decide only the target position/order. Do not decide width or height.
 
 **reply** — The user is asking a question that can be answered conversationally without taking action.
 
 Prefer the Active Alert Rule Context and Structured Alert History over free-form chat text when deciding whether a follow-up should modify/delete an existing alert or create a new one.
 When modifying or merging panels, preserve all user-requested signals. Choose a visualization that can clearly display every retained series or value. Do not compress multiple important metrics into a single-value visualization when that would hide distinctions between them.
+If an observation says the panel edit is complete or that no further dashboard mutation is needed, respond with reply instead of issuing another dashboard mutation.
 
 ## Guidelines
 1. You are an autonomous agent. Take action immediately using the tools above.
@@ -1162,6 +1168,7 @@ When modifying or merging panels, preserve all user-requested signals. Choose a 
 9. NEVER modify the dashboard (set_title, modify_panel, remove_panels, add_panels, generate_dashboard) as a side effect of another action. If the user asks to create an alert rule, ONLY create the alert rule — do NOT change the dashboard title, panels, or layout. Each user request should do exactly one thing.
 10. When the current message is a follow-up about an existing alert rule, use the Active Alert Rule Context and Structured Alert History to decide between modify_alert_rule and delete_alert_rule. Do not create a new alert rule unless the user is clearly asking for an additional alert.
 11. After completing an action, use "reply" to confirm the result. Do NOT chain additional actions unless the user explicitly asked for multiple things.
+12. For panel edit requests, prefer "modify_panel" over "add_panels" whenever the user is changing, merging, splitting, replacing, or reworking existing panels. The panel editor can decide whether replacement panels need to be generated internally.
 
 ## Response Format
 Return JSON on every step.

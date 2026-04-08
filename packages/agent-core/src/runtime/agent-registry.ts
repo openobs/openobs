@@ -47,9 +47,9 @@ agentRegistry.register({
 agentRegistry.register({
   type: 'dashboard-editor',
   description: 'Plans edits to existing dashboard panels, including modifications, removals, and layout adjustments',
-  allowedTools: ['modify_panel', 'remove_panels', 'rearrange', 'llm.complete', 'verifier.run'],
+  allowedTools: ['add_panels', 'add_variable', 'modify_panel', 'remove_panels', 'rearrange', 'llm.complete', 'verifier.run'],
   inputKinds: ['dashboard', 'panel'],
-  outputKinds: ['dashboard', 'panel'],
+  outputKinds: ['dashboard', 'panel', 'dashboard_variable'],
   permissionMode: 'artifact_mutation',
 });
 

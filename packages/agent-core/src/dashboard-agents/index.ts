@@ -25,6 +25,7 @@ export { DiscoveryAgent } from './discovery-agent.js'
 export type { DiscoveryResult } from './discovery-agent.js'
 
 export { ActionExecutor } from './action-executor.js'
+export { normalizePanelPatch, toPanelConfigs } from './panel-normalization.js'
 
 export { ReActLoop } from './react-loop.js'
 export type { ReActStep, ReActObservation, ReActDeps } from './react-loop.js'

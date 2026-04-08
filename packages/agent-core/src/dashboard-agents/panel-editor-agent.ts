@@ -2,11 +2,14 @@ import { createLogger } from '@agentic-obs/common'
 import type {
   Dashboard,
   DashboardAction,
+  DashboardVariable,
   PanelConfig,
 } from '@agentic-obs/common'
 import type { LLMGateway } from '@agentic-obs/llm-gateway'
 import { parseLlmJson } from './llm-json.js'
 import { agentRegistry } from '../runtime/agent-registry.js'
+import type { PanelAdderAgent } from './panel-adder-agent.js'
+import { normalizePanelPatch } from './panel-normalization.js'
 
 const log = createLogger('panel-editor')
 
@@ -15,6 +18,7 @@ type EditableActionType = 'modify_panel' | 'remove_panels' | 'rearrange'
 export interface PanelEditorDeps {
   gateway: LLMGateway
   model: string
+  panelAdderAgent: PanelAdderAgent
 }
 
 export interface PanelEditorInput {
@@ -32,6 +36,11 @@ export interface PanelEditorOutput {
 interface RawEditPlan {
   summary?: string
   actions?: unknown[]
+}
+
+interface GeneratedPanelsResult {
+  panels: PanelConfig[]
+  variables: DashboardVariable[]
 }
 
 export class PanelEditorAgent {
@@ -69,13 +78,14 @@ export class PanelEditorAgent {
         .map((item) => {
           const raw = (item ?? {}) as Record<string, unknown>
           if (typeof raw.panelId !== 'string') return null
-          if (!input.dashboard.panels.some((panel) => panel.id === raw.panelId)) return null
+          const existingPanel = input.dashboard.panels.find((panel) => panel.id === raw.panelId)
+          if (!existingPanel) return null
           return {
             panelId: raw.panelId,
-            row: Number(raw.row ?? 0),
-            col: Number(raw.col ?? 0),
-            width: Number(raw.width ?? 0),
-            height: Number(raw.height ?? 0),
+            row: Number.isFinite(Number(raw.row)) ? Number(raw.row) : existingPanel.row,
+            col: Number.isFinite(Number(raw.col)) ? Number(raw.col) : existingPanel.col,
+            width: existingPanel.width,
+            height: existingPanel.height,
           }
         })
         .filter((item): item is NonNullable<typeof item> => item !== null)
@@ -93,7 +103,7 @@ export class PanelEditorAgent {
     const panelId = typeof input.requestedArgs.panelId === 'string' ? input.requestedArgs.panelId : ''
     const existingPanel = input.dashboard.panels.find((panel) => panel.id === panelId)
     const rawPatch = (input.requestedArgs.patch ?? {}) as Partial<PanelConfig>
-    const fallbackPatch = this.normalizePanelPatch(existingPanel, rawPatch)
+    const fallbackPatch = normalizePanelPatch(existingPanel, rawPatch)
 
     if (!existingPanel) {
       return {
@@ -110,7 +120,7 @@ export class PanelEditorAgent {
     const llmPlan = await this.generateEditPlan(input, existingPanel)
     if (!llmPlan?.actions?.length) return fallbackPlan
 
-    const actions = this.normalizePlannedActions(llmPlan.actions, input.dashboard)
+    const actions = await this.normalizePlannedActions(llmPlan.actions, input.dashboard)
     if (actions.length === 0) return fallbackPlan
 
     return {
@@ -136,11 +146,12 @@ export class PanelEditorAgent {
     const systemPrompt = `You are a dashboard panel editor. Plan the minimal set of dashboard actions needed to satisfy the user's request against an existing dashboard.
 
 Rules:
-- You may use ONLY these action types: modify_panel, remove_panels, rearrange.
+- You may use ONLY these action types: modify_panel, remove_panels, rearrange, generate_panels.
 - Prefer preserving an existing panel and removing redundant ones after the surviving panel has been updated.
 - Keep every user-requested signal visible after the edit. If a single-value visualization would hide multiple important values, do not plan that merge.
 - Never invent panel IDs. Use only IDs from the provided dashboard context.
 - For modify_panel patches, use "queries" when changing PromQL. Every query must include both "refId" and "expr".
+- Use generate_panels when the right edit result requires replacing one panel with one or more newly generated panels instead of patching the old panel directly.
 - Keep the plan minimal. If one modify_panel action is enough, return one action.
 
 Return JSON only:
@@ -148,6 +159,7 @@ Return JSON only:
   "summary": "short human summary",
   "actions": [
     { "type": "modify_panel", "panelId": "panel_1", "patch": { "title": "...", "queries": [{ "refId": "A", "expr": "..." }] } },
+    { "type": "generate_panels", "goal": "replace the old single-value panel with two time series panels for p95 and p99 latency" },
     { "type": "remove_panels", "panelIds": ["panel_2"] }
   ]
 }`
@@ -187,7 +199,7 @@ Return JSON only:
     }
   }
 
-  private normalizePlannedActions(rawActions: unknown[], dashboard: Dashboard): DashboardAction[] {
+  private async normalizePlannedActions(rawActions: unknown[], dashboard: Dashboard): Promise<DashboardAction[]> {
     const actions: DashboardAction[] = []
 
     for (const item of rawActions) {
@@ -195,7 +207,7 @@ Return JSON only:
       if (raw.type === 'modify_panel' && typeof raw.panelId === 'string') {
         const existingPanel = dashboard.panels.find((panel) => panel.id === raw.panelId)
         if (!existingPanel) continue
-        const patch = this.normalizePanelPatch(existingPanel, (raw.patch ?? {}) as Partial<PanelConfig>)
+        const patch = normalizePanelPatch(existingPanel, (raw.patch ?? {}) as Partial<PanelConfig>)
         actions.push({ type: 'modify_panel', panelId: raw.panelId, patch })
         continue
       }
@@ -223,58 +235,58 @@ Return JSON only:
           })
           .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
         if (layout.length > 0) actions.push({ type: 'rearrange', layout })
+        continue
+      }
+
+      if (raw.type === 'generate_panels' && typeof raw.goal === 'string' && raw.goal.trim()) {
+        const generated = await this.generateReplacementPanels(raw.goal.trim(), dashboard)
+        if (generated.panels.length > 0) {
+          actions.push({ type: 'add_panels', panels: generated.panels })
+          for (const variable of generated.variables) {
+            actions.push({ type: 'add_variable', variable })
+          }
+        }
       }
     }
 
     return actions
   }
 
-  private normalizePanelPatch(
-    existingPanel: Dashboard['panels'][number] | undefined,
-    patch: Partial<Dashboard['panels'][number]>,
-  ): Partial<Dashboard['panels'][number]> {
-    const normalized = { ...patch }
+  private async generateReplacementPanels(goal: string, dashboard: Dashboard): Promise<GeneratedPanelsResult> {
+    const gridNextRow = dashboard.panels.length > 0
+      ? Math.max(...dashboard.panels.map((panel) => panel.row + panel.height))
+      : 0
 
-    if ('queries' in normalized) {
-      const rawQueries = Array.isArray(normalized.queries) ? normalized.queries : []
-      const fallbackQueries = existingPanel?.queries ?? (existingPanel?.query
-        ? [{ refId: 'A', expr: existingPanel.query, instant: existingPanel.visualization !== 'time_series' }]
-        : [])
-
-      const queries = rawQueries
-        .map((query, index) => {
-          const value = ((query ?? {}) as unknown) as Record<string, unknown>
-          const expr = typeof value.expr === 'string'
-            ? value.expr.trim()
-            : typeof value.query === 'string'
-              ? value.query.trim()
-              : typeof value.promql === 'string'
-                ? value.promql.trim()
-                : ''
-          if (!expr) return null
-
-          const fallbackRefId = fallbackQueries[index]?.refId ?? String.fromCharCode(65 + index)
-          return {
-            refId: typeof value.refId === 'string' && value.refId.trim() ? value.refId.trim() : fallbackRefId,
-            expr,
-            ...(typeof value.legendFormat === 'string' ? { legendFormat: value.legendFormat } : {}),
-            ...(typeof value.instant === 'boolean' ? { instant: value.instant } : {}),
-            ...(typeof value.datasourceId === 'string' ? { datasourceId: value.datasourceId } : {}),
-          }
-        })
-        .filter((query): query is NonNullable<typeof query> => query !== null)
-
-      normalized.queries = queries
-      normalized.query = queries[0]?.expr ?? existingPanel?.query
+    try {
+      const result = await this.deps.panelAdderAgent.addPanels({
+        goal,
+        existingPanels: dashboard.panels,
+        existingVariables: dashboard.variables,
+        availableMetrics: [],
+        labelsByMetric: {},
+        gridNextRow,
+      })
+      return {
+        panels: result.panels,
+        variables: result.variables ?? [],
+      }
     }
-
-    return normalized
+    catch (error) {
+      log.warn({ error, goal }, 'replacement panel generation failed')
+      return { panels: [], variables: [] }
+    }
   }
 
   private describePlan(actions: DashboardAction[], dashboard: Dashboard): string {
     if (actions.length === 1) {
       const action = actions[0]
       if (!action) return 'Updated the dashboard panels.'
+      if (action.type === 'add_panels') {
+        return `Added ${action.panels.length} panel(s).`
+      }
+      if (action.type === 'add_variable') {
+        return `Added variable "${action.variable.name}".`
+      }
       if (action.type === 'modify_panel') {
         const panel = dashboard.panels.find((item) => item.id === action.panelId)
         return `Updated "${panel?.title ?? action.panelId}".`
@@ -287,15 +299,36 @@ Return JSON only:
       }
     }
 
-    return 'Updated the dashboard panels.'
+    const addedPanels = actions
+      .filter((action): action is Extract<DashboardAction, { type: 'add_panels' }> => action.type === 'add_panels')
+      .reduce((total, action) => total + action.panels.length, 0)
+    const removedPanels = actions
+      .filter((action): action is Extract<DashboardAction, { type: 'remove_panels' }> => action.type === 'remove_panels')
+      .reduce((total, action) => total + action.panelIds.length, 0)
+    const modifiedPanels = actions
+      .filter((action): action is Extract<DashboardAction, { type: 'modify_panel' }> => action.type === 'modify_panel')
+      .length
+    const addedVariables = actions
+      .filter((action): action is Extract<DashboardAction, { type: 'add_variable' }> => action.type === 'add_variable')
+      .length
+
+    const parts: string[] = []
+    if (modifiedPanels > 0) parts.push(`updated ${modifiedPanels} panel(s)`)
+    if (addedPanels > 0) parts.push(`added ${addedPanels} panel(s)`)
+    if (removedPanels > 0) parts.push(`removed ${removedPanels} panel(s)`)
+    if (addedVariables > 0) parts.push(`added ${addedVariables} variable(s)`)
+
+    return parts.length > 0
+      ? `Completed the panel edit: ${parts.join(', ')}.`
+      : 'Completed the panel edit.'
   }
 
   private orderActions(actions: DashboardAction[]): DashboardAction[] {
     const priority: Record<DashboardAction['type'], number> = {
-      modify_panel: 1,
-      remove_panels: 2,
-      rearrange: 3,
-      add_panels: 4,
+      add_panels: 1,
+      modify_panel: 2,
+      remove_panels: 3,
+      rearrange: 4,
       add_variable: 5,
       set_title: 6,
       create_alert_rule: 7,

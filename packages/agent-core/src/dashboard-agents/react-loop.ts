@@ -104,7 +104,7 @@ export class ReActLoop {
 
       if (action === 'reply') {
         const text = chatReply ?? (typeof step.args.text === 'string' ? step.args.text : '')
-        if (!chatReply) {
+        if (text) {
           this.deps.sendEvent({ type: 'reply', content: text })
         }
         return text

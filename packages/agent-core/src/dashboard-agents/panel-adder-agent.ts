@@ -1,10 +1,7 @@
 import { parseLlmJson } from './llm-json.js'
-import { randomUUID } from 'node:crypto'
 import { createLogger } from '@agentic-obs/common'
 import type {
   PanelConfig,
-  PanelQuery,
-  PanelVisualization,
   DashboardVariable,
 } from '@agentic-obs/common'
 
@@ -15,6 +12,7 @@ import type {
   CriticFeedback,
 } from './types.js'
 import { GENERATION_PRINCIPLES } from './system-context.js'
+import { toPanelConfigs } from './panel-normalization.js'
 
 // -- PanelAdder I/O
 
@@ -46,11 +44,6 @@ export interface PanelAdderOutput {
 // -- Constants
 
 const MAX_CRITIC_RETRIES = 1
-
-const VALID_VISUALIZATIONS = new Set<string>([
-  'time_series', 'stat', 'table', 'gauge', 'bar',
-  'heatmap', 'pie', 'histogram', 'status_timeline',
-])
 
 // -- PanelAdderAgent
 
@@ -106,7 +99,7 @@ export class PanelAdderAgent {
       })
     }
 
-    const panels = this.toPanelConfigs(rawPanels, input.gridNextRow)
+    const panels = toPanelConfigs(rawPanels, input.gridNextRow)
     const variables = this.detectNewVariables(panels, input)
     return { panels, variables: variables.length > 0 ? variables : undefined }
   }
@@ -277,41 +270,6 @@ approved = true if overallScore >= 8 AND no severity=error issues.`
       return { approved: true, overallScore: 7, issues: [] }
     }
   }
-
-  // -- Convert raw specs to PanelConfig
-  private toPanelConfigs(rawPanels: RawPanelSpec[], startRow: number): PanelConfig[] {
-    return rawPanels.map((raw) => {
-      const visualization: PanelVisualization = VALID_VISUALIZATIONS.has(raw.visualization)
-        ? raw.visualization as PanelVisualization
-        : 'time_series'
-
-      const queries: PanelQuery[] = (raw.queries ?? []).map((q) => ({
-        refId: q.refId,
-        expr: q.expr,
-        legendFormat: q.legendFormat,
-        instant: q.instant,
-      }))
-
-      return {
-        id: randomUUID(),
-        title: raw.title ?? 'Panel',
-        description: raw.description ?? '',
-        queries,
-        visualization,
-        row: Math.max(0, (raw.row ?? 0) + startRow),
-        col: Math.min(11, Math.max(0, raw.col ?? 0)),
-        width: Math.min(12, Math.max(1, raw.width ?? 6)),
-        height: Math.max(2, raw.height ?? 3),
-        refreshIntervalSec: 30,
-        unit: raw.unit,
-        stackMode: raw.stackMode,
-        fillOpacity: raw.fillOpacity,
-        decimals: raw.decimals,
-        thresholds: raw.thresholds,
-      } as PanelConfig
-    })
-  }
-
   // -- Variable Detection
   private detectNewVariables(
     panels: PanelConfig[],
