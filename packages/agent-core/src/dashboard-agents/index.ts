@@ -55,6 +55,7 @@ export type {
   IDashboardAgentStore,
   IConversationStore,
   IInvestigationReportStore,
+  IInvestigationStore,
   IAlertRuleStore,
   DatasourceConfig,
 } from './types.js'

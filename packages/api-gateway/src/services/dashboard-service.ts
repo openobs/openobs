@@ -130,6 +130,7 @@ export class DashboardService {
       store: this.store,
       conversationStore: this.conversationStore,
       investigationReportStore: this.investigationReportStore,
+      investigationStore: this.investigationStore as any,
       alertRuleStore: this.alertRuleStore as unknown as IAlertRuleStore,
       metricsAdapter,
       allDatasources: config.datasources,

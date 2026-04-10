@@ -6,11 +6,15 @@ import type {
   DashboardMessage,
   Dashboard,
   DashboardVariable,
+  Evidence,
+  Hypothesis,
+  ExplanationResult,
 } from '@agentic-obs/common'
 import type {
   IDashboardAgentStore,
   IConversationStore,
   IInvestigationReportStore,
+  IInvestigationStore,
   IAlertRuleStore,
   DatasourceConfig,
 } from './types.js'
@@ -36,6 +40,7 @@ export interface OrchestratorDeps {
   store: IDashboardAgentStore
   conversationStore: IConversationStore
   investigationReportStore: IInvestigationReportStore
+  investigationStore?: IInvestigationStore
   alertRuleStore: IAlertRuleStore
   metricsAdapter?: IMetricsAdapter
   /** All configured datasources - used to inform the LLM about available environments */
@@ -135,7 +140,7 @@ export class OrchestratorAgent {
 
     this.verifierAgent = new VerifierAgent()
 
-    console.log(`[Orchestrator] init: metricsAdapter=${deps.metricsAdapter ? 'SET' : 'UNSET'}, investigationAgent=${this.investigationAgent ? 'YES' : 'NO'}`)
+    log.info(`[Orchestrator] init: metricsAdapter=${deps.metricsAdapter ? 'SET' : 'UNSET'}, investigationAgent=${this.investigationAgent ? 'YES' : 'NO'}`)
   }
 
   private emitAgentEvent(event: AgentEvent): void {
@@ -471,13 +476,53 @@ export class OrchestratorAgent {
     }
   }
 
+  private extractEvidenceFromReport(
+    report: { sections: Array<{ type: string, content?: string, panel?: Dashboard['panels'][number] }> },
+  ): Evidence[] {
+    const evidence: Evidence[] = []
+    for (const section of report.sections) {
+      if (section.type !== 'evidence' || !section.panel)
+        continue
+      const query = section.panel.queries?.[0]?.expr ?? section.panel.query ?? ''
+      evidence.push({
+        id: randomUUID(),
+        hypothesisId: '',
+        type: 'metric',
+        query,
+        queryLanguage: 'promql',
+        result: { query, series: [], totalSeries: 0 },
+        summary: section.content ?? section.panel.title,
+        timestamp: new Date().toISOString(),
+        reproducible: true,
+      })
+    }
+    return evidence
+  }
+
+  private extractHypothesesFromSummary(
+    investigationId: string,
+    summary: string,
+    evidence: Evidence[],
+  ): Hypothesis[] {
+    return [{
+      id: randomUUID(),
+      investigationId,
+      description: summary,
+      confidence: 0.7,
+      confidenceBasis: `Based on ${evidence.length} evidence items`,
+      status: 'supported',
+      evidenceIds: evidence.map((item) => item.id),
+      counterEvidenceIds: [],
+    }]
+  }
+
   private async executeAction(dashboardId: string, step: ReActStep, userMessage = ''): Promise<string | null> {
     const { action, args } = step
     const agentDef = OrchestratorAgent.definition;
 
     // --- Tool boundary enforcement ---
     if (!agentDef.allowedTools.includes(action as AgentToolName)) {
-      console.warn(`[Orchestrator] agent attempted undeclared tool "${action}" — blocked`);
+      log.warn(`[Orchestrator] agent attempted undeclared tool "${action}" — blocked`);
       this.emitAgentEvent(this.makeAgentEvent('agent.tool_blocked', { tool: action, reason: 'undeclared_tool' }));
       return `Tool "${action}" is not permitted for this agent.`;
     }
@@ -485,12 +530,12 @@ export class OrchestratorAgent {
     // --- Permission mode enforcement ---
     const permissionResult = checkPermission(agentDef.permissionMode, action);
     if (permissionResult === 'block') {
-      console.warn(`[Orchestrator] mutation "${action}" blocked — agent is read_only`);
+      log.warn(`[Orchestrator] mutation "${action}" blocked — agent is read_only`);
       this.emitAgentEvent(this.makeAgentEvent('agent.tool_blocked', { tool: action, reason: 'read_only' }));
       return `Action "${action}" is blocked: agent is in read-only mode.`;
     }
     if (permissionResult === 'approval_required') {
-      console.info(`[Orchestrator] mutation "${action}" requires approval — emitting proposal`);
+      log.info(`[Orchestrator] mutation "${action}" requires approval — emitting proposal`);
       this.emitAgentEvent(this.makeAgentEvent('agent.artifact_proposed', { tool: action, args }));
       this.deps.sendEvent({
         type: 'approval_required',
@@ -772,14 +817,6 @@ export class OrchestratorAgent {
               : 0,
           })
 
-          // Investigation type is now handled by the independent Investigation system
-          await this.actionExecutor.execute(dashboardId, [{
-            type: 'set_title',
-            title: `Investigation: ${goal.length > 60 ? goal.slice(0, 60) + '...' : goal}`,
-          }])
-
-          this.deps.sendEvent({ type: 'investigation_report', report: result.report })
-
           // Run verification on the investigation report
           const verificationReport = await this.verifierAgent.verify('investigation_report', result.report, {
             metricsAdapter: this.deps.metricsAdapter,
@@ -791,8 +828,10 @@ export class OrchestratorAgent {
             summary: verificationReport.summary,
           }));
 
+          // Save report and provide a navigable link
+          const reportId = randomUUID()
           this.deps.investigationReportStore.save({
-            id: randomUUID(),
+            id: reportId,
             dashboardId,
             goal,
             summary: result.summary,
@@ -800,11 +839,53 @@ export class OrchestratorAgent {
             createdAt: new Date().toISOString(),
           })
 
+          if (this.deps.investigationStore) {
+            const investigation = await this.deps.investigationStore.create({
+              question: goal,
+              sessionId: `ses_dash_${Date.now()}`,
+              userId: currentDash.userId ?? 'anonymous',
+            })
+
+            const evidence = this.extractEvidenceFromReport(result.report)
+            const hypotheses = this.extractHypothesesFromSummary(investigation.id, result.summary, evidence)
+            const conclusion: ExplanationResult = {
+              summary: result.summary,
+              rootCause: null,
+              confidence: 0.7,
+              recommendedActions: [],
+            }
+
+            await this.deps.investigationStore.updatePlan(investigation.id, {
+              entity: currentDash.title,
+              objective: goal,
+              steps: [
+                { id: 'plan', type: 'plan', description: 'Plan investigation queries', status: 'completed' },
+                { id: 'query', type: 'query', description: 'Execute Prometheus queries', status: 'completed' },
+                { id: 'analyze', type: 'analyze', description: 'Analyze evidence and generate report', status: 'completed' },
+              ],
+              stopConditions: [],
+            })
+            await this.deps.investigationStore.updateResult(investigation.id, {
+              hypotheses,
+              evidence,
+              conclusion,
+            })
+            await this.deps.investigationReportStore.save({
+              id: randomUUID(),
+              dashboardId: investigation.id,
+              goal,
+              summary: result.report.summary,
+              sections: result.report.sections,
+              createdAt: new Date().toISOString(),
+            })
+            await this.deps.investigationStore.updateStatus(investigation.id, 'completed')
+          }
+
           const observationText = result.summary
           this.deps.sendEvent({
             type: 'tool_result',
             tool: 'investigate',
-            summary: `Investigation complete - ${result.panels.length} evidence panels added`,
+            summary: `Investigation complete — ${result.panels.length} evidence panels added. [View report](/investigations)`,
             success: !verificationReport || verificationReport.status !== 'failed',
           })
           this.emitAgentEvent(this.makeAgentEvent('agent.tool_completed', { tool: 'investigate', summary: observationText }));
@@ -1226,7 +1307,7 @@ If an observation says the panel edit is complete or that no further dashboard m
 8. If you receive an observation starting with "CLARIFICATION_NEEDED:", use the ask_user tool to relay the clarification message to the user. Do NOT try to generate a dashboard without relevant metrics.
 9. NEVER modify the dashboard (set_title, modify_panel, remove_panels, add_panels, generate_dashboard) as a side effect of another action. If the user asks to create an alert rule, ONLY create the alert rule — do NOT change the dashboard title, panels, or layout. Each user request should do exactly one thing.
 10. When the current message is a follow-up about an existing alert rule, use the Active Alert Rule Context and Structured Alert History to decide between modify_alert_rule and delete_alert_rule. Do not create a new alert rule unless the user is clearly asking for an additional alert.
-11. After completing an action, use "reply" to confirm the result. Do NOT chain additional actions unless the user explicitly asked for multiple things.
+11. After completing an action, use "reply" to confirm the result. Do NOT chain additional actions or suggest follow-up actions (like creating alerts or dashboards) unless the user explicitly asked for multiple things. Just report what was done.
 12. For panel edit requests, prefer "modify_panel" over "add_panels" whenever the user is changing, merging, splitting, replacing, or reworking existing panels. The panel editor can decide whether replacement panels need to be generated internally.
 
 ## Response Format

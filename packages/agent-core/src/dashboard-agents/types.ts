@@ -119,6 +119,25 @@ export interface IInvestigationReportStore {
   save(report: import('@agentic-obs/common').SavedInvestigationReport): void
 }
 
+export interface IInvestigationStore {
+  create(params: {
+    question: string
+    sessionId: string
+    userId: string
+    entity?: string
+    timeRange?: { start: string, end: string }
+    tenantId?: string
+    workspaceId?: string
+  }): import('@agentic-obs/common').Investigation | Promise<import('@agentic-obs/common').Investigation>
+  updateStatus(id: string, status: import('@agentic-obs/common').InvestigationStatus): unknown
+  updatePlan(id: string, plan: import('@agentic-obs/common').Investigation['plan']): unknown
+  updateResult(id: string, result: {
+    hypotheses: import('@agentic-obs/common').Hypothesis[]
+    evidence: import('@agentic-obs/common').Evidence[]
+    conclusion: import('@agentic-obs/common').ExplanationResult | null
+  }): unknown
+}
+
 export interface IAlertRuleStore {
   create(data: Record<string, unknown>): { name: string, severity: string, evaluationIntervalSec: number, condition: { query: string, operator: string, threshold: number, forDurationSec: number }, id?: string } | Promise<{ name: string, severity: string, evaluationIntervalSec: number, condition: { query: string, operator: string, threshold: number, forDurationSec: number }, id?: string }>
   update?(id: string, patch: Record<string, unknown>): unknown
