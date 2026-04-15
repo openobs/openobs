@@ -70,11 +70,9 @@ export default function Home() {
   const [focused, setFocused] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [thinkingText, setThinkingText] = useState<string | null>(null);
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
   const [alertCount, setAlertCount] = useState<number | null>(null);
   const [deletingDashId, setDeletingDashId] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
 
   const handleDeleteDashboard = useCallback(async (id: string) => {
     const res = await apiClient.delete(`/dashboards/${id}`);
@@ -103,56 +101,27 @@ export default function Home() {
 
       setSubmitting(true);
       setSubmitError(null);
-      setThinkingText(null);
-
-      abortRef.current?.abort();
-      abortRef.current = new AbortController();
 
       try {
-        await apiClient.postStream(
-          '/agent/chat',
-          { message: trimmed, context: { kind: 'home' } },
-          (eventType: string, rawData: string) => {
-            let parsed: Record<string, unknown> = {};
-            try {
-              parsed = JSON.parse(rawData) as Record<string, unknown>;
-            } catch {
-              return;
-            }
+        // Create a new dashboard and navigate to it — the agent handles everything from there
+        const res = await apiClient.post<{ id: string }>('/dashboards', {
+          prompt: trimmed,
+          title: 'Untitled Dashboard',
+          stream: true, // don't trigger background generation — let the chat handle it
+        });
 
-            switch (eventType) {
-              case 'thinking':
-                break;
-              case 'intent':
-                break;
-              case 'done': {
-                const intent = parsed.intent as string;
-                setThinkingText(null);
-                const nav = parsed.navigate as string;
-                if (intent === 'alert') {
-                  navigate(nav || '/alerts');
-                } else {
-                  navigate(nav || '/', { state: { initialPrompt: trimmed } });
-                }
-                break;
-              }
-              case 'error':
-                setSubmitError((parsed.message as string) ?? 'Something went wrong');
-                setSubmitting(false);
-                setThinkingText(null);
-                break;
-              default:
-                break;
-            }
-          },
-          abortRef.current.signal,
-        );
+        if (res.error || !res.data?.id) {
+          setSubmitError(typeof res.error === 'string' ? res.error : 'Failed to create dashboard');
+          setSubmitting(false);
+          return;
+        }
+
+        navigate(`/dashboards/${res.data.id}`, { state: { initialPrompt: trimmed } });
       } catch (err) {
-        if (err instanceof Error && err.name !== 'AbortError') {
+        if (err instanceof Error) {
           setSubmitError(err.message || 'Network error - please try again.');
         }
         setSubmitting(false);
-        setThinkingText(null);
       }
     },
     [prompt, submitting, navigate]

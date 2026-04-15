@@ -9,6 +9,10 @@ import type { DashboardSseEvent } from '@agentic-obs/common'
 const log = createLogger('react-loop')
 
 const MAX_ITERATIONS = 15
+/** Keep the last N observations in full; older ones are summarized to save context. */
+const OBSERVATION_KEEP_RECENT = 6
+/** Truncate individual observation text to this many characters. */
+const OBSERVATION_MAX_CHARS = 2000
 
 export interface ReActStep {
   thought: string
@@ -17,6 +21,9 @@ export interface ReActStep {
   action: string
   args: Record<string, unknown>
 }
+
+/** Actions that commit a final result and exit the loop. */
+const TERMINAL_ACTIONS = new Set(['reply', 'ask_user', 'finish'])
 
 export interface ReActObservation {
   action: string
@@ -102,23 +109,18 @@ export class ReActLoop {
       lastDraftReply = chatReply
       log.info({ step: i, action, message: chatReply?.slice(0, 80), args: JSON.stringify(args).slice(0, 200) }, 'ReAct step')
 
-      if (action === 'reply') {
-        const text = chatReply ?? (typeof step.args.text === 'string' ? step.args.text : '')
+      // --- Terminal actions: exit the loop immediately ---
+      if (TERMINAL_ACTIONS.has(action)) {
+        const text = action === 'ask_user'
+          ? (chatReply ?? (typeof step.args.question === 'string' ? step.args.question : ''))
+          : (chatReply ?? (typeof step.args.text === 'string' ? step.args.text : ''))
         if (text) {
           this.deps.sendEvent({ type: 'reply', content: text })
         }
         return text
       }
 
-      if (action === 'ask_user') {
-        const question = chatReply ?? (typeof step.args.question === 'string' ? step.args.question : '')
-        if (question) {
-          this.deps.sendEvent({ type: 'reply', content: question })
-        }
-        return question
-      }
-
-      // Delegate action execution to the caller
+      // --- Non-terminal action: execute and continue the loop ---
       const observationText = await executeAction(step)
 
       // null means the action handler already returned a final response
@@ -128,16 +130,7 @@ export class ReActLoop {
       const observation = observationText
       lastObservation = observation
 
-      if (observation.startsWith('CLARIFICATION_NEEDED:')) {
-        observations.push({ action, args: step.args ?? {}, result: observation })
-        continue
-      }
-
       observations.push({ action, args: step.args ?? {}, result: observation })
-      // Stop after the first successful action — every action this loop
-      // handles is a single-shot mutation (or investigation), so there's
-      // nothing to gain from asking the LLM for another ReAct step.
-      break
     }
 
     if (lastAction && lastObservation) {
@@ -167,14 +160,29 @@ export class ReActLoop {
       { role: 'user', content: userMessage },
     ]
 
-    for (const obs of observations) {
+    // Compress older observations to save context window.
+    // Keep the last OBSERVATION_KEEP_RECENT in full; summarize earlier ones.
+    const cutoff = Math.max(0, observations.length - OBSERVATION_KEEP_RECENT)
+
+    for (let i = 0; i < observations.length; i++) {
+      const obs = observations[i]!
       messages.push({
         role: 'assistant',
         content: JSON.stringify({ action: obs.action, args: obs.args }),
       })
+
+      let resultText = obs.result
+      if (i < cutoff) {
+        // Older observation — compress to a one-line summary
+        resultText = `[Earlier observation] ${obs.action}: ${obs.result.slice(0, 120)}${obs.result.length > 120 ? '...' : ''}`
+      } else if (resultText.length > OBSERVATION_MAX_CHARS) {
+        // Recent but very long — truncate
+        resultText = resultText.slice(0, OBSERVATION_MAX_CHARS) + `\n... (truncated, ${resultText.length} chars total)`
+      }
+
       messages.push({
         role: 'user',
-        content: `Observation: ${obs.result}`,
+        content: `Observation: ${resultText}`,
       })
     }
 

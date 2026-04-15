@@ -277,11 +277,10 @@ export function createAlertRulesRouter(deps: AlertRulesRouterDeps = {}): Router 
         return;
       }
 
-      if (!deps.investigationStore || !deps.feedStore) {
+      if (!deps.investigationStore) {
         res.status(503).json({ code: 'NOT_CONFIGURED', message: 'Investigation stores not configured' });
         return;
       }
-      const { LiveOrchestratorRunner } = await import('../services/investigation-runner-service.js');
 
       const question = `Investigate alert "${rule.name}": ${rule.condition.query} ${rule.condition.operator} ${rule.condition.threshold}`;
       const investigation = await deps.investigationStore.create({
@@ -290,14 +289,7 @@ export function createAlertRulesRouter(deps: AlertRulesRouterDeps = {}): Router 
         userId: 'alert-system',
       });
 
-      const orchestrator = new LiveOrchestratorRunner(deps.investigationStore, deps.feedStore, deps.reportStore);
-      orchestrator.run({
-        investigationId: investigation.id,
-        question: investigation.intent,
-        sessionId: investigation.sessionId,
-        userId: investigation.userId,
-      });
-
+      // Investigation orchestration now handled by the dashboard agent via chat
       await store.update(rule.id, { investigationId: investigation.id });
 
       res.json({ investigationId: investigation.id, existing: false });

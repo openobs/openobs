@@ -11,14 +11,11 @@ import { investigationOpenApiSpec } from './openapi.js';
 import type { SharePermission, IGatewayInvestigationStore, IGatewayFeedStore, IGatewayShareStore, IInvestigationReportRepository } from '@agentic-obs/data-layer';
 import type { CreateInvestigationBody, FollowUpBody, FeedbackBody } from './types.js';
 import { initSse, sendSseEvent, sendSseKeepAlive, closeSse } from './sse.js';
-import { LiveOrchestratorRunner } from '../../services/investigation-runner-service.js';
-import type { OrchestratorRunner } from './orchestrator-runner.js';
 import { getWorkspaceId } from '../../middleware/workspace-context.js';
 
 export interface InvestigationRouterDeps {
   store: IGatewayInvestigationStore;
   feed: IGatewayFeedStore;
-  orchestrator?: OrchestratorRunner;
   shareRepo: IGatewayShareStore;
   reportStore: IInvestigationReportRepository;
 }
@@ -29,7 +26,6 @@ export function createInvestigationRouter(
   const store: IGatewayInvestigationStore = deps.store;
   const feed: IGatewayFeedStore = deps.feed;
   const reportStore: IInvestigationReportRepository = deps.reportStore;
-  const orchestrator: OrchestratorRunner = deps.orchestrator ?? new LiveOrchestratorRunner(store, feed, reportStore);
   const shareRepo: IGatewayShareStore = deps.shareRepo;
 
   const router = Router();
@@ -59,14 +55,7 @@ export function createInvestigationRouter(
         workspaceId,
       });
 
-      // Async orchestration - does not block the HTTP response
-      orchestrator.run({
-        investigationId: investigation.id,
-        question: investigation.intent,
-        sessionId: investigation.sessionId,
-        userId: investigation.userId,
-      });
-
+      // Investigation orchestration now handled by the dashboard agent via chat
       res.status(201).json(investigation);
     } catch (err) {
       next(err);

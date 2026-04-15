@@ -68,7 +68,7 @@ export const USER_VISIBLE_TOOLS = new Set([
   'create_alert_rule',
   'modify_alert_rule',
   'delete_alert_rule',
-  // Dashboard generation sub-phases
+  // Dashboard generation sub-phases (legacy composite pipeline)
   'research',
   'web_search',
   'discover',
@@ -85,6 +85,24 @@ export const USER_VISIBLE_TOOLS = new Set([
   'investigate_plan',
   'investigate_query',
   'investigate_analyze',
+  // Prometheus primitives (runtime-first toolized access)
+  'prometheus.query',
+  'prometheus.range_query',
+  'prometheus.labels',
+  'prometheus.label_values',
+  'prometheus.series',
+  'prometheus.metadata',
+  'prometheus.metric_names',
+  'prometheus.validate',
+  // Dashboard mutation primitives
+  'dashboard.add_panels',
+  'dashboard.remove_panels',
+  'dashboard.modify_panel',
+  'dashboard.rearrange',
+  'dashboard.add_variable',
+  'dashboard.set_title',
+  // Web search primitive
+  'web_search',
 ]);
 
 /**
@@ -93,23 +111,30 @@ export const USER_VISIBLE_TOOLS = new Set([
  * Convention: tool names with common prefix group together.
  */
 export function phaseOf(tool: string): string {
-  // Underscore-delimited prefix grouping
-  // discover_metrics, discover_labels, sample_metrics → discover
-  // investigate_plan, investigate_query, investigate_analyze → investigate
-  // generate_group, generate_panels → generate
-  // panel_adder_generate, panel_adder_critic → panel_adder
-  // web_search → research (special case since research agent calls it)
-  if (tool === 'web_search') return 'research';
+  // Prometheus primitives — group by activity type
+  if (tool === 'prometheus.metric_names' || tool === 'prometheus.series' || tool === 'prometheus.metadata') return 'discover';
+  if (tool === 'prometheus.labels' || tool === 'prometheus.label_values') return 'discover';
+  if (tool === 'prometheus.query' || tool === 'prometheus.range_query') return 'query';
+  if (tool === 'prometheus.validate') return 'validate';
+
+  // Dashboard mutation primitives
+  if (tool.startsWith('dashboard.')) return 'dashboard';
+
+  // Web search
+  if (tool === 'web_search' || tool === 'web.search') return 'research';
+
+  // Legacy composite pipeline phases
   if (tool === 'sample_metrics') return 'discover';
   if (tool === 'validate_query' || tool === 'fix_query') return 'generate';
   if (tool === 'critic' || tool === 'build_progress') return 'generate';
 
+  // Underscore-delimited prefix grouping for remaining tools
   const parts = tool.split('_');
   return parts.length > 1 ? parts.slice(0, -1).join('_') : tool;
 }
 
 export const TOOL_LABELS: Record<string, string> = {
-  // Dashboard generation phases
+  // Dashboard generation phases (legacy composite)
   research: 'Researching',
   web_search: 'Researching',
   discover: 'Discovering metrics',
@@ -123,6 +148,22 @@ export const TOOL_LABELS: Record<string, string> = {
   validate_query: 'Validating queries',
   fix_query: 'Fixing queries',
   critic: 'Reviewing panels',
+  // Prometheus primitives
+  'prometheus.query': 'Querying Prometheus',
+  'prometheus.range_query': 'Querying time range',
+  'prometheus.labels': 'Discovering labels',
+  'prometheus.label_values': 'Discovering label values',
+  'prometheus.series': 'Searching series',
+  'prometheus.metadata': 'Fetching metadata',
+  'prometheus.metric_names': 'Listing metrics',
+  'prometheus.validate': 'Validating PromQL',
+  // Dashboard mutation primitives
+  'dashboard.add_panels': 'Adding panels',
+  'dashboard.remove_panels': 'Removing panels',
+  'dashboard.modify_panel': 'Modifying panel',
+  'dashboard.rearrange': 'Rearranging layout',
+  'dashboard.add_variable': 'Adding variable',
+  'dashboard.set_title': 'Setting title',
   // Panel operations
   add_panels: 'Adding panels',
   remove_panels: 'Removing panels',

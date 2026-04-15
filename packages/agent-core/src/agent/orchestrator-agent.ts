@@ -2,7 +2,6 @@ import { createLogger, getErrorMessage } from '@agentic-obs/common'
 import type {
   DashboardSseEvent,
   DashboardAction,
-  Dashboard,
 } from '@agentic-obs/common'
 import type {
   IDashboardAgentStore,
@@ -12,21 +11,15 @@ import type {
   IAlertRuleStore,
   DatasourceConfig,
 } from './types.js'
-import type { IMetricsAdapter } from '../adapters/index.js'
+import type { IMetricsAdapter, IWebSearchAdapter } from '../adapters/index.js'
 import type { LLMGateway } from '@agentic-obs/llm-gateway'
-import { DashboardGeneratorAgent } from './dashboard-generator-agent.js'
-import { PanelAdderAgent } from './panel-adder-agent.js'
-import { PanelEditorAgent } from './panel-editor-agent.js'
-import { PanelExplainAgent } from './panel-explain-agent.js'
-import { InvestigationAgent } from './investigation-agent.js'
 import { ActionExecutor } from './action-executor.js'
 import { AlertRuleAgent } from './alert-rule-agent.js'
 import { ReActLoop } from './react-loop.js'
 import type { ReActStep } from './react-loop.js'
-import { VerifierAgent } from '../verification/verifier-agent.js'
-import { agentRegistry } from '../runtime/agent-registry.js'
-import type { AgentToolName, AgentPermissionMode } from '../runtime/agent-types.js'
-import type { AgentEvent } from '../runtime/agent-events.js'
+import { agentRegistry } from './agent-registry.js'
+import type { AgentToolName, AgentPermissionMode } from './agent-types.js'
+import type { AgentEvent } from './agent-events.js'
 import type { AlertRuleSummary } from './orchestrator-alert-helpers.js'
 import {
   getStructuredAlertRuleContext,
@@ -36,15 +29,23 @@ import {
 import { buildSystemPrompt } from './orchestrator-prompt.js'
 import type { ActionContext } from './orchestrator-action-handlers.js'
 import {
-  handleGenerateDashboard,
-  handleAddPanels,
-  handleInvestigate,
-  handlePanelEdit,
-  handleAddVariable,
-  handleSetTitle,
   handleCreateAlertRule,
   handleModifyAlertRule,
   handleDeleteAlertRule,
+  handleDashboardAddPanels,
+  handleDashboardSetTitle,
+  handleDashboardRemovePanels,
+  handleDashboardModifyPanel,
+  handleDashboardAddVariable,
+  handlePrometheusQuery,
+  handlePrometheusRangeQuery,
+  handlePrometheusLabels,
+  handlePrometheusLabelValues,
+  handlePrometheusSeries,
+  handlePrometheusMetadata,
+  handlePrometheusMetricNames,
+  handlePrometheusValidate,
+  handleWebSearch,
 } from './orchestrator-action-handlers.js'
 
 export interface OrchestratorDeps {
@@ -56,17 +57,17 @@ export interface OrchestratorDeps {
   investigationStore?: IInvestigationStore
   alertRuleStore: IAlertRuleStore
   metricsAdapter?: IMetricsAdapter
-  /** All configured datasources - used to inform the LLM about available environments */
+  webSearchAdapter?: IWebSearchAdapter
   allDatasources?: DatasourceConfig[]
   sendEvent: (event: DashboardSseEvent) => void
   timeRange?: { start: string; end: string; timezone?: string }
-  /** Maximum total tokens per chat message. Default: 50000 */
   maxTokenBudget?: number
 }
 
 const MUTATION_ACTIONS = [
-  'add_panels', 'remove_panels', 'modify_panel', 'rearrange',
-  'add_variable', 'set_title', 'generate_dashboard', 'create_alert_rule', 'modify_alert_rule', 'delete_alert_rule',
+  'dashboard.add_panels', 'dashboard.remove_panels', 'dashboard.modify_panel',
+  'dashboard.rearrange', 'dashboard.add_variable', 'dashboard.set_title',
+  'create_alert_rule', 'modify_alert_rule', 'delete_alert_rule',
 ] as const;
 
 function checkPermission(mode: AgentPermissionMode, action: string): 'allow' | 'block' | 'approval_required' | 'propose_only' {
@@ -81,54 +82,16 @@ function checkPermission(mode: AgentPermissionMode, action: string): 'allow' | '
 const log = createLogger('orchestrator')
 
 export class OrchestratorAgent {
-  static readonly definition = agentRegistry.get('intent-router')!;
+  static readonly definition = agentRegistry.get('orchestrator')!;
 
   private readonly actionExecutor: ActionExecutor
-  private readonly generatorAgent: DashboardGeneratorAgent
-  private readonly panelAdderAgent: PanelAdderAgent
-  private readonly panelEditorAgent: PanelEditorAgent
-  private readonly panelExplainAgent?: PanelExplainAgent
-  private readonly investigationAgent?: InvestigationAgent
   private readonly alertRuleAgent: AlertRuleAgent
   private readonly reactLoop: ReActLoop
-  private readonly verifierAgent: VerifierAgent
   private pendingConversationActions: DashboardAction[] = []
   private pendingNavigateTo?: string
 
   constructor(private deps: OrchestratorDeps) {
     this.actionExecutor = new ActionExecutor(deps.store, deps.sendEvent)
-
-    const subAgentDeps = {
-      gateway: deps.gateway,
-      model: deps.model,
-      metrics: deps.metricsAdapter,
-      sendEvent: deps.sendEvent,
-    }
-
-    this.generatorAgent = new DashboardGeneratorAgent(subAgentDeps)
-    this.panelAdderAgent = new PanelAdderAgent(subAgentDeps)
-    this.panelEditorAgent = new PanelEditorAgent({
-      gateway: deps.gateway,
-      model: deps.model,
-      panelAdderAgent: this.panelAdderAgent,
-    })
-
-    if (deps.metricsAdapter) {
-      this.panelExplainAgent = new PanelExplainAgent({
-        gateway: deps.gateway,
-        model: deps.model,
-        metrics: deps.metricsAdapter,
-      })
-    }
-
-    if (deps.metricsAdapter) {
-      this.investigationAgent = new InvestigationAgent({
-        gateway: deps.gateway,
-        model: deps.model,
-        metrics: deps.metricsAdapter,
-        sendEvent: deps.sendEvent,
-      })
-    }
 
     this.alertRuleAgent = new AlertRuleAgent({
       gateway: deps.gateway,
@@ -143,9 +106,7 @@ export class OrchestratorAgent {
       maxTokenBudget: deps.maxTokenBudget,
     })
 
-    this.verifierAgent = new VerifierAgent()
-
-    log.info(`[Orchestrator] init: metricsAdapter=${deps.metricsAdapter ? 'SET' : 'UNSET'}, investigationAgent=${this.investigationAgent ? 'YES' : 'NO'}`)
+    log.info(`[Orchestrator] init: metricsAdapter=${deps.metricsAdapter ? 'SET' : 'UNSET'}`)
   }
 
   private emitAgentEvent(event: AgentEvent): void {
@@ -176,32 +137,6 @@ export class OrchestratorAgent {
     return navigateTo
   }
 
-  private isPanelExplanationRequest(message: string): boolean {
-    const text = message.trim().toLowerCase()
-    if (!text) return false
-    return /(how is|what.*show|explain|interpret|analy[sz]e|describe|tell me about|walk me through|break down|summarize)/i.test(text)
-      && /(panel|latency|error|rate|request|duration|p\d+|average|avg|http|metric|data|trend|chart)/i.test(text)
-  }
-
-  private findRelevantPanel(message: string, dashboard: Dashboard): Dashboard['panels'][number] | null {
-    const lowered = message.toLowerCase()
-    const scored = dashboard.panels.map((panel) => {
-      const title = panel.title.toLowerCase()
-      const description = (panel.description ?? '').toLowerCase()
-      let score = 0
-      if (lowered.includes(title)) score += 5
-      const titleTokens = title.split(/[^a-z0-9\u4e00-\u9fa5]+/i).filter((token) => token.length >= 2)
-      for (const token of titleTokens) {
-        if (lowered.includes(token)) score += 1
-      }
-      if (description && lowered.includes(description)) score += 2
-      return { panel, score }
-    })
-
-    scored.sort((left, right) => right.score - left.score)
-    return scored[0] && scored[0].score > 0 ? scored[0].panel : null
-  }
-
   async handleMessage(dashboardId: string, message: string): Promise<string> {
     this.emitAgentEvent(this.makeAgentEvent('agent.started', { dashboardId, message }));
     this.pendingConversationActions = []
@@ -214,28 +149,6 @@ export class OrchestratorAgent {
     }
 
     const history = await this.deps.conversationStore.getMessages(dashboardId)
-
-    if (this.panelExplainAgent && this.isPanelExplanationRequest(message)) {
-      const panel = this.findRelevantPanel(message, dashboard)
-      if (panel && (panel.queries?.length || panel.query)) {
-        const explainablePanel = panel.queries?.length
-          ? panel
-          : {
-              ...panel,
-              queries: panel.query ? [{ refId: 'A', expr: panel.query, instant: panel.visualization !== 'time_series' }] : [],
-            }
-
-        const reply = await this.panelExplainAgent.explain({
-          userRequest: message,
-          dashboard,
-          panel: explainablePanel,
-          timeRange: this.deps.timeRange,
-        })
-        this.deps.sendEvent({ type: 'reply', content: reply })
-        this.emitAgentEvent(this.makeAgentEvent('agent.completed', { dashboardId, mode: 'panel_explanation', panelId: panel.id }))
-        return reply
-      }
-    }
 
     // Fetch existing alert rules so LLM can reference them for modify/delete
     let alertRules: AlertRuleSummary[] = []
@@ -260,7 +173,9 @@ export class OrchestratorAgent {
       return finalReply
     }
 
-    const systemPrompt = buildSystemPrompt(dashboard, history, alertRules, activeAlertRule, this.deps.allDatasources ?? [])
+    const systemPrompt = buildSystemPrompt(dashboard, history, alertRules, activeAlertRule, this.deps.allDatasources ?? [], {
+      hasPrometheus: !!this.deps.metricsAdapter,
+    })
 
     try {
       const result = await this.reactLoop.runLoop(
@@ -289,15 +204,11 @@ export class OrchestratorAgent {
       investigationStore: this.deps.investigationStore,
       alertRuleStore: this.deps.alertRuleStore,
       metricsAdapter: this.deps.metricsAdapter,
+      webSearchAdapter: this.deps.webSearchAdapter,
       allDatasources: this.deps.allDatasources,
       sendEvent: this.deps.sendEvent,
       actionExecutor: this.actionExecutor,
-      generatorAgent: this.generatorAgent,
-      panelAdderAgent: this.panelAdderAgent,
-      panelEditorAgent: this.panelEditorAgent,
-      investigationAgent: this.investigationAgent,
       alertRuleAgent: this.alertRuleAgent,
-      verifierAgent: this.verifierAgent,
       emitAgentEvent: (event) => this.emitAgentEvent(event),
       makeAgentEvent: (type, metadata) => this.makeAgentEvent(type, metadata),
       pushConversationAction: (action) => this.pendingConversationActions.push(action),
@@ -305,7 +216,7 @@ export class OrchestratorAgent {
     }
   }
 
-  private async executeAction(dashboardId: string, step: ReActStep, userMessage = ''): Promise<string | null> {
+  private async executeAction(dashboardId: string, step: ReActStep, _userMessage = ''): Promise<string | null> {
     const { action, args } = step
     const agentDef = OrchestratorAgent.definition;
 
@@ -353,22 +264,34 @@ export class OrchestratorAgent {
 
     try {
       switch (action) {
-        case 'generate_dashboard': return handleGenerateDashboard(ctx, dashboardId, args)
-        case 'add_panels': return handleAddPanels(ctx, dashboardId, args)
-        case 'investigate': return handleInvestigate(ctx, dashboardId, args)
-        case 'remove_panels': return handlePanelEdit(ctx, dashboardId, userMessage, 'remove_panels', args)
-        case 'modify_panel': return handlePanelEdit(ctx, dashboardId, userMessage, 'modify_panel', args)
-        case 'rearrange': return handlePanelEdit(ctx, dashboardId, userMessage, 'rearrange', args)
-        case 'add_variable': return handleAddVariable(ctx, dashboardId, args)
-        case 'set_title': return handleSetTitle(ctx, dashboardId, args)
+        // Dashboard mutation primitives
+        case 'dashboard.add_panels': return handleDashboardAddPanels(ctx, dashboardId, args)
+        case 'dashboard.set_title': return handleDashboardSetTitle(ctx, dashboardId, args)
+        case 'dashboard.remove_panels': return handleDashboardRemovePanels(ctx, dashboardId, args)
+        case 'dashboard.modify_panel': return handleDashboardModifyPanel(ctx, dashboardId, args)
+        case 'dashboard.add_variable': return handleDashboardAddVariable(ctx, dashboardId, args)
+        // Alert rules
         case 'create_alert_rule': return handleCreateAlertRule(ctx, dashboardId, args)
         case 'modify_alert_rule': return handleModifyAlertRule(ctx, dashboardId, args)
         case 'delete_alert_rule': return handleDeleteAlertRule(ctx, dashboardId, args)
+        // Prometheus primitives
+        case 'prometheus.query': return handlePrometheusQuery(ctx, args)
+        case 'prometheus.range_query': return handlePrometheusRangeQuery(ctx, args)
+        case 'prometheus.labels': return handlePrometheusLabels(ctx, args)
+        case 'prometheus.label_values': return handlePrometheusLabelValues(ctx, args)
+        case 'prometheus.series': return handlePrometheusSeries(ctx, args)
+        case 'prometheus.metadata': return handlePrometheusMetadata(ctx, args)
+        case 'prometheus.metric_names': return handlePrometheusMetricNames(ctx)
+        case 'prometheus.validate': return handlePrometheusValidate(ctx, args)
+        // Web search
+        case 'web.search': return handleWebSearch(ctx, args)
+        // 'finish' is handled as a terminal action in ReActLoop
+        case 'finish': return null
         default: return `Unknown action "${action}" - skipping.`
       }
     }
     catch (err) {
-      const observationText = `Action "${action}" failed: ${getErrorMessage(err)}. Do NOT retry this action — inform the user of the error and use the "reply" action to end.`
+      const observationText = `Action "${action}" failed: ${getErrorMessage(err)}. Do NOT retry — use "reply" to inform the user.`
       this.deps.sendEvent({
         type: 'tool_result',
         tool: action,

@@ -342,11 +342,9 @@ export function useDashboardChat(
 
       try {
         await apiClient.postStream(
-          `/agent/chat`,
+          `/dashboards/${dashboardId}/chat`,
           {
             message: content,
-            sessionId: sessionIdRef.current,
-            context: { kind: 'dashboard', id: dashboardId },
             timeRange: resolveChatTimeRange(timeRange),
           },
           handleSSEEvent,

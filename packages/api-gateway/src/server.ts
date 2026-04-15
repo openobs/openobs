@@ -8,10 +8,8 @@ import { defaultRateLimiter, createRateLimiter } from './middleware/rate-limiter
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
 import { healthRouter } from './routes/health.js';
 import { sessionsRouter } from './routes/sessions.js';
-import { evidenceRouter } from './routes/evidence.js';
 import { createInvestigationRouter, openApiRouter } from './routes/investigation/router.js';
 import { createFeedRouter } from './routes/feed.js';
-import { createIncidentRouter } from './routes/incident.js';
 import { createSharedRouter } from './routes/shared.js';
 import { createMetaRouter } from './routes/meta.js';
 import { createApprovalRouter } from './routes/approval.js';
@@ -26,12 +24,10 @@ import { createQueryRouter } from './routes/dashboard/query.js';
 import { createDashboardRouter } from './routes/dashboard/router.js';
 import { createAlertRulesRouter } from './routes/alert-rules.js';
 import { createNotificationsRouter } from './routes/notifications.js';
-import { createIntentRouter } from './routes/intent.js';
 import { createWorkspaceRouter } from './routes/workspaces.js';
 import { createVersionRouter } from './routes/versions.js';
 import { createFolderRouter } from './routes/folders.js';
 import { createSearchRouter } from './routes/search.js';
-import { createAgentRouter } from './routes/agent.js';
 import {
   createSqliteClient,
   createSqliteRepositories,
@@ -89,7 +85,6 @@ function mountCommonRoutes(app: Application): void {
   app.use('/api/health', healthRouter);
   app.use('/api/sessions', sessionsRouter);
   app.use('/api/openapi.json', openApiRouter);
-  app.use('/api/evidence', evidenceRouter);
   app.use('/api/webhooks', createWebhookRouter());
   app.use('/api/metrics', metricsRouter);
   app.use('/api/setup', createSetupRouter());
@@ -141,11 +136,6 @@ export function createApp(): Application {
       reportStore: repos.investigationReports,
     }));
     app.use('/api/feed', createFeedRouter(eventFeedStore));
-    app.use('/api/incidents', createIncidentRouter({
-      store: repos.incidents,
-      investigationStore: repos.investigations,
-      pmStore: repos.postMortems,
-    }));
     app.use('/api/shared', createSharedRouter({
       shareRepo: repos.shares,
       investigationStore: repos.investigations,
@@ -158,13 +148,6 @@ export function createApp(): Application {
     app.use('/api/notifications', createNotificationsRouter({
       notificationStore: repos.notifications,
       alertRuleStore: eventAlertRuleStore,
-    }));
-    app.use('/api/intent', createIntentRouter({
-      dashboardStore: repos.dashboards,
-      alertRuleStore: eventAlertRuleStore,
-      investigationStore: repos.investigations,
-      feedStore: eventFeedStore,
-      reportStore: repos.investigationReports,
     }));
     app.use('/api/investigation-reports', createInvestigationReportRouter(repos.investigationReports));
     app.use('/api/dashboards', createDashboardRouter({
@@ -189,14 +172,6 @@ export function createApp(): Application {
     }));
     app.use('/api/workspaces', createWorkspaceRouter({ store: repos.workspaces }));
     app.use('/api/versions', createVersionRouter(repos.versions));
-    app.use('/api/agent', createAgentRouter({
-      dashboardStore: repos.dashboards,
-      conversationStore: repos.conversations,
-      investigationReportStore: repos.investigationReports,
-      alertRuleStore: eventAlertRuleStore,
-      investigationStore: repos.investigations,
-      feedStore: eventFeedStore,
-    }));
   } else {
     // -- Legacy in-memory mode with JSON persistence
     app.use('/api/investigations', createInvestigationRouter({
@@ -206,11 +181,6 @@ export function createApp(): Application {
       reportStore: defaultInvestigationReportStore,
     }));
     app.use('/api/feed', createFeedRouter(feedStore));
-    app.use('/api/incidents', createIncidentRouter({
-      store: incidentStore,
-      investigationStore: defaultInvestigationStore,
-      pmStore: postMortemStore,
-    }));
     app.use('/api/shared', createSharedRouter({
       shareRepo: defaultShareStore,
       investigationStore: defaultInvestigationStore,
@@ -223,13 +193,6 @@ export function createApp(): Application {
     app.use('/api/notifications', createNotificationsRouter({
       notificationStore: defaultNotificationStore,
       alertRuleStore: defaultAlertRuleStore,
-    }));
-    app.use('/api/intent', createIntentRouter({
-      dashboardStore: defaultDashboardStore,
-      alertRuleStore: defaultAlertRuleStore,
-      investigationStore: defaultInvestigationStore,
-      feedStore,
-      reportStore: defaultInvestigationReportStore,
     }));
     app.use('/api/investigation-reports', createInvestigationReportRouter(defaultInvestigationReportStore));
     app.use('/api/dashboards', createDashboardRouter({
@@ -254,14 +217,6 @@ export function createApp(): Application {
     }));
     app.use('/api/workspaces', createWorkspaceRouter({ store: defaultWorkspaceStore }));
     app.use('/api/versions', createVersionRouter(defaultVersionStore));
-    app.use('/api/agent', createAgentRouter({
-      dashboardStore: defaultDashboardStore,
-      conversationStore: defaultConversationStore,
-      investigationReportStore: defaultInvestigationReportStore,
-      alertRuleStore: defaultAlertRuleStore,
-      investigationStore: defaultInvestigationStore,
-      feedStore,
-    }));
   }
 
   mountStaticAssets(app);
@@ -305,13 +260,6 @@ export function startServer(port = 3000): void {
   void import('./websocket/gateway.js').then(({ createWebSocketGateway }) => {
     const { httpServer, gateway } = createWebSocketGateway(app);
 
-    // Start the proactive monitoring pipeline.
-    void import('./proactive-pipeline-runner.js').then(async ({ runProactivePipeline }) => {
-      await runProactivePipeline();
-    }).catch((err) => {
-      log.error({ err: err instanceof Error ? err.message : err }, 'proactive pipeline failed to start');
-    });
-
     httpServer.listen(port, () => {
       log.info({ port }, 'API gateway listening');
     });
@@ -331,16 +279,6 @@ export function startServer(port = 3000): void {
       priority: ShutdownPriority.STOP_HTTP_SERVER,
       timeoutMs: 5_000,
       handler: () => gateway.close(),
-    });
-
-    shutdown.register({
-      name: 'proactive-pipeline',
-      priority: ShutdownPriority.STOP_WORKERS,
-      timeoutMs: 10_000,
-      handler: async () => {
-        const { setPipelineRunning } = await import('./routes/health.js');
-        setPipelineRunning(false);
-      },
     });
 
     // Flush in-memory stores to disk only in legacy mode

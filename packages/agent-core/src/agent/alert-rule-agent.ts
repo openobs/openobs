@@ -1,9 +1,7 @@
 import type { LLMGateway } from '@agentic-obs/llm-gateway'
 import { createLogger } from '@agentic-obs/common'
-import { agentRegistry } from '../runtime/agent-registry.js'
+import { agentRegistry } from './agent-registry.js'
 import { GENERATION_PRINCIPLES, buildGroundingContext } from './system-context.js'
-import { VerifierAgent } from '../verification/verifier-agent.js'
-import type { VerificationReport } from '../verification/types.js'
 import type { IMetricsAdapter } from '../adapters/index.js'
 import type { AlertCondition, AlertSeverity } from '@agentic-obs/common'
 
@@ -27,7 +25,6 @@ interface GeneratedAlertRule {
 
 export interface AlertRuleGenerationResult {
   rule: GeneratedAlertRule
-  verificationReport?: VerificationReport
 }
 
 export interface AlertRuleContext {
@@ -162,38 +159,6 @@ Return ONLY valid JSON:
       }
     }
 
-    // Step 4: Verify the generated alert rule
-    const verifier = new VerifierAgent()
-    // Build a minimal AlertRule-shaped object for the verifier
-    const ruleForVerification = {
-      id: 'pending',
-      name: finalRule.name,
-      description: finalRule.description,
-      condition: finalRule.condition,
-      evaluationIntervalSec: finalRule.evaluationIntervalSec,
-      severity: finalRule.severity,
-      labels: finalRule.labels,
-      state: 'normal' as const,
-      stateChangedAt: new Date().toISOString(),
-      createdBy: 'agent',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      fireCount: 0,
-    }
-
-    const verificationReport = await verifier.verify(
-      'alert_rule',
-      ruleForVerification,
-      {
-        metricsAdapter: this.deps.metrics,
-      },
-    )
-
-    log.info(
-      { status: verificationReport.status, issues: verificationReport.issues.length },
-      'alert rule verification complete',
-    )
-
-    return { rule: finalRule, verificationReport }
+    return { rule: finalRule }
   }
 }
