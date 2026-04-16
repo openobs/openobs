@@ -273,7 +273,7 @@ export default function DashboardWorkspace() {
   // Loading / error states
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full bg-surface">
+      <div className="flex items-center justify-center h-full bg-surface-lowest">
         <span className="inline-block w-6 h-6 border-2 border-outline-variant border-t-primary rounded-full animate-spin" />
       </div>
     );
@@ -281,7 +281,7 @@ export default function DashboardWorkspace() {
 
   if (loadError || !dashboard) {
     return (
-      <div className="flex flex-col items-center justify-center h-full bg-surface text-center px-6">
+      <div className="flex flex-col items-center justify-center h-full bg-surface-lowest text-center px-6">
         <p className="text-error text-sm mb-4">{loadError ?? 'Dashboard not found.'}</p>
         <button
           type="button"
@@ -297,8 +297,8 @@ export default function DashboardWorkspace() {
   // Render
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-surface">
-      <div className="shrink-0 flex items-center gap-3 px-6 py-2.5 bg-surface/80 backdrop-blur-xl">
+    <div className="flex flex-col h-full overflow-hidden bg-surface-lowest">
+      <div className="shrink-0 flex items-center gap-3 px-6 py-2.5 bg-surface-lowest/80 backdrop-blur-xl">
         <button
           type="button"
           onClick={() => navigate(dashboard?.type === 'investigation' ? '/investigations' : '/dashboards')}
@@ -453,7 +453,7 @@ export default function DashboardWorkspace() {
               onClose={() => setShowReport(false)}
             />
           ) : (
-            <div className="flex-1 overflow-y-auto overscroll-contain p-6 bg-surface-container">
+            <div className="flex-1 overflow-y-auto overscroll-contain p-6 bg-surface-lowest">
               <DashboardGrid
                 panels={panels}
                 editMode={editMode}

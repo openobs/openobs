@@ -743,6 +743,183 @@ export async function handlePrometheusValidate(ctx: ActionContext, args: Record<
 }
 
 // ---------------------------------------------------------------------------
+// Resource discovery (list/search existing artifacts)
+// ---------------------------------------------------------------------------
+
+function matchesFilter(text: string | undefined, filter: string | undefined): boolean {
+  if (!filter) return true
+  if (!text) return false
+  return text.toLowerCase().includes(filter.toLowerCase())
+}
+
+export async function handleDashboardList(
+  ctx: ActionContext,
+  args: Record<string, unknown>,
+): Promise<string> {
+  if (!ctx.store.findAll) {
+    return 'Error: dashboard store does not support listing.'
+  }
+  const filter = typeof args.filter === 'string' ? args.filter : undefined
+  const limit = typeof args.limit === 'number' ? args.limit : 50
+  ctx.sendEvent({
+    type: 'tool_call',
+    tool: 'dashboard.list',
+    args: filter ? { filter } : {},
+    displayText: filter ? `Searching dashboards matching "${filter}"` : 'Listing dashboards',
+  })
+
+  try {
+    const all = await ctx.store.findAll()
+    const filtered = all.filter((d) => matchesFilter(d.title, filter) || matchesFilter(d.description, filter))
+    if (filtered.length === 0) {
+      const msg = filter
+        ? `No dashboards match "${filter}" (${all.length} total).`
+        : 'No dashboards found.'
+      ctx.sendEvent({ type: 'tool_result', tool: 'dashboard.list', summary: msg, success: true })
+      return msg
+    }
+    const lines = filtered.slice(0, limit).map((d) => {
+      const id = (d as unknown as { id?: string }).id ?? 'unknown'
+      const desc = d.description ? ` — ${d.description.slice(0, 80)}` : ''
+      return `- [${id}] "${d.title}"${desc}`
+    })
+    const summary = `${filtered.length} dashboard(s)${filter ? ` matching "${filter}"` : ''}:\n${lines.join('\n')}`
+    ctx.sendEvent({
+      type: 'tool_result',
+      tool: 'dashboard.list',
+      summary: `${filtered.length} dashboards found`,
+      success: true,
+    })
+    return summary
+  } catch (err) {
+    const msg = `Failed to list dashboards: ${err instanceof Error ? err.message : String(err)}`
+    ctx.sendEvent({ type: 'tool_result', tool: 'dashboard.list', summary: msg, success: false })
+    return msg
+  }
+}
+
+export async function handleInvestigationList(
+  ctx: ActionContext,
+  args: Record<string, unknown>,
+): Promise<string> {
+  if (!ctx.investigationStore?.findAll) {
+    return 'Error: investigation store does not support listing.'
+  }
+  const filter = typeof args.filter === 'string' ? args.filter : undefined
+  const limit = typeof args.limit === 'number' ? args.limit : 50
+  ctx.sendEvent({
+    type: 'tool_call',
+    tool: 'investigation.list',
+    args: filter ? { filter } : {},
+    displayText: filter ? `Searching investigations matching "${filter}"` : 'Listing investigations',
+  })
+
+  try {
+    const all = await ctx.investigationStore.findAll()
+    const filtered = all.filter((inv) => matchesFilter(inv.intent, filter))
+    if (filtered.length === 0) {
+      const msg = filter
+        ? `No investigations match "${filter}" (${all.length} total).`
+        : 'No investigations found.'
+      ctx.sendEvent({ type: 'tool_result', tool: 'investigation.list', summary: msg, success: true })
+      return msg
+    }
+    const lines = filtered.slice(0, limit).map((inv) => {
+      const id = inv.id ?? 'unknown'
+      const status = inv.status ?? ''
+      const intent = inv.intent ?? '(no intent)'
+      return `- [${id}]${status ? ` (${status})` : ''} "${intent.slice(0, 100)}"`
+    })
+    const summary = `${filtered.length} investigation(s)${filter ? ` matching "${filter}"` : ''}:\n${lines.join('\n')}`
+    ctx.sendEvent({
+      type: 'tool_result',
+      tool: 'investigation.list',
+      summary: `${filtered.length} investigations found`,
+      success: true,
+    })
+    return summary
+  } catch (err) {
+    const msg = `Failed to list investigations: ${err instanceof Error ? err.message : String(err)}`
+    ctx.sendEvent({ type: 'tool_result', tool: 'investigation.list', summary: msg, success: false })
+    return msg
+  }
+}
+
+export async function handleAlertRuleList(
+  ctx: ActionContext,
+  args: Record<string, unknown>,
+): Promise<string> {
+  if (!ctx.alertRuleStore.findAll) {
+    return 'Error: alert rule store does not support listing.'
+  }
+  const filter = typeof args.filter === 'string' ? args.filter : undefined
+  ctx.sendEvent({
+    type: 'tool_call',
+    tool: 'alert_rule.list',
+    args: filter ? { filter } : {},
+    displayText: filter ? `Searching alert rules matching "${filter}"` : 'Listing alert rules',
+  })
+
+  try {
+    const result = await ctx.alertRuleStore.findAll()
+    const list = (Array.isArray(result) ? result : (result as { list?: unknown[] }).list ?? []) as Array<{
+      id: string
+      name: string
+      severity: string
+      condition: { query: string; operator: string; threshold: number }
+    }>
+    const filtered = list.filter((r) => matchesFilter(r.name, filter))
+    if (filtered.length === 0) {
+      const msg = filter
+        ? `No alert rules match "${filter}" (${list.length} total).`
+        : 'No alert rules found.'
+      ctx.sendEvent({ type: 'tool_result', tool: 'alert_rule.list', summary: msg, success: true })
+      return msg
+    }
+    const lines = filtered.map((r) => {
+      const c = r.condition ?? ({} as Record<string, unknown>)
+      return `- [${r.id}] "${r.name}" (${r.severity}) — ${c.query ?? ''} ${c.operator ?? ''} ${c.threshold ?? ''}`
+    })
+    const summary = `${filtered.length} alert rule(s)${filter ? ` matching "${filter}"` : ''}:\n${lines.join('\n')}`
+    ctx.sendEvent({
+      type: 'tool_result',
+      tool: 'alert_rule.list',
+      summary: `${filtered.length} alert rules found`,
+      success: true,
+    })
+    return summary
+  } catch (err) {
+    const msg = `Failed to list alert rules: ${err instanceof Error ? err.message : String(err)}`
+    ctx.sendEvent({ type: 'tool_result', tool: 'alert_rule.list', summary: msg, success: false })
+    return msg
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Navigation — open an existing page in the UI
+// ---------------------------------------------------------------------------
+
+export async function handleNavigate(
+  ctx: ActionContext,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const path = String(args.path ?? '')
+  if (!path) return 'Error: "path" is required (e.g., "/dashboards/<id>", "/investigations/<id>", "/alerts").'
+  if (!path.startsWith('/')) return 'Error: "path" must start with "/".'
+
+  ctx.sendEvent({
+    type: 'tool_call',
+    tool: 'navigate',
+    args: { path },
+    displayText: `Opening ${path}`,
+  })
+  ctx.setNavigateTo(path)
+  const msg = `Navigating to ${path}.`
+  ctx.sendEvent({ type: 'tool_result', tool: 'navigate', summary: msg, success: true })
+  return msg
+}
+
+// ---------------------------------------------------------------------------
 // Web search
 // ---------------------------------------------------------------------------
 

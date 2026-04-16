@@ -118,7 +118,7 @@ export default function ChatPanel({ events, isGenerating, onSendMessage, onStop 
       variants={slideIn}
       initial="hidden"
       animate="visible"
-      className="shrink-0 flex flex-col bg-surface-low border-l border-white/5 h-full relative"
+      className="shrink-0 flex flex-col bg-surface-lowest border-l border-white/10 h-full relative"
       style={{ width: chatWidth }}
     >
       <div
@@ -196,7 +196,7 @@ export default function ChatPanel({ events, isGenerating, onSendMessage, onStop 
         <div ref={bottomRef} />
       </div>
 
-      <div className="shrink-0 px-4 py-4 bg-surface-low border-t border-white/5 space-y-4">
+      <div className="shrink-0 px-4 py-4 bg-surface-lowest border-t border-white/5 space-y-4">
         <div className="relative">
           <textarea
             value={input}

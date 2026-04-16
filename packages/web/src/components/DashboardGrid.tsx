@@ -44,16 +44,22 @@ function groupBySection(panels: PanelConfig[]): Section[] {
 function compactLayout(panels: PanelConfig[], editMode: boolean): LayoutItem[] {
   const COLS = 12;
   const raw = panels.map((panel) => {
-    const isStat = panel.visualization === 'stat' || panel.visualization === 'gauge';
-    const h = panel.gridHeight ?? panel.height ?? (isStat ? 1 : 3);
+    const isStat = panel.visualization === 'stat';
+    const isGauge = panel.visualization === 'gauge';
+    const defaultH = isStat ? 1 : isGauge ? 3 : 3;
+    const h = panel.gridHeight ?? panel.height ?? defaultH;
+    // stat: compact single-value (height capped at 1)
+    // gauge: needs vertical space for SVG arc (at least 2)
+    // other: at least 3
+    const finalH = isStat ? Math.min(h, 1) : isGauge ? Math.max(2, h) : Math.max(3, h);
     return {
       i: panel.id,
       x: panel.gridCol ?? panel.col ?? 0,
       y: panel.gridRow ?? panel.row ?? 0,
       w: Math.min(COLS, panel.gridWidth ?? panel.width ?? 6),
-      h: isStat ? Math.min(h, 1) : Math.max(3, h),
+      h: finalH,
       minW: 2,
-      minH: isStat ? 1 : 3,
+      minH: isStat ? 1 : isGauge ? 2 : 3,
       static: !editMode,
     };
   });

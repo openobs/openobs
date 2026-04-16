@@ -51,6 +51,10 @@ import {
   handlePrometheusMetricNames,
   handlePrometheusValidate,
   handleWebSearch,
+  handleDashboardList,
+  handleInvestigationList,
+  handleAlertRuleList,
+  handleNavigate,
 } from './orchestrator-action-handlers.js'
 
 export interface OrchestratorDeps {
@@ -288,6 +292,7 @@ export class OrchestratorAgent {
       switch (action) {
         // Dashboard lifecycle
         case 'dashboard.create': return handleDashboardCreate(ctx, args)
+        case 'dashboard.list': return handleDashboardList(ctx, args)
         // Dashboard mutation primitives (dashboardId comes from args)
         case 'dashboard.add_panels': return handleDashboardAddPanels(ctx, args)
         case 'dashboard.set_title': return handleDashboardSetTitle(ctx, args)
@@ -296,12 +301,16 @@ export class OrchestratorAgent {
         case 'dashboard.add_variable': return handleDashboardAddVariable(ctx, args)
         // Investigation lifecycle
         case 'investigation.create': return handleInvestigationCreate(ctx, args)
+        case 'investigation.list': return handleInvestigationList(ctx, args)
         case 'investigation.add_section': return handleInvestigationAddSection(ctx, args)
         case 'investigation.complete': return handleInvestigationComplete(ctx, args)
         // Alert rules
         case 'create_alert_rule': return handleCreateAlertRule(ctx, args)
         case 'modify_alert_rule': return handleModifyAlertRule(ctx, args)
         case 'delete_alert_rule': return handleDeleteAlertRule(ctx, args)
+        case 'alert_rule.list': return handleAlertRuleList(ctx, args)
+        // Navigation
+        case 'navigate': return handleNavigate(ctx, args)
         // Prometheus primitives
         case 'prometheus.query': return handlePrometheusQuery(ctx, args)
         case 'prometheus.range_query': return handlePrometheusRangeQuery(ctx, args)

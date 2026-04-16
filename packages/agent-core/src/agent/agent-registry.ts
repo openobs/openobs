@@ -30,11 +30,11 @@ agentRegistry.register({
   description: 'Autonomous observability agent that uses primitive tools to build dashboards, investigate issues, and manage alerts',
   allowedTools: [
     // Dashboard lifecycle + mutation primitives
-    'dashboard.create',
+    'dashboard.create', 'dashboard.list',
     'dashboard.add_panels', 'dashboard.remove_panels', 'dashboard.modify_panel',
     'dashboard.rearrange', 'dashboard.add_variable', 'dashboard.set_title',
     // Investigation lifecycle
-    'investigation.create',
+    'investigation.create', 'investigation.list',
     'investigation.add_section',
     'investigation.complete',
     // Prometheus primitives
@@ -43,7 +43,9 @@ agentRegistry.register({
     // Knowledge
     'web.search',
     // Alert rules
-    'create_alert_rule', 'modify_alert_rule', 'delete_alert_rule',
+    'create_alert_rule', 'modify_alert_rule', 'delete_alert_rule', 'alert_rule.list',
+    // Navigation
+    'navigate',
   ],
   inputKinds: ['dashboard'],
   outputKinds: ['dashboard', 'panel', 'dashboard_variable', 'investigation_report', 'alert_rule'],

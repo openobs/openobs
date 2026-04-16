@@ -14,8 +14,11 @@ interface PanelSize {
 function panelSize(viz: PanelVisualization, sameVizCount: number): PanelSize {
   switch (viz) {
     case 'stat':
+      // A bare number — compact
+      return { width: 3, height: 2 }
     case 'gauge':
-      return { width: 3, height: 1 }
+      // SVG arc needs vertical room — gauge visualization is ~150px tall
+      return { width: 3, height: 3 }
     case 'time_series':
       // 1 panel → full width; 2+ → half width side by side
       return { width: sameVizCount >= 2 ? 6 : 12, height: 3 }

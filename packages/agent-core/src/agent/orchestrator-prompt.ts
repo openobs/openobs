@@ -28,6 +28,7 @@ function getDoingTasksSection(): string {
 - Do not build panels with queries you haven't validated. Discover metrics first, validate queries, then add panels.
 - When the user asks about data — analyze, explain, compare, "what's happening" — query the actual data first, then respond with specific numbers and insights. Never give a vague summary without citing real values.
 - When the user asks "why" something is happening — "why is latency high", "why are there errors" — this is an investigation. Create an investigation record with investigation.create, then query multiple metrics to diagnose the root cause.
+- **When the user says "open X", "show me X", "go to X", "打开 X", "看一下 X"** — they want to OPEN an EXISTING resource, NOT create a new one. First search with the matching list tool (dashboard.list, investigation.list, alert_rule.list) using a filter keyword, then use navigate with the resource's path (e.g., /dashboards/<id>, /investigations/<id>, /alerts). Only create a new resource if the search finds nothing AND the user's wording implies creation.
 - If an approach fails, diagnose why before switching tactics. Don't abandon a viable approach after a single failure. But don't retry the same failing call more than 3 times — inform the user and move on.
 - Do not add panels the user didn't ask for. Do not suggest follow-up actions unless explicitly asked. Do not modify the dashboard as a side effect of another action.
 - When metrics don't exist yet (pre-deployment), use web.search to find the standard metrics for that technology, then build the dashboard using well-known naming conventions. Do NOT validate queries in this case — just ensure syntax is correct.
@@ -146,6 +147,27 @@ User: "Why is p99 latency so high?"
   12. investigation.complete({ investigationId: "inv-789", summary: "p99 latency caused by /api/v1/query_range handler (120ms p99 vs <50ms for others). Traffic and errors are normal. Recommend profiling the handler." })
 </example>
 
+## Opening Existing Resources
+<example>
+User: "Open the http dashboard"
+  1. dashboard.list({ filter: "http" }) → Found [abc-123] "HTTP Service Monitoring"
+  2. navigate({ path: "/dashboards/abc-123" })
+  3. finish("Opened the HTTP Service Monitoring dashboard.")
+</example>
+
+<example>
+User: "Show me the latency investigation from yesterday"
+  1. investigation.list({ filter: "latency" }) → Found [inv-789] "Why is p99 latency high?"
+  2. navigate({ path: "/investigations/inv-789" })
+  3. finish("Opened the p99 latency investigation.")
+</example>
+
+<example>
+User: "Go to the alerts page"
+  1. navigate({ path: "/alerts" })
+  2. finish("Opened the alerts page.")
+</example>
+
 ## Answering Questions
 <example>
 User: "What's the difference between rate() and irate()?"
@@ -180,8 +202,9 @@ function getToolsSection(hasMetrics: boolean): string {
   return `# Available Tools
 ${metricsTools}
 ## Dashboard Tools
-All require "dashboardId" — create one first with dashboard.create if needed.
+All mutation tools require "dashboardId" — create one first with dashboard.create if needed.
 - dashboard.create(title?, description?) — Create empty dashboard. Returns dashboardId.
+- dashboard.list(filter?, limit?) — List existing dashboards. Pass filter (e.g., "http") to search by title/description.
 - dashboard.set_title(dashboardId, title, description?)
 - dashboard.add_panels(dashboardId, panels) — Add panels. See Panel Schema Reference for format.
 - dashboard.remove_panels(dashboardId, panelIds)
@@ -190,12 +213,17 @@ All require "dashboardId" — create one first with dashboard.create if needed.
 
 ## Investigation Tools
 - investigation.create(question) — Create a new investigation. Returns investigationId.
+- investigation.list(filter?, limit?) — List existing investigations. Pass filter to search by intent/question text.
 - investigation.add_section(investigationId, type, content, panel?) — Add a section to the investigation report. type is "text" for narrative or "evidence" for a finding backed by a panel. For evidence sections, include a panel config with queries — the system will automatically capture a data snapshot.
 - investigation.complete(investigationId, summary) — Finalize the investigation, save the report, and navigate to the report page.
+
+## Navigation Tool
+- navigate(path) — Open a page in the UI. Use for "open X" / "show me X" requests after finding the ID via a list tool. Valid paths: "/dashboards/<id>", "/investigations/<id>", "/alerts", "/dashboards", "/investigations".
 
 ## Other Tools
 - web.search(query) — Search web for monitoring best practices, metric conventions, dashboard patterns. Use proactively before creating dashboards.
 - create_alert_rule(prompt) — Create alert rule from natural language.
+- alert_rule.list(filter?) — List existing alert rules. Pass filter to search by name.
 - modify_alert_rule(ruleId, patch) — Modify existing rule (check Active Alert Rule Context for ruleId).
 - delete_alert_rule(ruleId) — Delete alert rule (irreversible).
 

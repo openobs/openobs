@@ -501,7 +501,7 @@ export default function InvestigationDetail() {
           {report ? (
             <InvestigationReportView report={report} title={investigation.intent} />
           ) : (
-            <div className="flex-1 overflow-y-auto overscroll-contain bg-surface-container">
+            <div className="flex-1 overflow-y-auto overscroll-contain bg-surface-lowest">
               <LiveProgressView investigation={investigation} />
             </div>
           )}

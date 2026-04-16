@@ -114,6 +114,7 @@ export interface IDashboardAgentStore {
     sessionId?: string
   }): import('@agentic-obs/common').Dashboard | Promise<import('@agentic-obs/common').Dashboard>
   findById(id: string): import('@agentic-obs/common').Dashboard | Promise<import('@agentic-obs/common').Dashboard | undefined> | undefined
+  findAll?(): import('@agentic-obs/common').Dashboard[] | Promise<import('@agentic-obs/common').Dashboard[]>
   update(id: string, patch: Partial<Pick<import('@agentic-obs/common').Dashboard, 'type' | 'title' | 'description' | 'panels' | 'variables' | 'refreshIntervalSec' | 'folder'>>): unknown
   updateStatus?(id: string, status: string, error?: string): unknown
   updatePanels(id: string, panels: PanelConfig[]): unknown
@@ -141,6 +142,7 @@ export interface IInvestigationStore {
     tenantId?: string
     workspaceId?: string
   }): import('@agentic-obs/common').Investigation | Promise<import('@agentic-obs/common').Investigation>
+  findAll?(): import('@agentic-obs/common').Investigation[] | Promise<import('@agentic-obs/common').Investigation[]>
   updateStatus(id: string, status: import('@agentic-obs/common').InvestigationStatus): unknown
   updatePlan(id: string, plan: import('@agentic-obs/common').Investigation['plan']): unknown
   updateResult(id: string, result: {

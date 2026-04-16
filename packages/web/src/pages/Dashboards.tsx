@@ -369,7 +369,7 @@ export default function Dashboards() {
   const itemLink = (id: string) => `/dashboards/${id}`;
 
   return (
-    <div className="flex-1 overflow-y-auto bg-surface-container">
+    <div className="flex-1 overflow-y-auto bg-surface-lowest">
       <div className="p-8 max-w-5xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-end mb-8">

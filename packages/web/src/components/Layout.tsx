@@ -23,7 +23,7 @@ function LayoutInner() {
   return (
     <div className="flex h-screen">
       <Navigation />
-      <main className="flex-1 overflow-y-auto bg-surface-container">
+      <main className="flex-1 overflow-y-auto bg-surface-lowest">
         <Outlet />
       </main>
       {!isHome && (

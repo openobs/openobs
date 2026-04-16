@@ -23,11 +23,6 @@ interface Dashboard {
   updatedAt?: string;
 }
 
-interface FeedPage {
-  total: number;
-  items: unknown[];
-}
-
 interface ChatSession {
   id: string;
   title: string;
@@ -82,7 +77,6 @@ export default function Home() {
   const [input, setInput] = useState('');
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [alertCount, setAlertCount] = useState<number | null>(null);
   const [deletingDashId, setDeletingDashId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -123,11 +117,6 @@ export default function Home() {
     });
   }, []);
 
-  useEffect(() => {
-    void apiClient.get<FeedPage>(`/feed?limit=1`).then((res) => {
-      if (!res.error) setAlertCount(res.data.total);
-    });
-  }, []);
 
   // Auto-scroll on new events
   useEffect(() => {
@@ -205,7 +194,7 @@ export default function Home() {
   // ═══════════════════════════════════════════════════════════════
   if (!hasMessages) {
     return (
-      <div className="relative h-full bg-surface-container overflow-y-auto">
+      <div className="relative h-full bg-surface-lowest overflow-y-auto">
         {/* Ambient background gradients */}
         <div className="pointer-events-none fixed inset-0 overflow-hidden">
           <div className="absolute -top-1/2 left-1/2 -translate-x-1/2 w-[1200px] h-[800px] bg-gradient-to-br from-tertiary/10 via-primary/5 to-transparent rounded-full blur-3xl opacity-60" />
@@ -398,7 +387,7 @@ export default function Home() {
   // MODE 2: Conversation state — messages fill screen, input at bottom
   // ═══════════════════════════════════════════════════════════════
   return (
-    <div className="h-full bg-surface-container flex flex-col">
+    <div className="h-full bg-surface-lowest flex flex-col">
       {/* Scrollable messages area */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-6 w-full pt-8 pb-4">
@@ -434,7 +423,7 @@ export default function Home() {
       </div>
 
       {/* Input fixed at bottom */}
-      <div className="shrink-0 border-t border-white/5 bg-surface-container">
+      <div className="shrink-0 border-t border-white/5 bg-surface-lowest">
         <div className="max-w-3xl mx-auto px-6 py-4 w-full">
           {inputArea}
           <p className="mt-2 text-[10px] text-center text-on-surface-variant/40">

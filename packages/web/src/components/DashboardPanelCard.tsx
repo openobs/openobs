@@ -483,7 +483,7 @@ export default function DashboardPanelCard({
   if (isStat) {
     return (
       <div
-        className={`bg-surface-high rounded-xl h-full px-4 py-3 relative group transition-all duration-200 panel-drag-handle cursor-grab active:cursor-grabbing flex flex-col ${
+        className={`bg-surface-container border border-white/5 rounded-xl h-full px-4 py-3 relative group transition-all duration-200 panel-drag-handle cursor-grab active:cursor-grabbing flex flex-col hover:border-white/10 ${
           editMode ? 'ring-1 ring-dashed ring-outline-variant' : ''
         }`}
       >
@@ -502,7 +502,7 @@ export default function DashboardPanelCard({
   // Standard panel layout (time_series, bar, pie, etc.)
   return (
     <div
-      className={`bg-surface-high rounded-xl h-full flex flex-col relative group transition-all duration-200 ${
+      className={`bg-surface-container border border-white/5 rounded-xl h-full flex flex-col relative group transition-all duration-200 hover:border-white/10 ${
         editMode ? 'ring-1 ring-dashed ring-outline-variant' : ''
       }`}
     >

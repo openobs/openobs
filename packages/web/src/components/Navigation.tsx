@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.js';
 import { OpenObsLogo } from './OpenObsLogo.js';
 
@@ -103,8 +103,21 @@ function SidebarItem({ to, label, icon, end, expanded }: SidebarItemProps) {
 
 export default function Navigation() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout } = useAuth();
-  const [expanded, setExpanded] = useState(false);
+  // Default expanded on Home page, collapsed on others
+  const [expanded, setExpanded] = useState(location.pathname === '/');
+
+  // Auto-expand on Home, auto-collapse elsewhere (user can still toggle manually afterward)
+  const prevPathRef = useRef(location.pathname);
+  useEffect(() => {
+    const prevWasHome = prevPathRef.current === '/';
+    const nowHome = location.pathname === '/';
+    if (prevWasHome !== nowHome) {
+      setExpanded(nowHome);
+    }
+    prevPathRef.current = location.pathname;
+  }, [location.pathname]);
 
   const handleLogout = async () => {
     await logout();
@@ -113,7 +126,7 @@ export default function Navigation() {
 
   return (
     <nav
-      className={`flex flex-col h-full bg-surface-lowest py-3 shrink-0 transition-all duration-200 ${
+      className={`flex flex-col h-full bg-surface-lowest border-r border-white/10 py-3 shrink-0 transition-all duration-200 ${
         expanded ? 'w-48 px-2' : 'w-14 items-center'
       }`}
     >
