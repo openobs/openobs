@@ -78,9 +78,11 @@ export default function AgentActivityBlock({
   events: ChatEvent[];
   isLive: boolean;
 }) {
-  const [expanded, setExpanded] = useState(true);
+  // Default collapsed — natural language messages are the primary content.
+  // Users can click to expand and see tool call details.
+  const [expanded, setExpanded] = useState(false);
 
-  // Auto-collapse when no longer live
+  // Ensure collapsed once work completes
   const wasLive = useRef(isLive);
   useEffect(() => {
     if (wasLive.current && !isLive) {
@@ -97,35 +99,33 @@ export default function AgentActivityBlock({
   const lastActive = [...steps].reverse().find((s) => !s.done);
 
   const summaryText = isLive
-    ? expanded
-      ? `${doneCount} of ${steps.length} steps done`
-      : lastActive
-        ? `${lastActive.label}: ${preStatus ?? 'Working...'}`
-        : `${steps.length} steps`
-    : `${doneCount} steps completed${failCount > 0 ? `, ${failCount} failed` : ''}`;
+    ? lastActive
+      ? lastActive.label
+      : 'Working'
+    : `${doneCount} step${doneCount === 1 ? '' : 's'}${failCount > 0 ? ` (${failCount} failed)` : ''}`;
 
   return (
     <div className="my-2">
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 w-full text-left py-1 group"
+        className="flex items-center gap-2 text-left py-1 px-2 -mx-2 rounded hover:bg-surface-high/50 transition-colors group"
       >
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          <ChevronIcon expanded={expanded} />
-          {isLive ? (
-            <>
-              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shrink-0" />
-              <span className="text-xs text-on-surface-variant truncate">{summaryText}</span>
-              {!expanded && <AnimatedDots />}
-            </>
-          ) : (
-            <>
-              <span className="w-1.5 h-1.5 rounded-full bg-secondary shrink-0" />
-              <span className="text-xs text-on-surface-variant truncate">{summaryText}</span>
-            </>
-          )}
-        </div>
+        <ChevronIcon expanded={expanded} />
+        {isLive ? (
+          <>
+            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shrink-0" />
+            <span className="text-xs text-on-surface-variant truncate">{summaryText}</span>
+            <AnimatedDots />
+          </>
+        ) : (
+          <>
+            <svg className="w-3 h-3 text-on-surface-variant/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <span className="text-xs text-on-surface-variant/70 truncate">{summaryText}</span>
+          </>
+        )}
       </button>
 
       <AnimatePresence initial={false}>

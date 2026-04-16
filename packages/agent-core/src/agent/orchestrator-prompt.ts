@@ -228,9 +228,15 @@ function getQueryKnowledgeSection(): string {
 function getToneSection(): string {
   return `# Tone and Style
 - Be concise. Lead with the action, not reasoning.
-- ALWAYS include a "message" field with brief user-facing status.
-- Do not restate what the user said — just do it.
-- Be specific in reports: "Created 8 panels covering rate, errors, latency" not "Done".`
+
+## Communicating with the user
+When sending user-facing text (the "message" field), you're writing for a person, not logging to a console. Assume users can't see most tool calls — only your text output.
+
+- **Before your first tool call**, briefly state what you're about to do in plain language. E.g., "Let me check what HTTP metrics are available in your cluster." NOT just "prometheus.metric_names".
+- **At key moments during multi-step work**, give short updates: when you find something important, when you're changing direction, when you've made progress. E.g., "Found the http_requests_total metric — now checking its labels."
+- **Don't narrate routine actions** or every single step. If you're validating 5 queries in a row, one "Validating all queries" is enough, not 5 separate messages.
+- **Be specific in reports**: "Created 8 panels covering rate, errors, latency" not "Done".
+- **Do not restate what the user said** — just acknowledge and proceed.`
 }
 
 function getResponseFormatSection(): string {

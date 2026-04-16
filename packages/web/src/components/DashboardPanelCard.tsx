@@ -422,10 +422,23 @@ export default function DashboardPanelCard({
         return <StatVisualization value={val} unit={panel.unit} description={panel.description} />;
       }
       case 'gauge': {
-        const val = firstInstantValue(instantData);
+        const rawVal = firstInstantValue(instantData);
+        // Auto-scale based on unit:
+        //  - percentunit: value is 0-1, show as 0-100%
+        //  - percent: value is 0-100, show as 0-100%
+        //  - other: leave as-is, max=100 default
+        let val = rawVal;
+        let max = 100;
+        let displayUnit = panel.unit;
+        if (panel.unit === 'percentunit' && typeof rawVal === 'number') {
+          val = rawVal * 100;
+          displayUnit = '%';
+        } else if (panel.unit === 'percent') {
+          displayUnit = '%';
+        }
         return (
           <div className="flex justify-center py-1">
-            <GaugeVisualization value={val} unit={panel.unit} />
+            <GaugeVisualization value={val} max={max} unit={displayUnit} />
           </div>
         );
       }

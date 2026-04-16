@@ -50,40 +50,32 @@ export function InlineMd({ text }: { text: string }) {
 export function AssistantMessage({ content }: { content: string }) {
   const lines = content.split('\n');
   return (
-    <div className="flex flex-col items-start gap-3 my-4">
-      <div className="max-w-[95%] p-5 rounded-xl rounded-tl-none bg-surface-high border-l-2 border-tertiary/40 relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-tertiary/20 to-transparent" />
-        <div className="text-sm leading-relaxed text-on-surface">
-          {lines.map((line, i) => {
-            if (line.startsWith('## ')) {
-              return (
-                <div key={i} className="text-sm font-semibold text-on-surface mt-3 mb-1">
-                  {line.slice(3)}
-                </div>
-              );
-            }
-            if (line.startsWith('- ')) {
-              return (
-                <div key={i} className="pl-4 relative">
-                  <span className="absolute left-0 text-tertiary">•</span>
-                  <InlineMd text={line.slice(2)} />
-                </div>
-              );
-            }
-            return (
-              <div key={i} className={i === 0 ? '' : 'mt-1'}>
-                <InlineMd text={line} />
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      <span className="text-[10px] text-on-surface-variant uppercase tracking-widest flex items-center gap-2">
-        <svg className="w-3 h-3 text-tertiary" fill="currentColor" viewBox="0 0 20 20">
-          <path d="M5 2a1 1 0 011 1v1h1a1 1 0 010 2H6v1a1 1 0 01-2 0V6H3a1 1 0 010-2h1V3a1 1 0 011-1zm0 10a1 1 0 011 1v1h1a1 1 0 110 2H6v1a1 1 0 11-2 0v-1H3a1 1 0 110-2h1v-1a1 1 0 011-1zM12 2a1 1 0 01.967.744L14.146 7.2 17.5 9.134a1 1 0 010 1.732l-3.354 1.935-1.18 4.455a1 1 0 01-1.933 0L9.854 12.8 6.5 10.866a1 1 0 010-1.732l3.354-1.935 1.18-4.455A1 1 0 0112 2z" />
-        </svg>
-        OpenObs
-      </span>
+    <div className="my-3 text-[15px] leading-relaxed text-on-surface">
+      {lines.map((line, i) => {
+        if (line.startsWith('## ')) {
+          return (
+            <div key={i} className="text-base font-semibold text-on-surface mt-4 mb-2">
+              {line.slice(3)}
+            </div>
+          );
+        }
+        if (line.startsWith('- ')) {
+          return (
+            <div key={i} className="pl-4 relative my-0.5">
+              <span className="absolute left-0 text-on-surface-variant">•</span>
+              <InlineMd text={line.slice(2)} />
+            </div>
+          );
+        }
+        if (line.trim() === '') {
+          return <div key={i} className="h-2" />;
+        }
+        return (
+          <div key={i} className={i === 0 ? '' : 'mt-1'}>
+            <InlineMd text={line} />
+          </div>
+        );
+      })}
     </div>
   );
 }

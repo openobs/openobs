@@ -122,6 +122,13 @@ export class ReActLoop {
         return text
       }
 
+      // Emit the agent's pre-tool narration as a reply so it renders as an
+      // AssistantMessage bubble interleaved between tool cards — mimicking
+      // Claude Code's pattern of "briefly state what you're about to do".
+      if (chatReply && chatReply.trim()) {
+        this.deps.sendEvent({ type: 'reply', content: chatReply.trim() })
+      }
+
       // --- Non-terminal action: execute and continue the loop ---
       const observationText = await executeAction(step)
 

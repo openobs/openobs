@@ -149,6 +149,7 @@ export function ensureSchema(db: SqliteClient): void {
       use_existing_metrics INTEGER NOT NULL DEFAULT 1,
       folder TEXT,
       workspace_id TEXT,
+      session_id TEXT,
       version INTEGER,
       publish_status TEXT,
       error TEXT,
@@ -288,6 +289,7 @@ export function ensureSchema(db: SqliteClient): void {
     `CREATE TABLE IF NOT EXISTS chat_sessions (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL DEFAULT '',
+      context_summary TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     )`,

@@ -101,24 +101,9 @@ export class ChatService {
       }
     }
 
-    // Load chat history from chat_messages for multi-turn context
-    // and store it in the conversationStore keyed by session so the
-    // orchestrator's handleMessage can read it back via conversationStore.getMessages()
-    if (this.deps.chatMessageStore) {
-      const history = await this.deps.chatMessageStore.getMessages(resolvedSessionId);
-      // Sync to conversationStore so the orchestrator can read the history
-      // (the orchestrator reads from conversationStore keyed by sessionId)
-      await this.deps.conversationStore.clearMessages(resolvedSessionId);
-      for (const msg of history) {
-        await this.deps.conversationStore.addMessage(resolvedSessionId, {
-          id: msg.id,
-          role: msg.role as 'user' | 'assistant',
-          content: msg.content,
-          actions: msg.actions,
-          timestamp: msg.timestamp,
-        });
-      }
-    }
+    // Chat history is stored in chat_messages (independent of dashboards).
+    // The orchestrator reads from conversationStore keyed by sessionId when
+    // no dashboardId is scoped, so we pass chatMessageStore-backed adapter below.
 
     // --- Context compaction ---
     // Load existing summary from session, then check if we need to compact further
@@ -150,11 +135,33 @@ export class ChatService {
       }
     }
 
+    // Route conversation history reads: if the key is a dashboardId, use
+    // dashboard_messages (legacy). Otherwise use chat_messages (session mode).
+    // Writes are no-ops here — chat-service persists messages directly.
+    const chatMsgStore = this.deps.chatMessageStore;
+    const dashboardStore = this.deps.dashboardStore;
+    const baseConvStore = this.deps.conversationStore;
+    const conversationStoreAdapter = chatMsgStore
+      ? {
+          getMessages: async (key: string) => {
+            // Check if this is a dashboard ID (exists in dashboards table)
+            const dash = await dashboardStore.findById(key);
+            if (dash) {
+              return baseConvStore.getMessages(key);
+            }
+            // Otherwise treat as sessionId — read from chat_messages
+            return chatMsgStore.getMessages(key) as ReturnType<typeof baseConvStore.getMessages>;
+          },
+          addMessage: async () => { /* writes handled directly by chat-service */ },
+          clearMessages: async () => { /* handled externally */ },
+        }
+      : baseConvStore;
+
     const orchestrator = new OrchestratorAgent({
       gateway,
       model,
       store: this.deps.dashboardStore,
-      conversationStore: this.deps.conversationStore,
+      conversationStore: conversationStoreAdapter as typeof baseConvStore,
       investigationReportStore: this.deps.investigationReportStore,
       investigationStore: this.deps.investigationStore as IInvestigationStore | undefined,
       alertRuleStore: toAlertRuleStore(this.deps.alertRuleStore),
