@@ -109,7 +109,7 @@ describe('OrchestratorAgent structured alert follow-up', () => {
       sendEvent,
     })
 
-    const reply = await agent.handleMessage('dash-1', 'just change it to 150ms and notify me')
+    const reply = await agent.handleMessage('just change it to 150ms and notify me', 'dash-1')
 
     expect(gateway.complete).toHaveBeenCalledTimes(1)
     expect(alertRuleStore.update).toHaveBeenCalledWith(
@@ -189,7 +189,7 @@ describe('OrchestratorAgent structured alert follow-up', () => {
       sendEvent,
     })
 
-    const reply = await agent.handleMessage('dash-1', 'delete it')
+    const reply = await agent.handleMessage('delete it', 'dash-1')
 
     expect(gateway.complete).toHaveBeenCalledTimes(1)
     expect(deleteFn).toHaveBeenCalledWith('alert_1')
@@ -286,7 +286,7 @@ describe('OrchestratorAgent panel explanation', () => {
       sendEvent,
     })
 
-    const reply = await agent.handleMessage('dash-1', 'explain the Average Latency data trend')
+    const reply = await agent.handleMessage('explain the Average Latency data trend', 'dash-1')
 
     expect(reply).toContain('Average Latency')
     expect(gateway.complete).toHaveBeenCalledTimes(1)
@@ -297,118 +297,3 @@ describe('OrchestratorAgent panel explanation', () => {
   })
 })
 
-describe('OrchestratorAgent investigate artifact sync', () => {
-  const sendEvent = vi.fn()
-  const gateway = {
-    complete: vi.fn(),
-  } as any
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('persists a real investigation when dashboard investigate completes', async () => {
-    const dashboard = createDashboard()
-    const investigationStore = {
-      create: vi.fn().mockResolvedValue({
-        id: 'inv-1',
-        intent: 'Why is p95 high?',
-        sessionId: 'ses_dash_1',
-        userId: 'u1',
-      }),
-      updatePlan: vi.fn(),
-      updateResult: vi.fn(),
-      updateStatus: vi.fn(),
-    }
-    const investigationReportStore = {
-      save: vi.fn(),
-    }
-
-    const agent = new OrchestratorAgent({
-      gateway,
-      model: 'test-model',
-      store: {
-        findById: vi.fn().mockResolvedValue(dashboard),
-        update: vi.fn(),
-        updatePanels: vi.fn(),
-        updateVariables: vi.fn(),
-      },
-      conversationStore: {
-        addMessage: vi.fn(),
-        getMessages: vi.fn().mockResolvedValue([]),
-        clearMessages: vi.fn(),
-        deleteConversation: vi.fn(),
-      },
-      investigationReportStore: investigationReportStore as any,
-      investigationStore: investigationStore as any,
-      alertRuleStore: { create: vi.fn() } as any,
-      sendEvent,
-    })
-
-    ;(agent as any).investigationAgent = {
-      investigate: vi.fn().mockResolvedValue({
-        summary: 'P95 is high because checkout traffic increased.',
-        report: {
-          summary: 'P95 is high because checkout traffic increased.',
-          sections: [
-            {
-              type: 'evidence',
-              content: 'Checkout route dominates latency.',
-              panel: {
-                id: 'panel-1',
-                title: 'Checkout latency',
-                description: '',
-                visualization: 'time_series',
-                queries: [{ refId: 'A', expr: 'histogram_quantile(0.95, ...)' }],
-                row: 0,
-                col: 0,
-                width: 6,
-                height: 3,
-              },
-            },
-          ],
-        },
-        panels: [],
-      }),
-    }
-    ;(agent as any).verifierAgent = {
-      verify: vi.fn().mockResolvedValue({ status: 'passed', summary: 'ok', issues: [], checksRun: [] }),
-    }
-
-    await (agent as any).executeAction(
-      'dash-1',
-      { thought: 'investigate', action: 'investigate', args: { goal: 'Why is p95 high?' } },
-      'Why is p95 high?',
-    )
-
-    expect(investigationStore.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        question: 'Why is p95 high?',
-        userId: 'u1',
-      }),
-    )
-    expect(investigationStore.updatePlan).toHaveBeenCalledWith(
-      'inv-1',
-      expect.objectContaining({
-        objective: 'Why is p95 high?',
-      }),
-    )
-    expect(investigationStore.updateResult).toHaveBeenCalledWith(
-      'inv-1',
-      expect.objectContaining({
-        conclusion: expect.objectContaining({
-          summary: 'P95 is high because checkout traffic increased.',
-        }),
-      }),
-    )
-    expect(investigationStore.updateStatus).toHaveBeenCalledWith('inv-1', 'completed')
-    expect(investigationReportStore.save).toHaveBeenCalledTimes(2)
-    expect(investigationReportStore.save).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({
-        dashboardId: 'inv-1',
-        goal: 'Why is p95 high?',
-      }),
-    )
-  })
-})

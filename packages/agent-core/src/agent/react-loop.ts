@@ -197,8 +197,23 @@ export class ReActLoop {
           return classification.userMessage
         }
 
-        // True parse failure — surface it to the next turn so the model
-        // sees what went wrong and can self-correct.
+        // Forgiving fallback: if the model returned plain prose with no
+        // JSON-shaped tokens, accept it as the direct user-facing reply.
+        // Covers two legitimate patterns:
+        //   - Q&A turns where the model answers inline instead of emitting
+        //     {action: 'reply', message: '...'}.
+        //   - Post-action wrap-ups where the model narrates "done" in prose.
+        // Retrying these just burns iterations and ends in the generic
+        // "I have completed the requested changes" fallback.
+        const looksLikeJson = /[{[]/.test(rawContent)
+        if (rawContent.trim() && !looksLikeJson) {
+          const finalReply = rawContent.trim()
+          this.deps.sendEvent({ type: 'reply', content: finalReply })
+          return finalReply
+        }
+
+        // True parse failure (malformed JSON attempt) — surface it to the
+        // next turn so the model sees what went wrong and can self-correct.
         log.warn({ step: i, err: msg }, 'LLM returned non-JSON — retrying')
         observations.push({
           action: 'parse_error',
