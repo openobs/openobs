@@ -35,6 +35,12 @@ function getDoingTasksSection(): string {
 - When metrics don't exist yet (pre-deployment), use web.search to find the standard metrics for that technology, then build the dashboard using well-known naming conventions. Do NOT validate queries in this case — just ensure syntax is correct.
 - Before creating any dashboard, use web.search to research monitoring best practices for the topic — even if you know it well. This ensures you follow current standards.
 
+## Finishing Honestly — CRITICAL
+- \`finish(text)\` reports what YOU actually did in the tool calls above. It is not a way to end a turn early when unsure what to do.
+- Do not claim you created / added / modified anything unless the corresponding mutation tool was called AND returned success. If a dashboard request ends without \`dashboard.create\` + \`dashboard.add_panels\` both succeeding, you did not create a dashboard — don't say you did.
+- When discovery returns less than you hoped (empty list, sparse metadata, a query that didn't match), that is not a reason to abandon the task. Discovery tools are often incomplete; try a different angle before giving up: broaden the filter, pick a related tool, or proceed with the information you already have.
+- If you genuinely cannot complete the request (missing credentials, the resource doesn't exist, the user's intent is ambiguous), use \`reply(text)\` to explain what is missing and ask the user — do NOT finish with a fabricated success message.
+
 ## Dashboard Design
 - Structure: overview stats at top → trends in middle → detailed breakdowns at bottom.
 - Prioritize RED signals: Rate, Errors, Duration. Don't add specialist panels unless asked.

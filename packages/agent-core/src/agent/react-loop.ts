@@ -25,10 +25,85 @@ export interface ReActStep {
 /** Actions that commit a final result and exit the loop. */
 const TERMINAL_ACTIONS = new Set(['reply', 'ask_user', 'finish'])
 
+/**
+ * Distinguish LLM gateway HTTP failures from our own JSON parse errors.
+ *
+ * Only parse errors should retry in the ReAct loop — they mean "the model
+ * answered, we just couldn't decode it, maybe it'll answer cleaner next
+ * turn". Any HTTP error from the gateway means the model never responded
+ * or the request was rejected; retrying in a tight loop just burns money /
+ * quota / time and ends in the same misleading "I have completed"
+ * fallback. All of them short-circuit the loop with a user-visible reason.
+ *
+ * Providers (anthropic.ts / openai.ts / gemini.ts / ollama.ts) throw
+ * errors shaped as `"${Provider} API error ${status}: ${body}"`, so a
+ * single regex handles all of them. parseLlmJson throws with a
+ * "parseLlmJson:" prefix, which never matches.
+ */
+function classifyLlmError(message: string): { kind: 'fatal'; userMessage: string } | { kind: 'parse' } {
+  const apiErr = message.match(/API error (\d+):/i)
+  if (!apiErr) {
+    return { kind: 'parse' }
+  }
+  const status = Number(apiErr[1])
+
+  // Rate limit / quota — try to surface the retryAfter hint if provider
+  // included one.
+  if (status === 429 || /rate[- ]?limit|quota|RESOURCE_EXHAUSTED|credit balance|billing/i.test(message)) {
+    const retryMatch =
+      message.match(/retry in ([\d.]+\s*[ms]?s?)/i) ||
+      message.match(/retryDelay['":\s]+["']?([\d.]+s)/i)
+    const retryHint = retryMatch ? ` (try again in ${retryMatch[1]})` : ''
+    const isBilling = /credit balance|billing|insufficient.*(credit|funds)/i.test(message)
+    return {
+      kind: 'fatal',
+      userMessage: isBilling
+        ? 'The LLM provider rejected the request due to insufficient credits / billing. Top up the account or switch to a different model in Setup.'
+        : `The LLM provider hit a rate limit or quota cap${retryHint}. Switch to a different model or wait before retrying.`,
+    }
+  }
+  // Auth
+  if (status === 401 || status === 403) {
+    return {
+      kind: 'fatal',
+      userMessage: 'The LLM provider rejected the API key. Check the model configuration in Setup.',
+    }
+  }
+  // Client errors (400 validation, 404 model not found, 413 payload too large, …)
+  // — none of these get better on retry.
+  if (status >= 400 && status < 500) {
+    return {
+      kind: 'fatal',
+      userMessage: `The LLM provider rejected the request (${status}). Check the model configuration and try again.`,
+    }
+  }
+  // 5xx server errors — transient in principle, but our retry is a tight
+  // loop with no backoff, so hammering the provider is worse than failing
+  // fast. The user can simply resend.
+  if (status >= 500) {
+    return {
+      kind: 'fatal',
+      userMessage: `The LLM provider returned a server error (${status}). Please retry in a moment.`,
+    }
+  }
+  // Unknown API error — treat as fatal to avoid burning iterations.
+  return {
+    kind: 'fatal',
+    userMessage: `The LLM provider returned an unexpected error (${status}).`,
+  }
+}
+
 export interface ReActObservation {
   action: string
   args: Record<string, unknown>
   result: string
+  /**
+   * The full step object the LLM produced (minus `message`, which is
+   * user-facing and would invite parroting). We replay this verbatim so
+   * the model sees its own reasoning chain on the next turn, without us
+   * second-guessing which fields matter.
+   */
+  stepForReplay?: Record<string, unknown>
 }
 
 export interface ReActDeps {
@@ -90,6 +165,7 @@ export class ReActLoop {
       const messages = this.buildMessages(systemPrompt, userMessage, observations)
 
       let step: ReActStep
+      let rawContent = ''
       try {
         const resp = await this.deps.gateway.complete(messages, {
           model: this.deps.model,
@@ -97,11 +173,38 @@ export class ReActLoop {
           temperature: 0,
           responseFormat: 'json',
         })
+        rawContent = resp.content
+        log.info(
+          { step: i, rawLen: rawContent.length, rawHead: rawContent.slice(0, 400) },
+          'ReAct: raw LLM response',
+        )
 
-        step = parseLlmJson(resp.content) as ReActStep
+        step = parseLlmJson(rawContent) as ReActStep
       }
-      catch {
-        observations.push({ action: 'parse_error', args: {}, result: 'LLM returned invalid JSON - retrying.' })
+      catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+
+        // Classify the failure. HTTP errors from the LLM gateway (429 rate
+        // limit, 5xx server, auth failures) are NOT the model's fault —
+        // retrying them in a tight loop just hammers the provider, burns
+        // quota, and returns the same error. Bail out with a user-facing
+        // message instead of spinning through MAX_ITERATIONS.
+        const classification = classifyLlmError(msg)
+        if (classification.kind === 'fatal') {
+          log.warn({ step: i, err: msg }, 'LLM gateway error — aborting loop')
+          this.deps.sendEvent({ type: 'error', message: classification.userMessage })
+          this.deps.sendEvent({ type: 'reply', content: classification.userMessage })
+          return classification.userMessage
+        }
+
+        // True parse failure — surface it to the next turn so the model
+        // sees what went wrong and can self-correct.
+        log.warn({ step: i, err: msg }, 'LLM returned non-JSON — retrying')
+        observations.push({
+          action: 'parse_error',
+          args: {},
+          result: `Your previous response was not valid JSON. Return ONLY the JSON object, no prose, no markdown fence. Error: ${msg}`,
+        })
         continue
       }
 
@@ -109,7 +212,17 @@ export class ReActLoop {
       step.args = args // normalize undefined to empty object
       lastAction = action
       lastDraftReply = chatReply
-      log.info({ step: i, action, message: chatReply?.slice(0, 80), args: JSON.stringify(args).slice(0, 200) }, 'ReAct step')
+      log.info(
+        {
+          step: i,
+          action,
+          thought: step.thought?.slice(0, 120),
+          message: chatReply?.slice(0, 120),
+          argsKeys: Object.keys(args),
+          allFields: Object.keys(step as unknown as Record<string, unknown>),
+        },
+        'ReAct: parsed step',
+      )
 
       // --- Terminal actions: exit the loop immediately ---
       if (TERMINAL_ACTIONS.has(action)) {
@@ -139,7 +252,18 @@ export class ReActLoop {
       const observation = observationText
       lastObservation = observation
 
-      observations.push({ action, args: step.args ?? {}, result: observation })
+      // Preserve the full step shape as the LLM produced it (reasoning,
+      // chain-of-thought, any extra fields), minus `message` — that's the
+      // user-facing narration and replaying it tempts the model to parrot
+      // itself verbatim on the next turn.
+      const { message: _omitMessage, ...stepForReplay } = step as unknown as Record<string, unknown>
+      void _omitMessage
+      observations.push({
+        action,
+        args: step.args ?? {},
+        result: observation,
+        stepForReplay,
+      })
     }
 
     if (lastAction && lastObservation) {
@@ -188,9 +312,14 @@ export class ReActLoop {
 
     for (let i = 0; i < observations.length; i++) {
       const obs = observations[i]!
+      // Replay the original step (thought + action + args + any extras)
+      // minus the user-facing `message`. This preserves the reasoning
+      // chain the LLM built up, so it doesn't re-reason from scratch on
+      // every turn and repeat itself.
+      const assistantPayload = obs.stepForReplay ?? { action: obs.action, args: obs.args }
       messages.push({
         role: 'assistant',
-        content: JSON.stringify({ action: obs.action, args: obs.args }),
+        content: JSON.stringify(assistantPayload),
       })
 
       let resultText = obs.result

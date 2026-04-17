@@ -22,8 +22,11 @@ export function panelSize(viz: PanelVisualization, sameVizCount: number = 1): Pa
       // SVG arc needs vertical room — gauge visualization is ~150px tall
       return { width: 3, height: 3 }
     case 'time_series':
-      // 1 panel → full width; 2+ → half width side by side
-      return { width: sameVizCount >= 2 ? 6 : 12, height: 3 }
+      // Always half-width. A single time_series at full width (12) beside a
+      // half-width heatmap looked inconsistent — row heights differ and the
+      // layout reads as accidental. 6×3 keeps all "detail charts" in one
+      // column rhythm, even if a lone panel leaves the right half empty.
+      return { width: 6, height: 3 }
     case 'table':
       return { width: sameVizCount >= 2 ? 6 : 12, height: 4 }
     case 'bar':
@@ -31,7 +34,11 @@ export function panelSize(viz: PanelVisualization, sameVizCount: number = 1): Pa
       // 3+ → fit 3 per row; 2 → half width; 1 → half width
       return { width: sameVizCount >= 3 ? 4 : 6, height: 3 }
     case 'pie':
-      return { width: sameVizCount >= 3 ? 4 : 6, height: 3 }
+      // Pie/donut is inherently circular — a 6×3 (2:1) panel forces the
+      // circle into one third of the width with a lot of empty space.
+      // 3×3 matches stat's square tile and keeps the chart centred and
+      // legible regardless of sibling count.
+      return { width: 3, height: 3 }
     case 'heatmap':
       // 6×3 matches time_series / bar / pie so side-by-side rows don't leave
       // a visible height step; full-width (12) reads as a flat strip.
