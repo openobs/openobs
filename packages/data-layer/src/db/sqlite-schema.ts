@@ -511,3 +511,23 @@ export const chatMessages = sqliteTable(
     index('chat_messages_timestamp_idx').on(t.timestamp),
   ],
 );
+
+// — chat session events (SSE step trace: thinking, tool_call, tool_result,
+//   panel_added, etc.). Persisted so the chat panel can replay the full
+//   conversation (messages + agent activity) after a page refresh.
+
+export const chatSessionEvents = sqliteTable(
+  'chat_session_events',
+  {
+    id: text('id').primaryKey(),
+    sessionId: text('session_id').notNull(),
+    seq: integer('seq').notNull(),
+    kind: text('kind').notNull(),
+    payload: text('payload', { mode: 'json' }).notNull(),
+    timestamp: text('timestamp').notNull(),
+  },
+  (t) => [
+    index('chat_session_events_session_idx').on(t.sessionId),
+    index('chat_session_events_seq_idx').on(t.sessionId, t.seq),
+  ],
+);

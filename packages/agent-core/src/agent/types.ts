@@ -158,6 +158,10 @@ export interface IAlertRuleStore {
   findAll?(): { id: string, name: string, severity: string, condition: { query: string, operator: string, threshold: number, forDurationSec: number } }[] | Promise<{ id: string, name: string, severity: string, condition: { query: string, operator: string, threshold: number, forDurationSec: number } }[]>
   findById?(id: string): unknown
   delete?(id: string): unknown
+  /** Recent state-change events (firings / resolutions) ordered newest first.
+   *  Optional — implementations without persistent history may omit. */
+  getHistory?(ruleId: string, limit?: number): unknown[] | Promise<unknown[]>
+  getAllHistory?(limit?: number): unknown[] | Promise<unknown[]>
 }
 
 /** Minimal datasource descriptor passed to the orchestrator. */

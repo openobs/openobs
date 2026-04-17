@@ -167,6 +167,7 @@ export function createApp(): Application {
       investigationStore: repos.investigations,
       chatSessionStore: repos.chatSessions,
       chatMessageStore: repos.chatMessages,
+      chatEventStore: repos.chatSessionEvents,
     }));
     app.use('/api/alert-rules', createAlertRulesRouter({
       alertRuleStore: eventAlertRuleStore,

@@ -54,6 +54,7 @@ import {
   handleDashboardList,
   handleInvestigationList,
   handleAlertRuleList,
+  handleAlertRuleHistory,
   handleNavigate,
 } from './orchestrator-action-handlers.js'
 
@@ -309,6 +310,7 @@ export class OrchestratorAgent {
         case 'modify_alert_rule': return handleModifyAlertRule(ctx, args)
         case 'delete_alert_rule': return handleDeleteAlertRule(ctx, args)
         case 'alert_rule.list': return handleAlertRuleList(ctx, args)
+        case 'alert_rule.history': return handleAlertRuleHistory(ctx, args)
         // Navigation
         case 'navigate': return handleNavigate(ctx, args)
         // Prometheus primitives

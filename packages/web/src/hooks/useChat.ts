@@ -32,6 +32,55 @@ export interface UseChatResult {
 }
 
 /**
+ * Convert a persisted SSE payload back into the frontend ChatEvent shape used
+ * by the chat panel. Mirrors the live parsing in handleSSEEvent so replayed
+ * history renders identically to the live stream.
+ */
+function payloadToChatEvent(
+  id: string,
+  kind: string,
+  payload: Record<string, unknown>,
+): ChatEvent | null {
+  switch (kind) {
+    case 'thinking':
+      return { id, kind: 'thinking', content: (payload.content as string) ?? 'Thinking...' };
+    case 'tool_call':
+      return {
+        id,
+        kind: 'tool_call',
+        tool: payload.tool as string | undefined,
+        content: (payload.displayText as string) ?? (payload.content as string) ?? '',
+      };
+    case 'tool_result':
+      return {
+        id,
+        kind: 'tool_result',
+        tool: payload.tool as string | undefined,
+        content: (payload.summary as string) ?? (payload.content as string) ?? '',
+        success: payload.success !== false,
+      };
+    case 'panel_added':
+      return { id, kind: 'panel_added', panel: payload.panel as ChatEvent['panel'] };
+    case 'panel_removed':
+      return { id, kind: 'panel_removed', panelId: payload.panelId as string | undefined };
+    case 'panel_modified':
+      return { id, kind: 'panel_modified', panelId: payload.panelId as string | undefined };
+    case 'error':
+      return {
+        id,
+        kind: 'error',
+        content:
+          (payload.message as string) ?? (payload.content as string) ?? 'An error occurred',
+      };
+    default:
+      // Kinds we intentionally don't replay: variable_added / investigation_report
+      // are reflected in dashboard state, not chat history; agent_event /
+      // verification_report / approval_required aren't currently rendered.
+      return null;
+  }
+}
+
+/**
  * Global chat hook — not tied to any specific dashboard.
  * Calls POST /api/chat and handles SSE events the same way useDashboardChat does.
  */
@@ -256,19 +305,48 @@ export function useChat(): UseChatResult {
     setPendingNavigation(null);
 
     try {
-      const res = await apiClient.get<{ sessionId: string; messages: ChatMessage[] }>(
-        `/chat/sessions/${sessionId}/messages`,
-      );
+      const res = await apiClient.get<{
+        sessionId: string;
+        messages: ChatMessage[];
+        events?: Array<{ id: string; seq: number; kind: string; payload: Record<string, unknown>; timestamp: string }>;
+      }>(`/chat/sessions/${sessionId}/messages`);
       if (res.error || !res.data?.messages) return;
 
       const loaded = res.data.messages;
       setMessages(loaded);
-      // Rebuild events from loaded messages so the UI renders them
-      const rebuilt: ChatEvent[] = loaded.map((msg) => ({
-        id: msg.id,
-        kind: 'message' as const,
-        message: msg,
-      }));
+
+      // Rebuild the full event trace so the chat panel looks identical to the
+      // live run: messages interleaved with the agent-activity events they
+      // produced (tool_call / tool_result / panel_added / thinking / etc.).
+      // Strategy: turn each message + each persisted step event into a
+      // timestamped entry, sort chronologically, then convert to ChatEvents.
+      type Entry =
+        | { kind: 'msg'; ts: string; message: ChatMessage }
+        | { kind: 'evt'; ts: string; seq: number; id: string; evt: ChatEvent };
+
+      const entries: Entry[] = [];
+      for (const msg of loaded) {
+        entries.push({ kind: 'msg', ts: msg.timestamp, message: msg });
+      }
+      for (const raw of res.data.events ?? []) {
+        const evt = payloadToChatEvent(raw.id, raw.kind, raw.payload);
+        if (evt) entries.push({ kind: 'evt', ts: raw.timestamp, seq: raw.seq, id: raw.id, evt });
+      }
+      entries.sort((a, b) => {
+        if (a.ts !== b.ts) return a.ts < b.ts ? -1 : 1;
+        // Same timestamp: events use seq for ordering; messages come before
+        // any same-timestamp events to match the live-stream order (user
+        // message appended, then agent activity begins).
+        const aSeq = a.kind === 'evt' ? a.seq : -Infinity;
+        const bSeq = b.kind === 'evt' ? b.seq : -Infinity;
+        return aSeq - bSeq;
+      });
+
+      const rebuilt: ChatEvent[] = entries.map((e) =>
+        e.kind === 'msg'
+          ? { id: e.message.id, kind: 'message', message: e.message }
+          : e.evt,
+      );
       setEvents(rebuilt);
     } catch {
       // Backend may not exist yet (Phase 1) — silently ignore 404s and network errors

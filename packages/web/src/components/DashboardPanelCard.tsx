@@ -1,18 +1,18 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { apiClient } from '../api/client.js';
 import { queryScheduler } from '../api/query-scheduler.js';
-import TimeSeriesChart from './TimeSeriesChart.js';
-import StatVisualization from './StatVisualization.js';
-import GaugeVisualization from './GaugeVisualization.js';
-import BarVisualization from './BarVisualization.js';
-import PieVisualization from './PieVisualization.js';
-import HistogramVisualization from './HistogramVisualization.js';
-import HeatmapVisualization from './HeatmapVisualization.js';
-import StatusTimelineVisualization from './StatusTimelineVisualization.js';
+import TimeSeriesViz from './viz/TimeSeriesViz.js';
+import StatViz from './viz/StatViz.js';
+import GaugeViz from './viz/GaugeViz.js';
+import BarViz from './viz/BarViz.js';
+import BarGaugeViz from './viz/BarGaugeViz.js';
+import PieViz from './viz/PieViz.js';
+import HistogramViz from './viz/HistogramViz.js';
+import HeatmapViz from './viz/HeatmapViz.js';
+import StatusTimelineViz from './viz/StatusTimelineViz.js';
 import type { PanelQuery, PanelConfig, RangeResponse, InstantResponse, QueryResult } from './panel/types.js';
 import {
   transformQueryResult,
-  transformInstantData,
   firstInstantValue,
   instantToBarItems,
   instantToPieItems,
@@ -44,6 +44,23 @@ function extractErrorMessage(err: unknown): string {
 function Spinner() {
   return (
     <span className="inline-block w-3.5 h-3.5 border-2 border-outline-variant border-t-primary rounded-full animate-spin" />
+  );
+}
+
+// Info icon — hover to reveal panel description in a native title tooltip.
+// Native tooltips are good enough here: they avoid a portal/positioning system
+// and don't compete with the rest of the panel chrome on hover.
+function InfoIcon({ description }: { description: string }) {
+  return (
+    <span
+      title={description}
+      aria-label={description}
+      className="inline-flex shrink-0 items-center justify-center rounded-full text-on-surface-variant/60 hover:text-on-surface-variant cursor-help"
+    >
+      <svg className="w-3 h-3" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+        <path d="M8 1.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM8 13A5 5 0 118 3a5 5 0 010 10zm-.75-7.5a.75.75 0 111.5 0 .75.75 0 01-1.5 0zM7 7h2v4.5H7V7z" />
+      </svg>
+    </span>
   );
 }
 
@@ -119,6 +136,9 @@ interface Props {
   onDelete?: () => void;
   editMode?: boolean;
   timeRange?: string;
+  /** Fired when the user box-zooms on a time-series panel; value is a
+   *  resolveTimeRange-compatible `"ISO|ISO"` absolute range string. */
+  onTimeRangeChange?: (range: string) => void;
 }
 
 export default function DashboardPanelCard({
@@ -127,10 +147,12 @@ export default function DashboardPanelCard({
   onDelete,
   editMode = false,
   timeRange = '1h',
+  onTimeRangeChange,
 }: Props) {
   const [loading, setLoading] = useState(true);
   const [multiRangeData, setMultiRangeData] = useState<QueryResult[]>([]);
   const [instantData, setInstantData] = useState<InstantResponse | null>(null);
+  const [sparklineData, setSparklineData] = useState<{ timestamps: number[]; values: number[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isTransientError, setIsTransientError] = useState(false);
 
@@ -149,6 +171,11 @@ export default function DashboardPanelCard({
   );
 
   const isRangeViz = panel.visualization === 'time_series' || panel.visualization === 'status_timeline' || panel.visualization === 'heatmap';
+  // Stat panels fetch a sparkline trend by default (in parallel with the
+  // instant query). Agent can opt out with `sparkline: false` for genuinely
+  // time-invariant metrics (config counts, version strings) — but for the
+  // 95% case where you do want a trend, omitting the field is enough.
+  const wantsSparkline = panel.visualization === 'stat' && panel.sparkline !== false;
   const activeQuery = effectiveQueries[0]?.expr ?? '';
   const resolvedTimeRange = useMemo(() => resolveTimeRange(timeRange), [timeRange]);
 
@@ -250,6 +277,40 @@ export default function DashboardPanelCard({
         }
       } else {
         try {
+          // Stat-with-sparkline runs both fetches in parallel; the instant
+          // value drives the big number, the range query feeds the trend.
+          const sparklinePromise: Promise<void> = wantsSparkline
+            ? queryScheduler
+                .schedule<{ data: RangeResponse | null; error?: unknown }>(
+                  `spark:${queryKey}`,
+                  () =>
+                    apiClient.post('/query/range', {
+                      query: activeQuery,
+                      ...resolveTimeRange(timeRange),
+                    }) as Promise<{ data: RangeResponse | null; error?: unknown }>,
+                )
+                .then((sparkRes) => {
+                  if (sparkRes.error || !sparkRes.data) return;
+                  // Use only the first series — sparkline is a single trend.
+                  const first = sparkRes.data.data?.result?.[0];
+                  if (!first || !first.values) return;
+                  const timestamps: number[] = [];
+                  const values: number[] = [];
+                  for (const [ts, v] of first.values) {
+                    const num = Number.parseFloat(v);
+                    if (Number.isFinite(num)) {
+                      timestamps.push(ts * 1000);
+                      values.push(num);
+                    }
+                  }
+                  setSparklineData({ timestamps, values });
+                })
+                .catch(() => {
+                  // Sparkline failure is non-fatal — keep the panel showing
+                  // the value without trend rather than erroring out.
+                })
+            : Promise.resolve();
+
           const res = await queryScheduler.schedule<{ data: InstantResponse | null; error?: unknown }>(
             `instant:${instantQueryKey}`,
             () =>
@@ -264,6 +325,7 @@ export default function DashboardPanelCard({
           }
           retryCountRef.current = 0;
           setInstantData(res.data);
+          await sparklinePromise;
         } catch (err) {
           handleError(err instanceof Error ? err.message : 'Query failed');
           return;
@@ -297,11 +359,35 @@ export default function DashboardPanelCard({
     } else {
       const res = cached as { data: InstantResponse };
       setInstantData(res.data);
+
+      // Stat panels also need their sparkline trend from cache, otherwise a
+      // page refresh restores the big number but drops the line underneath.
+      // If the sparkline query wasn't cached (or is stale) we fall through
+      // to the full fetch path below — a half-restored panel is worse than
+      // a one-shot refetch.
+      if (wantsSparkline) {
+        const sparkCached = queryScheduler.getCached<{ data: RangeResponse | null }>(
+          `spark:${queryKey}`,
+          cacheMaxAgeMs,
+        );
+        const first = sparkCached?.data?.data?.result?.[0];
+        if (!first?.values) return false;
+        const timestamps: number[] = [];
+        const values: number[] = [];
+        for (const [ts, v] of first.values) {
+          const num = Number.parseFloat(v);
+          if (Number.isFinite(num)) {
+            timestamps.push(ts * 1000);
+            values.push(num);
+          }
+        }
+        setSparklineData({ timestamps, values });
+      }
     }
 
     setLoading(false);
     return true;
-  }, [isRangeViz, queryKey, instantQueryKey, cacheMaxAgeMs, effectiveQueries]);
+  }, [isRangeViz, queryKey, instantQueryKey, cacheMaxAgeMs, effectiveQueries, wantsSparkline]);
 
   // Snapshot mode: when snapshotData is present, populate state directly
   // and skip all live fetching, caching, and refresh intervals.
@@ -321,6 +407,9 @@ export default function DashboardPanelCard({
       if (snap.instant) {
         setInstantData(snap.instant as InstantResponse);
       }
+      if (snap.sparkline) {
+        setSparklineData(snap.sparkline);
+      }
       setLoading(false);
       return;
     }
@@ -329,6 +418,7 @@ export default function DashboardPanelCard({
     setIsTransientError(false);
     setMultiRangeData([]);
     setInstantData(null);
+    setSparklineData(null);
     retryCountRef.current = 0;
 
     // On mount: use cached data if available - no network request
@@ -414,57 +504,160 @@ export default function DashboardPanelCard({
       );
     }
 
+    const flattenedSeries = multiRangeData.flatMap((r) =>
+      r.series.map((s) => ({ ...s, refId: r.refIds, legendFormat: r.legendFormat })),
+    );
+    const stacking: 'none' | 'normal' | 'percent' =
+      panel.stackMode === 'normal' ? 'normal' : panel.stackMode === 'percent' ? 'percent' : 'none';
+
     switch (panel.visualization) {
       case 'time_series':
-        return <div className="h-full"><TimeSeriesChart result={multiRangeData[0]} stackMode={panel.stackMode === 'normal' ? 'normal' : 'none'} unit={panel.unit} /></div>;
+        return (
+          <div className="h-full">
+            <TimeSeriesViz
+              series={flattenedSeries}
+              stacking={stacking}
+              unit={panel.unit}
+              thresholds={panel.thresholds}
+              lineWidth={panel.lineWidth}
+              fillOpacity={panel.fillOpacity}
+              showPoints={panel.showPoints}
+              yScale={panel.yScale}
+              legendStats={panel.legendStats}
+              legendPlacement={panel.legendPlacement}
+              annotations={panel.annotations}
+              onZoom={
+                onTimeRangeChange
+                  ? (from, to) => {
+                      onTimeRangeChange(
+                        `${new Date(from).toISOString()}|${new Date(to).toISOString()}`,
+                      );
+                    }
+                  : undefined
+              }
+            />
+          </div>
+        );
       case 'stat': {
         const val = firstInstantValue(instantData);
-        return <StatVisualization value={val} unit={panel.unit} description={panel.description} />;
+        return (
+          <StatViz
+            value={val}
+            unit={panel.unit}
+            decimals={panel.decimals}
+            thresholds={panel.thresholds}
+            colorMode={panel.colorMode ?? 'value'}
+            sparkline={sparklineData ?? undefined}
+          />
+        );
       }
       case 'gauge': {
         const rawVal = firstInstantValue(instantData);
-        // Auto-scale based on unit:
-        //  - percentunit: value is 0-1, show as 0-100%
-        //  - percent: value is 0-100, show as 0-100%
-        //  - other: leave as-is, max=100 default
+        // percentunit (0-1) is rendered as 0-100% via the 'percent' formatter;
+        // percent (already 0-100) keeps its formatter. Other units pass through.
         let val = rawVal;
         let max = 100;
         let displayUnit = panel.unit;
         if (panel.unit === 'percentunit' && typeof rawVal === 'number') {
           val = rawVal * 100;
-          displayUnit = '%';
-        } else if (panel.unit === 'percent') {
-          displayUnit = '%';
+          displayUnit = 'percent';
         }
         return (
-          <div className="flex justify-center py-1">
-            <GaugeVisualization value={val} max={max} unit={displayUnit} />
+          <div className="flex h-full w-full items-center justify-center">
+            <GaugeViz
+              value={val}
+              max={max}
+              unit={displayUnit}
+              thresholds={panel.thresholds}
+            />
           </div>
         );
       }
       case 'bar': {
         const items = instantToBarItems(instantData);
-        return <div className="px-3 pb-2"><BarVisualization items={items} /></div>;
+        return (
+          <div className="h-full px-3 pb-2">
+            <BarViz items={items} unit={panel.unit} thresholds={panel.thresholds} />
+          </div>
+        );
+      }
+      case 'bar_gauge': {
+        const items = instantToBarItems(instantData);
+        // percentunit (0-1) → percent (0-100) so the formatter and the
+        // implicit ceiling line up with the user's mental model.
+        let displayItems = items;
+        let displayMax = panel.barGaugeMax;
+        let displayUnit = panel.unit;
+        if (panel.unit === 'percentunit') {
+          displayItems = items.map((it) => ({ ...it, value: it.value * 100 }));
+          displayUnit = 'percent';
+          if (displayMax === undefined) displayMax = 100;
+        } else if (panel.unit === 'percent' && displayMax === undefined) {
+          displayMax = 100;
+        }
+        return (
+          <div className="h-full px-3 pb-2">
+            <BarGaugeViz
+              items={displayItems}
+              unit={displayUnit}
+              thresholds={panel.thresholds}
+              mode={panel.barGaugeMode ?? 'gradient'}
+              {...(displayMax !== undefined ? { max: displayMax } : {})}
+            />
+          </div>
+        );
       }
       case 'table': {
-        const tsData = isRangeViz ? multiRangeData[0] : transformInstantData(instantData!, activeQuery);
-        return <div className="h-full"><TimeSeriesChart result={tsData} unit={panel.unit} /></div>;
+        // Table routing currently reuses the time-series viz for range data.
+        // A DataFrame-backed TableViz exists but wiring requires converting
+        // instantData → DataFrame; kept for a follow-up task.
+        return (
+          <div className="h-full">
+            <TimeSeriesViz
+              series={flattenedSeries}
+              stacking={stacking}
+              unit={panel.unit}
+              thresholds={panel.thresholds}
+            />
+          </div>
+        );
       }
       case 'pie': {
         const items = instantToPieItems(instantData);
-        return <div className="px-3 pb-2"><PieVisualization items={items} /></div>;
+        return (
+          <div className="h-full px-3 pb-2">
+            <PieViz items={items} unit={panel.unit} />
+          </div>
+        );
       }
       case 'histogram': {
         const buckets = instantToHistogramBuckets(instantData);
-        return <div className="px-3 pb-2"><HistogramVisualization buckets={buckets} /></div>;
+        return (
+          <div className="h-full px-3 pb-2">
+            <HistogramViz buckets={buckets} unit={panel.unit} />
+          </div>
+        );
       }
       case 'heatmap': {
         const points = rangeToHeatmapPoints(multiRangeData);
-        return <div className="px-3 pb-2"><HeatmapVisualization points={points} /></div>;
+        return (
+          <div className="h-full px-3 pb-2">
+            <HeatmapViz
+              points={points}
+              unit={panel.unit}
+              colorScale={panel.colorScale ?? 'sqrt'}
+              collapseEmptyBuckets={panel.collapseEmptyBuckets ?? true}
+            />
+          </div>
+        );
       }
       case 'status_timeline': {
         const spans = rangeToStatusSpans(multiRangeData);
-        return <div className="py-3 pb-2"><StatusTimelineVisualization spans={spans} /></div>;
+        return (
+          <div className="py-3 pb-2">
+            <StatusTimelineViz spans={spans} />
+          </div>
+        );
       }
       default:
         return (
@@ -483,18 +676,22 @@ export default function DashboardPanelCard({
   if (isStat) {
     return (
       <div
-        className={`bg-surface-container border border-white/5 rounded-xl h-full px-4 py-3 relative group transition-all duration-200 panel-drag-handle cursor-grab active:cursor-grabbing flex flex-col hover:border-white/10 ${
+        className={`bg-surface-container border border-white/5 rounded-xl h-full px-3 py-2 relative group transition-all duration-200 panel-drag-handle cursor-grab active:cursor-grabbing flex flex-col hover:border-white/10 ${
           editMode ? 'ring-1 ring-dashed ring-outline-variant' : ''
         }`}
       >
-        <div className="flex items-start justify-between">
-          <span className="text-xs text-on-surface font-semibold truncate">{panel.title}</span>
-          <div className={`flex items-center gap-0.5 shrink-0 ml-2 transition-opacity duration-150 ${editMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-2 h-4 bg-primary rounded-full shrink-0" />
+            <span className="text-sm font-bold text-on-surface font-[Manrope] truncate">{panel.title}</span>
+            {panel.description && <InfoIcon description={panel.description} />}
+          </div>
+          <div className={`flex items-center gap-0.5 shrink-0 transition-opacity duration-150 ${editMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
             {onEdit && <button type="button" onClick={onEdit} className="p-0.5 rounded hover:bg-surface-highest text-on-surface-variant hover:text-on-surface" title="Edit"><svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-8.5 8.5L5 15l.086-2.914 8.5-8.5zM4 16h12v1H4z" /></svg></button>}
             {onDelete && <button type="button" onClick={onDelete} className="p-0.5 rounded hover:bg-error/10 text-on-surface-variant hover:text-error" title="Delete"><svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-1 1v1H5a1 1 0 100 2h.293l.853 9.386A2 2 0 008.138 17h3.724a2 2 0 001.992-1.614L14.707 6H15a1 1 0 100-2h-3V3a1 1 0 00-1-1H9zM9 4h2V3H9v1z" clipRule="evenodd" /></svg></button>}
           </div>
         </div>
-        <div className="flex-1 flex items-center">{renderContent()}</div>
+        <div className="flex-1 flex items-center justify-center min-h-0">{renderContent()}</div>
       </div>
     );
   }
@@ -506,11 +703,12 @@ export default function DashboardPanelCard({
         editMode ? 'ring-1 ring-dashed ring-outline-variant' : ''
       }`}
     >
-      <div className="panel-drag-handle flex items-center justify-between px-4 pt-3 pb-1.5 cursor-grab active:cursor-grabbing">
-        <div className="flex items-center gap-3 min-w-0">
+      <div className="panel-drag-handle flex items-center justify-between px-3 pt-2 pb-1 cursor-grab active:cursor-grabbing">
+        <div className="flex items-center gap-2 min-w-0">
           <div className="drag-handle w-2 h-4 bg-primary rounded-full shrink-0" />
           {loading && <Spinner />}
           <span className="text-sm font-bold text-on-surface font-[Manrope] truncate">{panel.title}</span>
+          {panel.description && <InfoIcon description={panel.description} />}
         </div>
 
         <div className={`flex items-center gap-1 shrink-0 transition-opacity duration-150 ${editMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
@@ -526,10 +724,6 @@ export default function DashboardPanelCard({
             )}
           </div>
       </div>
-
-      {panel.description && (
-        <p className="px-4 text-[10px] text-on-surface-variant line-clamp-1">{panel.description}</p>
-      )}
 
       <div className="flex-1 min-h-0 overflow-hidden">{renderContent()}</div>
 

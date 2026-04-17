@@ -21,6 +21,7 @@ import type {
   IPostMortemRepository,
   IChatSessionRepository,
   IChatMessageRepository,
+  IChatSessionEventRepository,
 } from './interfaces.js';
 import type {
   IGatewayInvestigationStore,
@@ -54,6 +55,7 @@ import { SqliteInvestigationReportRepository } from './sqlite/investigation-repo
 import { SqlitePostMortemRepository } from './sqlite/post-mortem.js';
 import { SqliteChatSessionRepository } from './sqlite/chat-session.js';
 import { SqliteChatMessageRepository } from './sqlite/chat-message.js';
+import { SqliteChatSessionEventRepository } from './sqlite/chat-session-event.js';
 
 /**
  * Core repositories (shared across all backends that support them).
@@ -93,6 +95,7 @@ export interface SqliteRepositories {
   postMortems: IPostMortemRepository;
   chatSessions: IChatSessionRepository;
   chatMessages: IChatMessageRepository;
+  chatSessionEvents: IChatSessionEventRepository;
 }
 
 export function createPostgresRepositories(db: DbClient): Repositories {
@@ -124,6 +127,7 @@ export function createSqliteRepositories(db: SqliteClient): SqliteRepositories {
     postMortems: new SqlitePostMortemRepository(db),
     chatSessions: new SqliteChatSessionRepository(db),
     chatMessages: new SqliteChatMessageRepository(db),
+    chatSessionEvents: new SqliteChatSessionEventRepository(db),
   };
 }
 

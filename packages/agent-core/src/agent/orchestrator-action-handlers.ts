@@ -18,7 +18,7 @@ import type {
 } from './types.js'
 import type { ActionExecutor } from './action-executor.js'
 import type { AlertRuleAgent } from './alert-rule-agent.js'
-import { applyLayout } from './layout-engine.js'
+import { applyLayout, panelSize } from './layout-engine.js'
 
 /** Shared context passed to every action handler. */
 export interface ActionContext {
@@ -132,11 +132,13 @@ export async function handleInvestigationAddSection(
   // Build panel config and capture snapshot for evidence sections
   if (sectionType === 'evidence' && args.panel && typeof args.panel === 'object') {
     const p = args.panel as Record<string, unknown>
+    const viz = (p.visualization ?? 'time_series') as PanelVisualization
+    const dims = panelSize(viz)
     const panelConfig: PanelConfig = {
       id: randomUUID(),
       title: String(p.title ?? 'Evidence'),
-      description: '',
-      visualization: (p.visualization ?? 'time_series') as PanelVisualization,
+      description: typeof p.description === 'string' ? p.description : '',
+      visualization: viz,
       queries: Array.isArray(p.queries) ? (p.queries as Record<string, unknown>[]).map((q) => ({
         refId: String(q.refId ?? 'A'),
         expr: String(q.expr ?? ''),
@@ -145,9 +147,18 @@ export async function handleInvestigationAddSection(
       })) : [],
       row: 0,
       col: 0,
-      width: Number(p.width ?? 12),
-      height: Number(p.height ?? 4),
+      width: dims.width,
+      height: dims.height,
       unit: typeof p.unit === 'string' ? p.unit : undefined,
+      // Visual polish hints — pass through whatever the agent emitted.
+      ...(typeof p.sparkline === 'boolean' ? { sparkline: p.sparkline } : {}),
+      ...(typeof p.colorMode === 'string' ? { colorMode: p.colorMode as PanelConfig['colorMode'] } : {}),
+      ...(typeof p.graphMode === 'string' ? { graphMode: p.graphMode as PanelConfig['graphMode'] } : {}),
+      ...(typeof p.lineWidth === 'number' ? { lineWidth: p.lineWidth } : {}),
+      ...(typeof p.fillOpacity === 'number' ? { fillOpacity: p.fillOpacity } : {}),
+      ...(Array.isArray(p.legendStats) ? { legendStats: p.legendStats as PanelConfig['legendStats'] } : {}),
+      ...(typeof p.legendPlacement === 'string' ? { legendPlacement: p.legendPlacement as PanelConfig['legendPlacement'] } : {}),
+      ...(typeof p.colorScale === 'string' ? { colorScale: p.colorScale as PanelConfig['colorScale'] } : {}),
     }
 
     // Capture snapshot data if metrics adapter is available
@@ -158,6 +169,31 @@ export async function handleInvestigationAddSection(
         if (hasInstantQuery) {
           // Instant snapshot
           const results = await ctx.metricsAdapter.instantQuery(queries[0]!.expr)
+          // For stat panels with sparkline=true, also capture a range so the
+          // saved investigation renders the trend without needing live data.
+          // Failure here is non-fatal — we keep the instant snapshot either way.
+          let sparkline: { timestamps: number[]; values: number[] } | undefined
+          if (panelConfig.visualization === 'stat' && panelConfig.sparkline) {
+            try {
+              const end = new Date()
+              const start = new Date(end.getTime() - 60 * 60_000)
+              const sparkResults = await ctx.metricsAdapter.rangeQuery(
+                queries[0]!.expr,
+                start,
+                end,
+                '60s',
+              )
+              const first = sparkResults[0]
+              if (first && first.values.length > 0) {
+                sparkline = {
+                  timestamps: first.values.map(([ts]) => ts * 1000),
+                  values: first.values.map(([, v]) => Number(v)).filter(Number.isFinite),
+                }
+              }
+            } catch {
+              // ignore — instant snapshot still wins
+            }
+          }
           panelConfig.snapshotData = {
             instant: {
               data: {
@@ -167,6 +203,7 @@ export async function handleInvestigationAddSection(
                 })),
               },
             },
+            ...(sparkline ? { sparkline } : {}),
             capturedAt: new Date().toISOString(),
           }
         } else {
@@ -270,11 +307,18 @@ export async function handleDashboardAddPanels(
 
   ctx.sendEvent({ type: 'tool_call', tool: 'dashboard.add_panels', args: { count: panels.length }, displayText: `Adding ${panels.length} panel(s)` })
 
-  const rawPanels: import('@agentic-obs/common').PanelConfig[] = panels.map((p) => ({
+  type CommonPanel = import('@agentic-obs/common').PanelConfig
+  // Panel sizing is NOT the agent's concern — every panel gets a viz-based
+  // default from the layout-engine's panelSize(); users can drag to resize
+  // in the UI afterward. Any width/height the agent emits is deliberately
+  // ignored so proportions stay consistent across dashboards.
+  const rawPanels: CommonPanel[] = panels.map((p) => {
+    const viz = (p.visualization ?? 'time_series') as import('@agentic-obs/common').PanelVisualization
+    return ({
     id: randomUUID(),
     title: String(p.title ?? 'Panel'),
     description: String(p.description ?? ''),
-    visualization: (p.visualization ?? 'time_series') as import('@agentic-obs/common').PanelVisualization,
+    visualization: viz,
     queries: Array.isArray(p.queries) ? p.queries.map((q: Record<string, unknown>) => ({
       refId: String(q.refId ?? 'A'),
       expr: String(q.expr ?? ''),
@@ -283,14 +327,42 @@ export async function handleDashboardAddPanels(
     })) : [],
     row: 0,
     col: 0,
-    width: Number(p.width ?? 6),
-    height: Number(p.height ?? 3),
+    // Placeholder dims — applyLayout() below replaces these with the
+    // viz-specific defaults. Keeping placeholders here (vs leaving the field
+    // undefined) avoids type narrowing churn downstream.
+    width: 6,
+    height: 3,
     unit: typeof p.unit === 'string' ? p.unit : undefined,
     stackMode: typeof p.stackMode === 'string' ? p.stackMode as 'none' | 'normal' | 'percent' : undefined,
     fillOpacity: typeof p.fillOpacity === 'number' ? p.fillOpacity : undefined,
     decimals: typeof p.decimals === 'number' ? p.decimals : undefined,
     thresholds: Array.isArray(p.thresholds) ? p.thresholds as import('@agentic-obs/common').PanelThreshold[] : undefined,
-  }))
+    // Visual polish hints from agent (default applied client-side when omitted)
+    ...(typeof p.sparkline === 'boolean' ? { sparkline: p.sparkline } : {}),
+    ...(typeof p.colorMode === 'string' ? { colorMode: p.colorMode as CommonPanel['colorMode'] } : {}),
+    ...(typeof p.graphMode === 'string' ? { graphMode: p.graphMode as CommonPanel['graphMode'] } : {}),
+    ...(typeof p.lineWidth === 'number' ? { lineWidth: p.lineWidth } : {}),
+    ...(Array.isArray(p.legendStats) ? { legendStats: p.legendStats as CommonPanel['legendStats'] } : {}),
+    ...(typeof p.legendPlacement === 'string' ? { legendPlacement: p.legendPlacement as CommonPanel['legendPlacement'] } : {}),
+    ...(typeof p.colorScale === 'string' ? { colorScale: p.colorScale as CommonPanel['colorScale'] } : {}),
+    ...(typeof p.showPoints === 'string' ? { showPoints: p.showPoints as CommonPanel['showPoints'] } : {}),
+    ...(typeof p.yScale === 'string' ? { yScale: p.yScale as CommonPanel['yScale'] } : {}),
+    ...(typeof p.collapseEmptyBuckets === 'boolean' ? { collapseEmptyBuckets: p.collapseEmptyBuckets } : {}),
+    ...(typeof p.barGaugeMax === 'number' ? { barGaugeMax: p.barGaugeMax } : {}),
+    ...(typeof p.barGaugeMode === 'string' ? { barGaugeMode: p.barGaugeMode as CommonPanel['barGaugeMode'] } : {}),
+    ...(Array.isArray(p.annotations)
+      ? {
+          annotations: (p.annotations as Array<Record<string, unknown>>)
+            .filter((a) => typeof a.time === 'number' && typeof a.label === 'string')
+            .map((a) => ({
+              time: a.time as number,
+              label: a.label as string,
+              ...(typeof a.color === 'string' ? { color: a.color } : {}),
+            })),
+        }
+      : {}),
+  })
+  })
 
   // Apply auto-layout, then offset below existing panels
   const laidOut = applyLayout(rawPanels)
@@ -891,6 +963,117 @@ export async function handleAlertRuleList(
   } catch (err) {
     const msg = `Failed to list alert rules: ${err instanceof Error ? err.message : String(err)}`
     ctx.sendEvent({ type: 'tool_result', tool: 'alert_rule.list', summary: msg, success: false })
+    return msg
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Alert rule history — recent firing/resolution events for annotation overlays
+// ---------------------------------------------------------------------------
+
+interface RawHistoryEntry {
+  id?: string
+  ruleId?: string
+  ruleName?: string
+  fromState?: string
+  toState?: string
+  value?: number
+  threshold?: number
+  timestamp?: string
+}
+
+const SEVERITY_COLOR: Record<string, string> = {
+  critical: '#ff6e84',
+  high: '#f07934',
+  medium: '#e2b007',
+  low: '#3e7bfa',
+}
+
+export async function handleAlertRuleHistory(
+  ctx: ActionContext,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const ruleId = typeof args.ruleId === 'string' ? args.ruleId : undefined
+  const sinceMinutes = typeof args.sinceMinutes === 'number' ? args.sinceMinutes : 60
+  const limit = typeof args.limit === 'number' ? args.limit : 50
+
+  ctx.sendEvent({
+    type: 'tool_call',
+    tool: 'alert_rule.history',
+    args: { ruleId, sinceMinutes, limit },
+    displayText: ruleId
+      ? `Fetching history for rule ${ruleId} (last ${sinceMinutes} min)`
+      : `Fetching alert history (last ${sinceMinutes} min)`,
+  })
+
+  // Both methods are optional; bail with a helpful message instead of throwing
+  // so the agent can decide whether to retry or skip annotations.
+  const fetcher = ruleId
+    ? ctx.alertRuleStore.getHistory?.bind(ctx.alertRuleStore, ruleId, limit)
+    : ctx.alertRuleStore.getAllHistory?.bind(ctx.alertRuleStore, limit)
+  if (!fetcher) {
+    const msg = 'Alert history is not available from this store; skip annotations.'
+    ctx.sendEvent({ type: 'tool_result', tool: 'alert_rule.history', summary: msg, success: false })
+    return msg
+  }
+
+  // Severity lookup is best-effort: if the store lists rules, we can color
+  // each annotation by the rule's severity. Failure here is not fatal.
+  const severityByRule = new Map<string, string>()
+  try {
+    if (ctx.alertRuleStore.findAll) {
+      const rules = await ctx.alertRuleStore.findAll()
+      for (const r of Array.isArray(rules) ? rules : []) {
+        if (r && typeof r === 'object') severityByRule.set(r.id, r.severity)
+      }
+    }
+  } catch {
+    // ignore — we'll fall back to generic colors
+  }
+
+  try {
+    const raw = (await fetcher()) as RawHistoryEntry[]
+    const cutoffMs = Date.now() - sinceMinutes * 60_000
+    // Map only state TRANSITIONS to firing — entering 'firing' is the moment
+    // worth marking. Resolutions are useful too but noisier; include them as
+    // a separate label so the agent can filter if it wants a cleaner overlay.
+    const annotations = raw
+      .map((e) => {
+        const tMs = e.timestamp ? new Date(e.timestamp).getTime() : NaN
+        if (!Number.isFinite(tMs) || tMs < cutoffMs) return null
+        const ruleName = e.ruleName ?? 'unknown'
+        const ruleSeverity = e.ruleId ? severityByRule.get(e.ruleId) : undefined
+        const color = ruleSeverity ? SEVERITY_COLOR[ruleSeverity] : SEVERITY_COLOR.medium
+        let label: string
+        if (e.toState === 'firing') {
+          label = `${ruleName} fired`
+          if (typeof e.value === 'number' && typeof e.threshold === 'number') {
+            label += ` (value=${e.value}, threshold=${e.threshold})`
+          }
+        } else if (e.toState === 'resolved') {
+          label = `${ruleName} resolved`
+        } else {
+          label = `${ruleName}: ${e.fromState ?? '?'} → ${e.toState ?? '?'}`
+        }
+        return { time: tMs, label, color }
+      })
+      .filter((a): a is { time: number; label: string; color: string } => a !== null)
+      .sort((a, b) => a.time - b.time)
+
+    const summary = annotations.length === 0
+      ? `No alert state changes in the last ${sinceMinutes} minute(s).`
+      : `Found ${annotations.length} alert event(s). Pass the JSON below as \`panel.annotations\` on time-axis panels:\n\`\`\`json\n${JSON.stringify(annotations, null, 2)}\n\`\`\``
+
+    ctx.sendEvent({
+      type: 'tool_result',
+      tool: 'alert_rule.history',
+      summary: `${annotations.length} alert events`,
+      success: true,
+    })
+    return summary
+  } catch (err) {
+    const msg = `Failed to load alert history: ${err instanceof Error ? err.message : String(err)}`
+    ctx.sendEvent({ type: 'tool_result', tool: 'alert_rule.history', summary: msg, success: false })
     return msg
   }
 }

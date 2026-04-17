@@ -408,3 +408,21 @@ export interface IChatMessageRepository {
   getMessageCount(sessionId: string): MaybeAsync<number>;
   deleteBySession(sessionId: string): MaybeAsync<void>;
 }
+
+// — ChatSessionEvent (persisted SSE step trace)
+
+export interface ChatSessionEventRecord {
+  id: string;
+  sessionId: string;
+  seq: number;
+  kind: string;
+  payload: Record<string, unknown>;
+  timestamp: string;
+}
+
+export interface IChatSessionEventRepository {
+  append(event: ChatSessionEventRecord): MaybeAsync<void>;
+  listBySession(sessionId: string): MaybeAsync<ChatSessionEventRecord[]>;
+  nextSeq(sessionId: string): MaybeAsync<number>;
+  deleteBySession(sessionId: string): MaybeAsync<void>;
+}

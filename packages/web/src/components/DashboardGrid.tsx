@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Responsive, useContainerWidth, type LayoutItem } from 'react-grid-layout';
 import DashboardPanelCard from './DashboardPanelCard.js';
 import type { PanelConfig } from './DashboardPanelCard.js';
@@ -11,6 +11,8 @@ interface Props {
   onEditPanel?: (id: string) => void;
   onDeletePanel?: (id: string) => void;
   onLayoutChange?: (layout: Array<{ i: string; x: number; y: number; w: number; h: number }>) => void;
+  /** Fired when a panel's user-driven zoom selects a new time window. */
+  onTimeRangeChange?: (range: string) => void;
 }
 
 // Section grouping
@@ -46,20 +48,26 @@ function compactLayout(panels: PanelConfig[], editMode: boolean): LayoutItem[] {
   const raw = panels.map((panel) => {
     const isStat = panel.visualization === 'stat';
     const isGauge = panel.visualization === 'gauge';
-    const defaultH = isStat ? 1 : isGauge ? 3 : 3;
+    // stat panels render best as squares: big number on top, sparkline on
+    // bottom — tall panels read as "tile cards" the user can scan in a row.
+    // 3 cols wide × 3 rows tall ≈ 300×300 px on a 1200px container.
+    const defaultH = isStat ? 3 : isGauge ? 3 : 3;
+    const defaultW = isStat ? 3 : 6;
     const h = panel.gridHeight ?? panel.height ?? defaultH;
-    // stat: compact single-value (height capped at 1)
-    // gauge: needs vertical space for SVG arc (at least 2)
+    const w = panel.gridWidth ?? panel.width ?? defaultW;
+    // stat: at least 3 rows so number + sparkline render as a square tile —
+    //   older dashboards persisted with height: 2 auto-upgrade here.
+    // gauge: needs vertical space for the SVG arc (at least 2)
     // other: at least 3
-    const finalH = isStat ? Math.min(h, 1) : isGauge ? Math.max(2, h) : Math.max(3, h);
+    const finalH = isStat ? Math.max(3, h) : isGauge ? Math.max(2, h) : Math.max(3, h);
     return {
       i: panel.id,
       x: panel.gridCol ?? panel.col ?? 0,
       y: panel.gridRow ?? panel.row ?? 0,
-      w: Math.min(COLS, panel.gridWidth ?? panel.width ?? 6),
+      w: Math.min(COLS, w),
       h: finalH,
-      minW: 2,
-      minH: isStat ? 1 : isGauge ? 2 : 3,
+      minW: isStat ? 2 : 2,
+      minH: isStat ? 3 : isGauge ? 2 : 3,
       static: !editMode,
     };
   });
@@ -112,6 +120,23 @@ function compactLayout(panels: PanelConfig[], editMode: boolean): LayoutItem[] {
 
 // Section grid
 
+/** True mobile = the device's screen is narrow (not the dashboard container).
+ *  This distinguishes "phone" from "desktop with chat side-panel open" — the
+ *  latter shouldn't switch to single-column stacking. */
+function useIsMobileScreen(thresholdPx = 600): boolean {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window === 'undefined' ? false : window.innerWidth < thresholdPx,
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia(`(max-width: ${thresholdPx - 1}px)`);
+    const onChange = (): void => setIsMobile(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, [thresholdPx]);
+  return isMobile;
+}
+
 function SectionGrid({
   section,
   width,
@@ -120,6 +145,7 @@ function SectionGrid({
   onEditPanel,
   onDeletePanel,
   onLayoutChange,
+  onTimeRangeChange,
 }: {
   section: Section;
   width: number;
@@ -128,18 +154,48 @@ function SectionGrid({
   onEditPanel?: (id: string) => void;
   onDeletePanel?: (id: string) => void;
   onLayoutChange?: Props['onLayoutChange'];
+  onTimeRangeChange?: Props['onTimeRangeChange'];
 }) {
   const layout = useMemo(() => compactLayout(section.panels, !!editMode), [section.panels, editMode]);
+  const isMobileScreen = useIsMobileScreen(600);
+
+  // Mobile layout: every panel becomes full-width (1 col), stacked top-to-bottom
+  // in original order. Heights are preserved so a heatmap stays visually
+  // dominant relative to a stat tile.
+  const mobileLayout = useMemo(() => {
+    let y = 0;
+    return [...layout]
+      .sort((a, b) => a.y - b.y || a.x - b.x)
+      .map((item) => {
+        const next = { ...item, x: 0, w: 1, y };
+        y += item.h;
+        return next;
+      });
+  }, [layout]);
+
   const ResponsiveGrid = Responsive;
+  const cols = isMobileScreen
+    ? { lg: 1, md: 1, sm: 1, xs: 1, xxs: 1 }
+    : { lg: 12, md: 12, sm: 12, xs: 12, xxs: 12 };
+  const activeLayout = isMobileScreen ? mobileLayout : layout;
 
   return (
     <ResponsiveGrid
       className="layout"
-      layouts={{ lg: layout }}
+      // Same layout across every breakpoint within the chosen mode (desktop or
+      // mobile) so the dashboard container width never causes a re-flow on its
+      // own — only an actual screen-width change does.
+      layouts={{
+        lg: activeLayout,
+        md: activeLayout,
+        sm: activeLayout,
+        xs: activeLayout,
+        xxs: activeLayout,
+      }}
       width={width}
-      cols={{ lg: 12, md: 12, sm: 6, xs: 2, xxs: 1 }}
+      cols={cols}
       rowHeight={100}
-      margin={[16, 16]}
+      margin={[8, 8]}
       containerPadding={[0, 0]}
       dragConfig={{ enabled: !!editMode, bounded: false, handle: '.panel-drag-handle', threshold: 3 }}
       resizeConfig={{ enabled: !!editMode, handles: ['se'] }}
@@ -153,6 +209,7 @@ function SectionGrid({
             timeRange={timeRange}
             onEdit={() => onEditPanel?.(panel.id)}
             onDelete={() => onDeletePanel?.(panel.id)}
+            onTimeRangeChange={onTimeRangeChange}
           />
         </div>
       ))}
@@ -202,6 +259,7 @@ export default function DashboardGrid({
   onEditPanel,
   onDeletePanel,
   onLayoutChange,
+  onTimeRangeChange,
 }: Props) {
   const { width, containerRef } = useContainerWidth();
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
@@ -276,6 +334,7 @@ export default function DashboardGrid({
                 onEditPanel={onEditPanel}
                 onDeletePanel={onDeletePanel}
                 onLayoutChange={onLayoutChange}
+                onTimeRangeChange={onTimeRangeChange}
               />
             )}
           </div>

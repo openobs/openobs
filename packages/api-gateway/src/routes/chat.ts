@@ -109,7 +109,10 @@ export function createChatRouter(deps: ChatServiceDeps): ExpressRouter {
     }
   });
 
-  // GET /chat/sessions/:id/messages — get messages for a session
+  // GET /chat/sessions/:id/messages — get messages + persisted step events for
+  // a session. The `events` array lets the web client rebuild the full chat
+  // panel (agent activity blocks, tool calls, panel-added notices, etc.)
+  // exactly as it looked during the live run.
   router.get('/sessions/:id/messages', requirePermission('dashboard:read'), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const sessionId = req.params['id'] ?? '';
@@ -118,14 +121,13 @@ export function createChatRouter(deps: ChatServiceDeps): ExpressRouter {
         return;
       }
 
-      if (deps.chatMessageStore) {
-        const messages = await deps.chatMessageStore.getMessages(sessionId);
-        res.json({ sessionId, messages });
-      } else {
-        // Fallback to conversationStore
-        const messages = await deps.conversationStore.getMessages(sessionId);
-        res.json({ sessionId, messages });
-      }
+      const [messages, events] = await Promise.all([
+        deps.chatMessageStore
+          ? deps.chatMessageStore.getMessages(sessionId)
+          : deps.conversationStore.getMessages(sessionId),
+        deps.chatEventStore ? deps.chatEventStore.listBySession(sessionId) : Promise.resolve([]),
+      ]);
+      res.json({ sessionId, messages, events });
     } catch (err) {
       next(err);
     }

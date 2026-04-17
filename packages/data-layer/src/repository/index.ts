@@ -27,6 +27,8 @@ export type {
   IPostMortemRepository,
   IChatSessionRepository,
   IChatMessageRepository,
+  IChatSessionEventRepository,
+  ChatSessionEventRecord,
 } from './interfaces.js';
 
 export type {

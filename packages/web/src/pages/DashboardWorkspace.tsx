@@ -127,12 +127,24 @@ export default function DashboardWorkspace() {
     return () => { globalChat.setPageContext(null); };
   }, [id, timeRange, globalChat]);
 
-  // Load the session that created this dashboard so the ChatPanel shows its history
+  // Load the session that created this dashboard so the ChatPanel shows its
+  // full history (messages + agent step events). We always call loadSession
+  // on mount — not only when the session IDs differ — because after a page
+  // refresh localStorage still holds the matching sessionId while the
+  // in-memory events/messages arrays start empty, so a naive equality guard
+  // would leave the chat panel blank.
+  //
+  // Exception: when arriving from Home with an initialPrompt we're about to
+  // start a fresh live run in this same session — loadSession would race the
+  // first outgoing SSE events and wipe them, so skip it in that case.
+  const sessionLoadedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (dashboard?.sessionId && dashboard.sessionId !== globalChat.currentSessionId) {
-      void globalChat.loadSession(dashboard.sessionId);
-    }
-  }, [dashboard?.sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+    const sid = dashboard?.sessionId;
+    if (!sid || initialPrompt) return;
+    if (sessionLoadedRef.current === sid) return;
+    sessionLoadedRef.current = sid;
+    void globalChat.loadSession(sid);
+  }, [dashboard?.sessionId, initialPrompt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Investigation reports are now handled in the Investigations page.
   // No auto-show on dashboard — the chat will display a link instead.
@@ -467,6 +479,7 @@ export default function DashboardWorkspace() {
                   void handleDeletePanel(panelId);
                 }}
                 onLayoutChange={handleLayoutChange}
+                onTimeRangeChange={setTimeRange}
               />
             </div>
           )}

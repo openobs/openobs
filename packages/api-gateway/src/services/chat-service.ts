@@ -8,7 +8,7 @@ import type { IDashboardAlertRuleStore as IAlertRuleStore, IDashboardInvestigati
 import { PrometheusMetricsAdapter } from '@agentic-obs/adapters';
 import { resolvePrometheusDatasource } from './dashboard-service.js';
 import type { IGatewayDashboardStore, IConversationStore } from '../repositories/types.js';
-import type { IInvestigationReportRepository, IAlertRuleRepository, IGatewayInvestigationStore, IChatSessionRepository, IChatMessageRepository } from '@agentic-obs/data-layer';
+import type { IInvestigationReportRepository, IAlertRuleRepository, IGatewayInvestigationStore, IChatSessionRepository, IChatMessageRepository, IChatSessionEventRepository } from '@agentic-obs/data-layer';
 
 const log = createLogger('chat-service');
 
@@ -36,7 +36,14 @@ export interface ChatServiceDeps {
   investigationStore?: IGatewayInvestigationStore;
   chatSessionStore?: IChatSessionRepository;
   chatMessageStore?: IChatMessageRepository;
+  chatEventStore?: IChatSessionEventRepository;
 }
+
+// Event kinds that represent transient signalling (terminator, navigation
+// side-effect, duplicated message content) and should NOT be persisted to the
+// event trace — they'd clutter replay or double-render messages already saved
+// in chat_messages.
+const SKIP_PERSIST_KINDS = new Set(['reply', 'done', 'navigate']);
 
 export interface ChatSessionResult {
   sessionId: string;
@@ -79,6 +86,32 @@ export class ChatService {
         timestamp: new Date().toISOString(),
       });
     }
+
+    // Wrap sendEvent so every step event (thinking, tool_call, tool_result,
+    // panel_added, etc.) is persisted under this session. The live SSE stream
+    // still goes out immediately; persistence is awaited in the background so
+    // it doesn't add latency to user-visible updates.
+    const eventStore = this.deps.chatEventStore;
+    let seq = eventStore ? await eventStore.nextSeq(resolvedSessionId) : 0;
+    const persistQueue: Array<Promise<void>> = [];
+    const wrappedSendEvent = (event: DashboardSseEvent) => {
+      sendEvent(event);
+      if (!eventStore) return;
+      if (SKIP_PERSIST_KINDS.has(event.type)) return;
+      const record = {
+        id: randomUUID(),
+        sessionId: resolvedSessionId,
+        seq: seq++,
+        kind: event.type,
+        payload: event as unknown as Record<string, unknown>,
+        timestamp: new Date().toISOString(),
+      };
+      persistQueue.push(
+        Promise.resolve(eventStore.append(record)).catch((err) => {
+          log.warn({ err, sessionId: resolvedSessionId, kind: event.type }, 'failed to persist chat event');
+        }),
+      );
+    };
 
     const gateway = createLlmGateway(config.llm);
     const model = config.llm.model;
@@ -167,7 +200,7 @@ export class ChatService {
       alertRuleStore: toAlertRuleStore(this.deps.alertRuleStore),
       metricsAdapter,
       allDatasources: config.datasources,
-      sendEvent,
+      sendEvent: wrappedSendEvent,
       timeRange,
       conversationSummary,
     }, resolvedSessionId);
@@ -180,6 +213,13 @@ export class ChatService {
     const assistantActions = orchestrator.consumeConversationActions();
     const navigate = orchestrator.consumeNavigate();
     log.info({ sessionId: resolvedSessionId, reply: replyContent.slice(0, 100) }, 'session orchestrator done');
+
+    // Wait for all queued event persistence to flush before we finalize the
+    // assistant message — guarantees the step trace is fully durable by the
+    // time the client sees 'done' and subsequent /messages loads are consistent.
+    if (persistQueue.length > 0) {
+      await Promise.all(persistQueue);
+    }
 
     // Persist assistant response to chat_messages
     const assistantMessageId = randomUUID();

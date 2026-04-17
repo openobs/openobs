@@ -3,7 +3,7 @@ import type { SqliteClient } from './sqlite-client.js';
 
 // -- Schema versioning ---------------------------------------------------------
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 /**
  * Create all tables if they don't exist, and track schema version.
@@ -301,6 +301,16 @@ export function ensureSchema(db: SqliteClient): void {
       actions TEXT,
       timestamp TEXT NOT NULL
     )`,
+    `CREATE TABLE IF NOT EXISTS chat_session_events (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      seq INTEGER NOT NULL,
+      kind TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      timestamp TEXT NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS chat_session_events_session_idx ON chat_session_events(session_id)`,
+    `CREATE INDEX IF NOT EXISTS chat_session_events_seq_idx ON chat_session_events(session_id, seq)`,
   ];
 
   for (const ddl of tableDefinitions) {

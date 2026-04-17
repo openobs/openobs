@@ -5,9 +5,11 @@ import type {
   PanelVisualization,
 } from '@agentic-obs/common'
 import type { RawPanelSpec } from './types.js'
+import { panelSize } from './layout-engine.js'
 
+// Keep in sync with `PanelVisualization` in @agentic-obs/common.
 const VALID_VISUALIZATIONS = new Set<string>([
-  'time_series', 'stat', 'table', 'gauge', 'bar',
+  'time_series', 'stat', 'table', 'gauge', 'bar', 'bar_gauge',
   'heatmap', 'pie', 'histogram', 'status_timeline',
 ])
 
@@ -24,6 +26,10 @@ export function toPanelConfigs(rawPanels: RawPanelSpec[], startRow = 0): PanelCo
       instant: query.instant,
     }))
 
+    // Panel size is viz-derived, not agent-driven — keeps proportions
+    // consistent across all generated dashboards; user resizes post-gen.
+    const dims = panelSize(visualization)
+
     return {
       id: randomUUID(),
       title: raw.title ?? 'Panel',
@@ -32,8 +38,8 @@ export function toPanelConfigs(rawPanels: RawPanelSpec[], startRow = 0): PanelCo
       visualization,
       row: Math.max(0, (raw.row ?? 0) + startRow),
       col: Math.min(11, Math.max(0, raw.col ?? 0)),
-      width: Math.min(12, Math.max(1, raw.width ?? 6)),
-      height: Math.max(2, raw.height ?? 3),
+      width: dims.width,
+      height: dims.height,
       refreshIntervalSec: 30,
       unit: raw.unit,
       stackMode: raw.stackMode,

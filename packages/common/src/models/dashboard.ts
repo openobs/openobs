@@ -6,10 +6,26 @@ export type PanelVisualization =
   | 'table'
   | 'gauge'
   | 'bar'
+  | 'bar_gauge'
   | 'heatmap'
   | 'pie'
   | 'histogram'
   | 'status_timeline';
+
+/** Bar-gauge fill style. `'gradient'` = single bar with color interpolation;
+ *  `'lcd'` = segmented bar (Grafana-style LCD). */
+export type BarGaugeMode = 'gradient' | 'lcd';
+
+/** Time-stamped event marker shown as a vertical line on time-axis viz
+ *  (time_series, heatmap). Use for deploy/incident/alert annotations. */
+export interface PanelAnnotation {
+  /** Epoch milliseconds. */
+  time: number;
+  /** Short label shown in the hover tooltip. */
+  label: string;
+  /** Optional CSS color string. Defaults to a muted accent. */
+  color?: string;
+}
 
 export type DashboardStatus = 'generating' | 'ready' | 'failed';
 
@@ -41,9 +57,20 @@ export interface PanelSnapshotData {
   instant?: {
     data: { result: Array<{ metric: Record<string, string>; value: [number, string] }> };
   };
+  /** Optional sparkline series (timestamps + values) for stat-panel snapshots
+   *  so the trend renders without a follow-up range query. */
+  sparkline?: { timestamps: number[]; values: number[] };
   /** ISO timestamp when the data was captured */
   capturedAt: string;
 }
+
+/** Visual polish fields the agent may emit alongside core panel config.
+ *  All optional — when omitted, the frontend applies sensible defaults. */
+export type ColorMode = 'value' | 'background' | 'none';
+export type GraphMode = 'none' | 'area';
+export type ColorScale = 'linear' | 'sqrt' | 'log';
+export type LegendStat = 'last' | 'mean' | 'max' | 'min';
+export type LegendPlacement = 'bottom' | 'right';
 
 export interface PanelConfig {
   id: string;
@@ -61,6 +88,45 @@ export interface PanelConfig {
   stackMode?: 'none' | 'normal' | 'percent';
   fillOpacity?: number;
   decimals?: number;
+  // ---- Stat panel polish ----
+  /** Show a faint trend sparkline behind the number. Stat panels only. */
+  sparkline?: boolean;
+  /** Where the resolved threshold color is applied. Stat panels only. */
+  colorMode?: ColorMode;
+  /** Sparkline render style. */
+  graphMode?: GraphMode;
+  // ---- Time-series polish ----
+  /** Stroke width in CSS pixels. Default 1. */
+  lineWidth?: number;
+  /** Show point markers ('auto' or 'never'). Default 'never'. */
+  showPoints?: 'auto' | 'never';
+  /**
+   * Y-axis scale type. `undefined` (default) = auto: switch to log when the
+   * series spans >3 orders of magnitude. `'linear'` always linear. `'log'`
+   * always log (uPlot `distr: 3`).
+   */
+  yScale?: 'linear' | 'log';
+  /** Stats to render inline after each legend entry, in order. */
+  legendStats?: LegendStat[];
+  /** Legend position relative to the chart. */
+  legendPlacement?: LegendPlacement;
+  // ---- Heatmap polish ----
+  /** Color ramp scale. `'sqrt'` is a safer default than linear for skewed data. */
+  colorScale?: ColorScale;
+  /** For histogram-mode heatmaps, drop all-zero rows (keeping the lowest
+   *  occupied bucket and one row of headroom above the highest occupied
+   *  bucket). Default `true` when unset; pass `false` to render every bucket. */
+  collapseEmptyBuckets?: boolean;
+  // ---- Bar gauge ----
+  /** Single ceiling shared by every row in a bar_gauge panel. When unset,
+   *  defaults to the largest item value (so each bar fills proportionally). */
+  barGaugeMax?: number;
+  /** Bar-gauge fill style. Default `'gradient'`. */
+  barGaugeMode?: BarGaugeMode;
+  // ---- Annotations ----
+  /** Event markers rendered as vertical lines on the time axis. Time-series
+   *  and heatmap panels use these for deploy/incident/alert overlays. */
+  annotations?: PanelAnnotation[];
   // BACKWARD COMPAT: v1 generator produces single query string
   query?: string;
   // Section grouping (from Planner groups)

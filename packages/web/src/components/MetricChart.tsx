@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Evidence } from '@agentic-obs/common';
-import TimeSeriesChart from './TimeSeriesChart.js';
+import TimeSeriesViz, { type SeriesInput } from './viz/TimeSeriesViz.js';
 
 interface MetricResult {
   value: number;
@@ -11,8 +11,11 @@ function isMetricResult(r: unknown): r is MetricResult {
   return typeof r === 'object' && r !== null && 'value' in r && typeof (r as { value: unknown }).value === 'number';
 }
 
-function hasTimeSeries(r: unknown): boolean {
-  return typeof r === 'object' && r !== null && 'series' in r && Array.isArray((r as { series: unknown }).series);
+function extractSeries(r: unknown): SeriesInput[] | null {
+  if (typeof r !== 'object' || r === null) return null;
+  const rec = r as Record<string, unknown>;
+  if (!Array.isArray(rec.series)) return null;
+  return rec.series as SeriesInput[];
 }
 
 interface Props {
@@ -21,8 +24,9 @@ interface Props {
 
 export default function MetricChart({ evidence }: Props) {
   // Time-series data from Prometheus - render as chart
-  if (hasTimeSeries(evidence.result)) {
-    return <TimeSeriesChart result={evidence.result} />;
+  const series = extractSeries(evidence.result);
+  if (series) {
+    return <TimeSeriesViz series={series} />;
   }
 
   // Legacy single-value comparison

@@ -11,11 +11,13 @@ interface PanelSize {
  * Determine the default size for a panel based on its visualization type
  * and the composition of its section.
  */
-function panelSize(viz: PanelVisualization, sameVizCount: number): PanelSize {
+export function panelSize(viz: PanelVisualization, sameVizCount: number = 1): PanelSize {
   switch (viz) {
     case 'stat':
-      // A bare number — compact
-      return { width: 3, height: 2 }
+      // 3×3 reads as a square tile (big number on top, sparkline strip on
+      // bottom). Landscape (height: 2) squashes the sparkline and makes the
+      // panel feel unfinished next to time_series neighbors.
+      return { width: 3, height: 3 }
     case 'gauge':
       // SVG arc needs vertical room — gauge visualization is ~150px tall
       return { width: 3, height: 3 }
@@ -31,6 +33,9 @@ function panelSize(viz: PanelVisualization, sameVizCount: number): PanelSize {
     case 'pie':
       return { width: sameVizCount >= 3 ? 4 : 6, height: 3 }
     case 'heatmap':
+      // 6×3 matches time_series / bar / pie so side-by-side rows don't leave
+      // a visible height step; full-width (12) reads as a flat strip.
+      return { width: 6, height: 3 }
     case 'status_timeline':
       return { width: 12, height: 3 }
     default:

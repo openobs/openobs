@@ -90,6 +90,26 @@ body {
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+/* uPlot cursor crosshair — uPlot's default border-color #607D8B is muted
+   blue-gray that gets visually swallowed by saturated series lines on dark
+   themes. Bump to a high-contrast on-surface tone so both vertical and
+   horizontal lines stay readable when overlapping data. */
+.uplot .u-cursor-x,
+.uplot .u-cursor-y {
+  border-color: rgba(226, 232, 240, 0.55) !important;
+  z-index: 5;
+}
+
+/* Passive panel (not being hovered but receiving a synced cursor from a
+   sibling panel): hide the per-series dots at the crosshair because their
+   Y is computed for the hovered panel's scale and drawing them here is
+   misleading. The horizontal/vertical lines still render — both follow the
+   source pointer proportionally so the user sees a full crosshair on every
+   panel they're looking at, matching Grafana's shared-crosshair feel. */
+.ts-passive .uplot .u-cursor-pt {
+  display: none !important;
+}
+
 .react-grid-item.react-draggable-dragging {
   z-index: 100;
   box-shadow: 0 8px 40px -5px rgba(163, 166, 255, 0.05);

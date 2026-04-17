@@ -251,13 +251,27 @@ export default function Dashboards() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
+  const [loadError, setLoadError] = useState<string | null>(null);
   const loadList = useCallback(async () => {
     const [dashRes, folderRes] = await Promise.all([
       apiClient.get<Dashboard[]>('/dashboards'),
       apiClient.get<Folder[]>('/folders'),
     ]);
-    if (!dashRes.error) setDashboards(dashRes.data);
-    if (!folderRes.error) setFolders(folderRes.data);
+    // Treat a missing/non-array body the same as an explicit error — otherwise
+    // a 204 / null response would silently set state to a non-array and the
+    // UI would render the empty state as if the user had no dashboards.
+    if (dashRes.error || !Array.isArray(dashRes.data)) {
+      const msg = dashRes.error?.message ?? 'Could not load dashboards';
+      setLoadError(msg);
+      // Important: do NOT replace existing state on failure — keep showing
+      // what the user had before the failed refresh.
+    } else {
+      setDashboards(dashRes.data);
+      setLoadError(null);
+    }
+    if (!folderRes.error && Array.isArray(folderRes.data)) {
+      setFolders(folderRes.data);
+    }
     setLoadingList(false);
   }, []);
 
@@ -467,8 +481,26 @@ export default function Dashboards() {
           </div>
         )}
 
-        {/* Empty state */}
-        {!loadingList && dashboards.length === 0 && (
+        {/* Load error — distinct from "no dashboards yet" so the user can
+            tell a network failure from a genuinely empty list. */}
+        {!loadingList && loadError && (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <p className="text-sm text-error mb-2">Failed to load dashboards</p>
+            <p className="text-xs text-on-surface-variant mb-4">{loadError}</p>
+            <button
+              type="button"
+              onClick={() => { setLoadingList(true); void loadList(); }}
+              className="bg-primary text-on-primary-fixed px-4 py-2 rounded-lg font-semibold text-sm"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* Empty state — only when there are no folders either, otherwise the
+            folder tree below shows the actual structure and a redundant CTA
+            here just clutters the layout (header already has + New Dashboard). */}
+        {!loadingList && !loadError && dashboards.length === 0 && folders.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="w-14 h-14 rounded-xl bg-surface-high flex items-center justify-center mb-4">
               <svg className="w-7 h-7 text-on-surface-variant" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -476,14 +508,7 @@ export default function Dashboards() {
               </svg>
             </div>
             <p className="text-sm text-on-surface-variant mb-1">{config.emptyTitle}</p>
-            <p className="text-xs text-on-surface-variant/60 mb-4">{config.emptyDesc}</p>
-            <button
-              type="button"
-              onClick={() => navigate('/')}
-              className="bg-primary text-on-primary-fixed px-4 py-2 rounded-lg font-semibold text-sm"
-            >
-              {config.newLabel}
-            </button>
+            <p className="text-xs text-on-surface-variant/60">{config.emptyDesc}</p>
           </div>
         )}
 
