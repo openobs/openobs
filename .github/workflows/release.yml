@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
   release:
@@ -32,6 +33,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - uses: softprops/action-gh-release@v2
+        id: gh_release
         with:
           body: |
             ## What's Changed
@@ -41,8 +43,57 @@ jobs:
             ---
             **Docker image:** `ghcr.io/${{ github.repository }}:${{ github.ref_name }}`
 
+            **Helm chart (OCI):**
             ```bash
-            helm upgrade --install openobs ./helm/openobs \
+            helm upgrade --install openobs \
+              oci://ghcr.io/${{ github.repository }}/charts/openobs \
+              --version ${{ github.ref_name }} \
               --set image.tag=${{ github.ref_name }}
             ```
+
+            **Helm chart (tarball):** attached as `openobs-${{ github.ref_name }}.tgz` below.
           generate_release_notes: true
+
+  helm-publish:
+    needs: release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+
+      - name: Compute chart version from tag
+        id: ver
+        run: |
+          # Strip leading 'v' from tag — Helm chart versions are semver
+          # without the prefix (`1.2.3`, not `v1.2.3`).
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Stamp chart version + appVersion
+        run: |
+          sed -i "s/^version: .*/version: ${{ steps.ver.outputs.version }}/" helm/openobs/Chart.yaml
+          sed -i "s/^appVersion: .*/appVersion: \"${{ steps.ver.outputs.version }}\"/" helm/openobs/Chart.yaml
+          cat helm/openobs/Chart.yaml
+
+      - name: Package chart
+        run: |
+          helm package helm/openobs -d dist/
+
+      - name: Log in to GHCR for OCI push
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | \
+            helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Push to OCI registry (ghcr.io)
+        run: |
+          # Owner path is lowercased for ghcr OCI.
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          helm push dist/openobs-${{ steps.ver.outputs.version }}.tgz \
+            oci://ghcr.io/$OWNER/charts
+
+      - name: Attach chart tarball to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/openobs-${{ steps.ver.outputs.version }}.tgz

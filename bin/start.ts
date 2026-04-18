@@ -91,6 +91,37 @@ async function main() {
     execSync('npm install', { cwd: ROOT, stdio: 'inherit' });
   }
 
+  // Build TypeScript + web bundle if api-gateway dist is missing or stale.
+  // Startup serves compiled JS, not source — skipping this on first run means
+  // `npm start` immediately crashes with "Cannot find module dist/main.js".
+  const apiMainJs = join(ROOT, 'packages', 'api-gateway', 'dist', 'main.js');
+  if (!existsSync(apiMainJs)) {
+    log('Building workspaces (first run — this can take a minute)...');
+    execSync('npm run build', { cwd: ROOT, stdio: 'inherit' });
+  }
+
+  // Dev-mode convenience: inject defaults for the handful of env vars the
+  // server hard-requires, so `npm start` works on a fresh clone without any
+  // manual configuration. Production deployments set NODE_ENV=production and
+  // these branches skip.
+  //
+  // SECRET_KEY + JWT_SECRET are both validated to be ≥32 chars at startup.
+  // The "dev-*" placeholders below are clearly labeled as non-production.
+  const isProd = process.env['NODE_ENV'] === 'production';
+  if (!isProd) {
+    const devDefaults: Record<string, string> = {
+      JWT_SECRET:              'dev-jwt-secret-not-for-production-min-32c',
+      SECRET_KEY:              'dev-secret-key-not-for-production-min-32c',
+      SESSION_COOKIE_SECURE:   'false',
+    };
+    for (const [k, v] of Object.entries(devDefaults)) {
+      if (!process.env[k]) {
+        process.env[k] = v;
+        log(`env: injected dev default for ${k}`);
+      }
+    }
+  }
+
   const apiPort = await requirePort(3000);
   const webPort = await requirePort(5173);
 
