@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { apiClient } from '../api/client.js';
+import { PermissionsDialog } from './permissions/index.js';
 
 interface Dashboard {
   id: string;
@@ -23,6 +24,7 @@ export default function FolderDialog({ dashboardId, currentFolder, onSaved, open
   const [selected, setSelected] = React.useState(currentFolder || '');
   const [creatingNew, setCreatingNew] = React.useState(false);
   const [newFolder, setNewFolder] = React.useState('');
+  const [showPermissions, setShowPermissions] = React.useState<{ id: string; name: string } | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
@@ -70,13 +72,26 @@ export default function FolderDialog({ dashboardId, currentFolder, onSaved, open
           </button>
 
           {folders.map((f) => (
-            <button key={f.id} type="button" onClick={() => setSelected(f.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-left transition-colors ${selected === f.id ? 'bg-primary/10 text-primary' : 'text-on-surface hover:bg-surface-bright'}`}
-              style={{ paddingLeft: f.parentId ? 36 : undefined }}>
-              <svg className="w-5 h-5 shrink-0 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
-              <span className="flex-1 truncate">{f.name}</span>
-              {selected === f.id && <svg className="w-4 h-4 ml-auto" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-7.25 7.25a1 1 0 01-1.414 0l-3.25-3.25a1 1 0 111.414-1.414l2.543 2.543 6.543-6.543a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
-            </button>
+            <div key={f.id} className="flex items-center gap-1">
+              <button type="button" onClick={() => setSelected(f.id)}
+                className={`flex-1 flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-left transition-colors ${selected === f.id ? 'bg-primary/10 text-primary' : 'text-on-surface hover:bg-surface-bright'}`}
+                style={{ paddingLeft: f.parentId ? 36 : undefined }}>
+                <svg className="w-5 h-5 shrink-0 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
+                <span className="flex-1 truncate">{f.name}</span>
+                {selected === f.id && <svg className="w-4 h-4 ml-auto" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-7.25 7.25a1 1 0 01-1.414 0l-3.25-3.25a1 1 0 111.414-1.414l2.543 2.543 6.543-6.543a1 1 0 011.414 0z" clipRule="evenodd" /></svg>}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setShowPermissions({ id: f.id, name: f.name }); }}
+                title="Folder permissions"
+                className="p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-bright transition-colors"
+              >
+                {/* Shield icon */}
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 2l8 3v6c0 5-3.5 9.5-8 11-4.5-1.5-8-6-8-11V5l8-3z" />
+                </svg>
+              </button>
+            </div>
           ))}
 
           {/* New folder inline */}
@@ -119,6 +134,15 @@ export default function FolderDialog({ dashboardId, currentFolder, onSaved, open
             Move
           </button>
         </div>
+
+        {showPermissions && (
+          <PermissionsDialog
+            resource="folders"
+            uid={showPermissions.id}
+            resourceName={showPermissions.name}
+            onClose={() => setShowPermissions(null)}
+          />
+        )}
       </div>
     </div>,
     document.body,

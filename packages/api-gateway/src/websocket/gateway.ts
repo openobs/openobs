@@ -13,9 +13,12 @@ const log = createLogger('websocket-gateway');
 
 const JWT_SECRET = getJwtSecret('websocket-gateway');
 
-const VALID_API_KEYS = new Set(
-  (process.env['API_KEYS'] ?? '').split(',').map((k) => k.trim()).filter(Boolean),
-);
+// T9 / Wave 6 — the legacy `API_KEYS` env var is no longer parsed; operators
+// convert existing env keys one-shot via `POST /api/serviceaccounts/migrate`
+// and rely on the SA token middleware going forward. Leaving the set empty
+// means handshake always falls through to JWT auth, which is the only
+// supported path now.
+const VALID_API_KEYS: ReadonlySet<string> = new Set();
 
 export interface SocketAuth {
   sub: string;

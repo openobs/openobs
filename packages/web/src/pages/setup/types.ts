@@ -116,4 +116,4 @@ export const DATASOURCE_TYPES = [
   { value: 'victoria-metrics', label: 'VictoriaMetrics', category: 'Metrics' },
 ];
 
-export const STEPS = ['Welcome', 'LLM Provider', 'Data Sources', 'Notifications', 'Ready'];
+export const STEPS = ['Welcome', 'Administrator', 'LLM Provider', 'Data Sources', 'Notifications', 'Ready'];

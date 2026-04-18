@@ -8,7 +8,20 @@ import { authMiddleware } from '../middleware/auth.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
 import { AlertRuleService } from '../services/alert-rule-service.js';
-import { getWorkspaceId } from '../middleware/workspace-context.js';
+import { getOrgId } from '../middleware/workspace-context.js';
+
+/**
+ * Resolve the current request's org id. Prefers `req.auth.orgId` populated by
+ * the auth middleware (post-T9 cutover); falls back to the header/query
+ * helper for test harnesses that bypass auth. The result is passed as
+ * `workspaceId` into the alert-rule store until the store's internal column
+ * rename lands (tracked separately).
+ */
+function resolveOrgId(req: Request): string {
+  const authed = (req as Request & { auth?: { orgId?: string } }).auth;
+  if (authed?.orgId) return authed.orgId;
+  return getOrgId(req);
+}
 
 export interface AlertRulesRouterDeps {
   alertRuleStore?: IAlertRuleRepository;
@@ -47,7 +60,7 @@ export function createAlertRulesRouter(deps: AlertRulesRouterDeps = {}): Router 
 
       const { rule } = await alertRuleService.generateFromPrompt(body.prompt.trim());
       // Stamp workspace on generated rule
-      const workspaceId = getWorkspaceId(req);
+      const workspaceId = resolveOrgId(req);
       if (workspaceId !== 'default') {
         await store.update(rule.id, { workspaceId, labels: { ...rule.labels, workspaceId } });
       }
@@ -70,7 +83,7 @@ export function createAlertRulesRouter(deps: AlertRulesRouterDeps = {}): Router 
     const search = req.query['search'] as string | undefined;
     const limit = req.query['limit'] ? parseInt(req.query['limit'] as string) : undefined;
     const offset = req.query['offset'] ? parseInt(req.query['offset'] as string) : undefined;
-    const workspaceId = getWorkspaceId(req);
+    const workspaceId = resolveOrgId(req);
 
     const results = await store.findAll({
       state: state as AlertRule['state'] | undefined,
@@ -189,7 +202,7 @@ export function createAlertRulesRouter(deps: AlertRulesRouterDeps = {}): Router 
       return;
     }
 
-    const workspaceId = getWorkspaceId(req);
+    const workspaceId = resolveOrgId(req);
     type AlertRuleCreateInput = Omit<AlertRule, 'id' | 'createdAt' | 'updatedAt' | 'fireCount' | 'state' | 'stateChangedAt'>;
     const createInput: AlertRuleCreateInput = {
       name: body.name,

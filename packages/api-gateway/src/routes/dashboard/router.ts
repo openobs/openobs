@@ -10,7 +10,18 @@ import { handleChatMessage } from './chat-handler.js'
 import { VariableResolver } from './variable-resolver.js'
 import type { PanelConfig } from '@agentic-obs/common'
 import { getSetupConfig } from '../setup.js'
-import { getWorkspaceId } from '../../middleware/workspace-context.js'
+import { getOrgId } from '../../middleware/workspace-context.js'
+
+/**
+ * Resolve the current request's org id. Prefers `req.auth.orgId` populated by
+ * the auth middleware (post-T9 cutover); falls back to the header/query
+ * helper for test harnesses that bypass auth.
+ */
+function resolveOrgId(req: Request): string {
+  const authed = (req as Request & { auth?: { orgId?: string } }).auth;
+  if (authed?.orgId) return authed.orgId;
+  return getOrgId(req);
+}
 import { DashboardService, withDashboardLock } from '../../services/dashboard-service.js'
 import { createLogger } from '@agentic-obs/common'
 
@@ -47,8 +58,8 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
         return
       }
 
-      const userId = (req as AuthenticatedRequest).auth?.sub ?? 'anonymous'
-      const workspaceId = getWorkspaceId(req)
+      const userId = (req as AuthenticatedRequest).auth?.userId ?? 'anonymous'
+      const workspaceId = resolveOrgId(req)
       const dashboard = await store.create({
         title: body.title?.trim() ?? 'Untitled Dashboard',
         description: '',
@@ -88,7 +99,7 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
   // GET /dashboards
   router.get('/', requirePermission('dashboard:read'), async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const workspaceId = getWorkspaceId(req)
+      const workspaceId = resolveOrgId(req)
       let all = await store.findAll()
       // Filter by workspace
       all = all.filter((d) => (d.workspaceId ?? 'default') === workspaceId)
@@ -124,7 +135,7 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
         res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
         return
       }
-      const workspaceId = getWorkspaceId(req)
+      const workspaceId = resolveOrgId(req)
       if ((dashboard.workspaceId ?? 'default') !== workspaceId) {
         res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
         return

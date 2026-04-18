@@ -75,6 +75,7 @@ describe('migrate()', () => {
       '015_alter_resources.sql',
       '016_drop_workspaces.sql',
       '017_dashboard_folder_uid.sql',
+      '018_runtime_settings.sql',
     ]);
   });
 

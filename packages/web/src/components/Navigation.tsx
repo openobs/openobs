@@ -54,6 +54,16 @@ function SettingsIcon({ className }: { className?: string }) {
   );
 }
 
+/* Admin — shield icon (distinct from dashboard permissions shield by outline) */
+function AdminIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className ?? 'w-5 h-5'} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 2l8 3v6c0 5-3.5 9.5-8 11-4.5-1.5-8-6-8-11V5l8-3z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
+    </svg>
+  );
+}
+
 /* Sun / Moon icons for theme toggle */
 
 function SunIcon({ className }: { className?: string }) {
@@ -125,8 +135,18 @@ function SidebarItem({ to, label, icon, end, expanded }: SidebarItemProps) {
 export default function Navigation() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  // T9 / Wave 6 — show /admin in nav when the current principal has any
+  // users:read / orgs:read, or is a server admin. Matches the gating used by
+  // the admin page tabs themselves so the link doesn't land on a 403.
+  const canSeeAdmin =
+    !!user
+    && (user.isServerAdmin
+      || hasPermission('users:read')
+      || hasPermission('orgs:read')
+      || hasPermission('teams:read')
+      || hasPermission('serviceaccounts:read'));
   // Default expanded on Home page, collapsed on others
   const [expanded, setExpanded] = useState(location.pathname === '/');
 
@@ -227,6 +247,10 @@ export default function Navigation() {
             </span>
           )}
         </button>
+
+        {canSeeAdmin && (
+          <SidebarItem to="/admin" label="Admin" icon={<AdminIcon />} expanded={expanded} />
+        )}
 
         <SidebarItem to="/settings" label="Settings" icon={<SettingsIcon />} expanded={expanded} />
 

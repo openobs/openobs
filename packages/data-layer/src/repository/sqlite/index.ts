@@ -10,7 +10,8 @@ export { SqliteInvestigationReportRepository } from './investigation-report.js';
 export { SqlitePostMortemRepository } from './post-mortem.js';
 export { SqliteAlertRuleRepository } from './alert-rule.js';
 export { SqliteNotificationRepository } from './notification.js';
-export { SqliteWorkspaceRepository } from './workspace.js';
+// SqliteWorkspaceRepository removed in T9 cutover — use the OrgRepository
+// from packages/data-layer/src/repository/auth instead.
 export { SqliteVersionRepository } from './version.js';
 export { SqliteCaseRepository } from './case.js';
 export { SqliteChatSessionRepository } from './chat-session.js';

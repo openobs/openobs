@@ -4,10 +4,20 @@ import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 import { createLogger, DEFAULT_LLM_MODEL } from '@agentic-obs/common';
+import type {
+  IOrgRepository,
+  IOrgUserRepository,
+  IUserRepository,
+} from '@agentic-obs/common';
 // Auth for /api/setup is bootstrap-style: unauthenticated when no users yet.
 // T4+ will re-introduce the full auth middleware here.
 import { ensureSafeUrl } from '../utils/url-validator.js';
 import { createRateLimiter } from '../middleware/rate-limiter.js';
+import { hashPassword, passwordMinLength } from '../auth/local-provider.js';
+import type { SessionService } from '../auth/session-service.js';
+import { SESSION_COOKIE_NAME } from '../auth/session-service.js';
+import type { AuditWriter } from '../auth/audit-writer.js';
+import { AuditAction } from '@agentic-obs/common';
 
 const log = createLogger('setup');
 import {
@@ -290,6 +300,25 @@ export function setBootstrapHasUsers(fn: () => Promise<boolean>): void {
   hasAnyUser = fn;
 }
 
+/**
+ * Wave 6 / T9.4 — first-admin bootstrap endpoint dependencies. Wired at boot
+ * by `server.ts`. When unset, `POST /api/setup/admin` returns 503 so we never
+ * accidentally accept an admin creation request without a backing DB.
+ */
+export interface SetupAdminDeps {
+  users: IUserRepository;
+  orgs: IOrgRepository;
+  orgUsers: IOrgUserRepository;
+  sessions: SessionService;
+  audit: AuditWriter;
+  defaultOrgId?: string;
+}
+let setupAdminDeps: SetupAdminDeps | null = null;
+
+export function setSetupAdminDeps(deps: SetupAdminDeps): void {
+  setupAdminDeps = deps;
+}
+
 async function allowBootstrapSetup(): Promise<boolean> {
   // Allow unauthenticated setup access when there is no way to authenticate:
   // either the system was never configured, or no users exist yet.
@@ -327,10 +356,18 @@ export function createSetupRouter(): Router {
     log.error({ err }, 'failed to load config');
   });
 
-  // GET /api/setup/status
-  router.get('/status', (_req: Request, res: Response) => {
+  // GET /api/setup/status — reports wizard-completion flags. `hasAdmin` drives
+  // the T9.4 wizard's skip logic for upgraded installs.
+  router.get('/status', async (_req: Request, res: Response) => {
+    let hasAdmin = false;
+    try {
+      hasAdmin = await hasAnyUser();
+    } catch {
+      hasAdmin = false;
+    }
     res.json({
       configured: inMemoryConfig.configured,
+      hasAdmin,
       hasLLM: !!inMemoryConfig.llm,
       datasourceCount: inMemoryConfig.datasources.length,
       hasNotifications: !!(
@@ -339,6 +376,105 @@ export function createSetupRouter(): Router {
         || inMemoryConfig.notifications?.email
       ),
     });
+  });
+
+  // POST /api/setup/admin — first-admin bootstrap. Public but one-shot:
+  // returns 409 once any user exists. On success creates the user, seeds
+  // org_user(role=Admin), issues a session cookie, and returns the new ids.
+  router.post('/admin', async (req: Request, res: Response) => {
+    if (!setupAdminDeps) {
+      res.status(503).json({ message: 'auth subsystem not ready' });
+      return;
+    }
+    const deps = setupAdminDeps;
+    const env = process.env;
+    // One-shot: if any user already exists, this endpoint locks down. The
+    // setup flow then expects the caller to switch to the login page.
+    const already = await hasAnyUser().catch(() => false);
+    if (already) {
+      res.status(409).json({ message: 'admin already exists' });
+      return;
+    }
+    const body = (req.body ?? {}) as {
+      email?: string;
+      name?: string;
+      login?: string;
+      password?: string;
+    };
+    const email = typeof body.email === 'string' ? body.email.trim() : '';
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    const login = typeof body.login === 'string' && body.login.trim() !== ''
+      ? body.login.trim()
+      : email.split('@')[0] ?? '';
+    const password = typeof body.password === 'string' ? body.password : '';
+    const atIdx = email.indexOf('@');
+    if (atIdx < 1 || atIdx === email.length - 1 || !email.slice(atIdx + 1).includes('.')) {
+      res.status(400).json({ message: 'valid email required' });
+      return;
+    }
+    if (!name) {
+      res.status(400).json({ message: 'name required' });
+      return;
+    }
+    if (!login) {
+      res.status(400).json({ message: 'login required' });
+      return;
+    }
+    const minLen = passwordMinLength(env);
+    if (password.length < minLen) {
+      res.status(400).json({
+        message: `password must be at least ${minLen} characters`,
+      });
+      return;
+    }
+    const orgId = deps.defaultOrgId ?? 'org_main';
+    // Ensure the default org exists (migration 001 usually inserts it; be
+    // resilient in case tests bypass migrations).
+    const existingOrg = await deps.orgs.findById(orgId);
+    if (!existingOrg) {
+      await deps.orgs.create({ id: orgId, name: 'Main Org' });
+    }
+    const hashed = await hashPassword(password);
+    const user = await deps.users.create({
+      email,
+      name,
+      login,
+      password: hashed,
+      orgId,
+      isAdmin: true,
+      emailVerified: true,
+    });
+    await deps.orgUsers.create({ orgId, userId: user.id, role: 'Admin' });
+
+    // Issue session cookie so the browser is logged in for the rest of the
+    // wizard without a separate /login round-trip.
+    const ua = typeof req.headers['user-agent'] === 'string'
+      ? (req.headers['user-agent'] as string)
+      : '';
+    const ip = (req.ip || req.socket?.remoteAddress || '') as string;
+    const session = await deps.sessions.create(user.id, ua, ip);
+    res.setHeader(
+      'Set-Cookie',
+      [
+        `${SESSION_COOKIE_NAME}=${session.token}`,
+        'Path=/',
+        'HttpOnly',
+        'SameSite=Lax',
+        process.env['NODE_ENV'] === 'production' ? 'Secure' : '',
+      ]
+        .filter(Boolean)
+        .join('; '),
+    );
+    void deps.audit.log({
+      action: AuditAction.UserCreated,
+      actorType: 'system',
+      actorId: 'setup-wizard',
+      targetType: 'user',
+      targetId: user.id,
+      outcome: 'success',
+      metadata: { bootstrap: true, orgId },
+    });
+    res.status(201).json({ userId: user.id, orgId });
   });
 
   router.use(requireSetupAccess);

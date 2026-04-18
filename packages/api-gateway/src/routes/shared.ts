@@ -67,7 +67,7 @@ export function createSharedRouter(deps: SharedRouterDeps): Router {
         return;
       }
 
-      if (authReq.auth?.sub !== link.createdBy) {
+      if (authReq.auth?.userId !== link.createdBy) {
         res.status(403).json({ code: 'FORBIDDEN', message: 'Only the creator may revoke this share link' });
         return;
       }

@@ -5,12 +5,14 @@
  * Any other combination is a silent skip — LDAP is optional.
  *
  * TOML schema matches docs/auth-perm-design/02-authentication.md §ldap-provider.
- * Parsed with `@iarna/toml` when available; if the dependency isn't installed
- * the loader returns null and logs a warning.
  */
 
 import { readFileSync, existsSync } from 'node:fs';
 import { createLogger } from '@agentic-obs/common';
+// `@iarna/toml` is now a regular dependency (T9 / Wave 6 cutover). Prior to the
+// cutover we dynamic-imported it so operators without LDAP didn't need the
+// module; now that the dep is pinned we can static-import safely.
+import toml from '@iarna/toml';
 
 const log = createLogger('ldap-config');
 
@@ -80,22 +82,7 @@ export async function loadLdapConfig(
     log.debug({ path }, 'ldap config not found; ldap disabled');
     return null;
   }
-  let parser: { parse: (s: string) => unknown };
-  try {
-    // Dynamic import through an indirection so tsc doesn't require the
-    // module to be installed at typecheck time. Operators who don't use
-    // LDAP shouldn't need to install `@iarna/toml`.
-    const mod = '@iarna/toml';
-    parser = (await (new Function('m', 'return import(m)')(mod) as Promise<unknown>)) as {
-      parse: (s: string) => unknown;
-    };
-  } catch (err) {
-    log.warn(
-      { err: err instanceof Error ? err.message : err },
-      '@iarna/toml not installed; ldap provider disabled',
-    );
-    return null;
-  }
+  const parser = toml as unknown as { parse: (s: string) => unknown };
   try {
     const raw = readFileSync(path, 'utf-8');
     const parsed = toCamel<Record<string, unknown>>(parser.parse(raw));

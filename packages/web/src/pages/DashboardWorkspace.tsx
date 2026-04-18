@@ -12,6 +12,7 @@ import ConfirmDialog from '../components/ConfirmDialog.js';
 import TimeRangePicker from '../components/TimeRangePicker.js';
 import FolderDialog from '../components/FolderDialog.js';
 import ExportMenu from '../components/ExportMenu.js';
+import { PermissionsDialog } from '../components/permissions/index.js';
 import type { PanelConfig } from '../components/DashboardPanelCard.js';
 import type { DashboardVariable } from '../hooks/useDashboardChat.js';
 
@@ -51,6 +52,9 @@ export default function DashboardWorkspace() {
   const [titleDraft, setTitleDraft] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showFolderDialog, setShowFolderDialog] = useState(false);
+  // T9 / Wave 6 — wire PermissionsDialog into the dashboard toolbar so
+  // operators can manage per-dashboard role/user/team ACLs from the UI.
+  const [showPermissionsDialog, setShowPermissionsDialog] = useState(false);
 
   // pollRef removed — no more polling; SSE pushes all updates
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -437,6 +441,20 @@ export default function DashboardWorkspace() {
               </button>
             )}
 
+            {id && (
+              <button
+                type="button"
+                onClick={() => setShowPermissionsDialog(true)}
+                className="p-1.5 rounded-lg transition-colors hover:bg-surface-high text-on-surface-variant hover:text-on-surface"
+                title="Permissions"
+              >
+                {/* Shield icon */}
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 2l8 3v6c0 5-3.5 9.5-8 11-4.5-1.5-8-6-8-11V5l8-3z" />
+                </svg>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => setShowDeleteConfirm(true)}
@@ -511,6 +529,15 @@ export default function DashboardWorkspace() {
           open={showFolderDialog}
           onClose={() => setShowFolderDialog(false)}
           onSaved={(folder) => setDashboard((prev) => (prev ? { ...prev, folder } : prev))}
+        />
+      )}
+
+      {id && showPermissionsDialog && dashboard && (
+        <PermissionsDialog
+          resource="dashboards"
+          uid={id}
+          resourceName={dashboard.title}
+          onClose={() => setShowPermissionsDialog(false)}
         />
       )}
 

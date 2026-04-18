@@ -29,24 +29,8 @@ import type { ApiKeyService } from '../services/apikey-service.js';
 
 const log = createLogger('auth-mw');
 
-/**
- * Back-compat shim fields on Identity. Legacy (pre-T2) route handlers read
- * `req.auth.sub`, `req.auth.roles`, `req.auth.permissions`, etc. Wave 6 will
- * migrate those to `userId` / the real RBAC result; until then, we populate
- * the old fields alongside the new ones so handlers outside T2 scope keep
- * working.
- */
-export interface IdentityWithShim extends Identity {
-  /** Legacy alias for `userId`. */
-  sub?: string;
-  /** Legacy permission strings (RBAC shim). Empty until T3. */
-  roles?: string[];
-  /** Only populated when the old RBAC middleware is in the chain. */
-  stringPermissions?: string[];
-}
-
 export interface AuthenticatedRequest extends Request {
-  auth?: IdentityWithShim;
+  auth?: Identity;
 }
 
 export interface AuthMiddlewareDeps {
@@ -89,19 +73,6 @@ function bearerToken(req: Request): string | null {
 
 function hashApiKey(plaintext: string): string {
   return createHash('sha256').update(plaintext, 'utf8').digest('hex');
-}
-
-/**
- * Map the Grafana-parity OrgRole to the legacy (pre-T2) role string used by
- * many existing route handlers. Admin → 'admin', Editor → 'operator',
- * Viewer / None → 'viewer'. Only used for the back-compat shim on
- * `req.auth.roles`; the T3 RBAC middleware supersedes this once wired.
- */
-function roleToLegacy(role: string | undefined): string {
-  if (role === 'Admin') return 'admin';
-  if (role === 'Editor') return 'operator';
-  if (role === 'Viewer') return 'viewer';
-  return 'viewer';
 }
 
 // — Module-level middleware singleton ——————————————————————————
@@ -171,10 +142,6 @@ export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
           isServerAdmin: user.isAdmin,
           authenticatedBy: 'session',
           sessionId: row.id,
-          // Back-compat for pre-T2 route handlers.
-          sub: user.id,
-          roles: user.isAdmin ? ['admin'] : [roleToLegacy(membership?.role)],
-          stringPermissions: [],
         };
         // Best-effort markSeen — swallow errors so we never 500 on a
         // transient write failure.
@@ -216,11 +183,6 @@ export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
             authenticatedBy: 'api_key',
             serviceAccountId: lookup.serviceAccountId ?? undefined,
             sessionId: undefined,
-            sub: lookup.user.id,
-            roles: lookup.isServerAdmin
-              ? ['admin']
-              : [roleToLegacy(lookup.role)],
-            stringPermissions: [],
           };
           next();
           return;
@@ -270,9 +232,6 @@ export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
           isServerAdmin,
           authenticatedBy: 'api_key',
           serviceAccountId: row.serviceAccountId ?? undefined,
-          sub: principalId,
-          roles: isServerAdmin ? ['admin'] : [roleToLegacy(orgRole)],
-          stringPermissions: [],
         };
         next();
         return;

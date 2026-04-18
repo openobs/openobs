@@ -109,9 +109,7 @@ export {
   defaultFolderStore,
   type Folder,
 
-  // Workspace
-  WorkspaceStore,
-  defaultWorkspaceStore,
+  // Workspace: removed in T9 cutover; use OrgRepository.
 
   // Version
   VersionStore,

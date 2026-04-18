@@ -137,16 +137,31 @@ export function hasAllPermissions(userPermissions: string[], required: string[])
   return required.every((r) => hasPermission(userPermissions, r))
 }
 
+/**
+ * Derive the legacy pre-T3 role name from the new Identity shape. Admin →
+ * 'admin', Editor → 'operator', Viewer / None → 'viewer'. Server admins
+ * always resolve to 'admin'. T3's `createRequirePermission` supersedes
+ * this middleware; this helper exists only for legacy routes that still
+ * gate via resource:action strings.
+ */
+function legacyRoleFromIdentity(
+  auth: AuthenticatedRequest['auth'] | undefined,
+): string {
+  if (!auth) return 'viewer';
+  if (auth.isServerAdmin) return 'admin';
+  if (auth.orgRole === 'Admin') return 'admin';
+  if (auth.orgRole === 'Editor') return 'operator';
+  return 'viewer';
+}
+
 /** Express middleware - rejects the request with 403 if permission is missing */
 export function requirePermission(permission: string) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
-    // Legacy RBAC middleware reads the flat string[] shim populated by the
-    // new auth middleware. T3's access-control middleware reads the richer
-    // `permissions: ResolvedPermission[]` field directly.
-    const legacy = req.auth?.stringPermissions ?? [];
-    const roles = req.auth?.roles ?? [];
-    const derivedFromRoles = roleStore.resolvePermissions(roles);
-    const permissions = legacy.length > 0 ? legacy : derivedFromRoles;
+    // Legacy RBAC middleware derives permissions from the new Identity's
+    // orgRole + isServerAdmin directly — the pre-T9 back-compat fields
+    // on req.auth were removed in Wave 6 cleanup.
+    const roleName = legacyRoleFromIdentity(req.auth);
+    const permissions = roleStore.resolvePermissions([roleName]);
     if (hasPermission(permissions, permission)) {
       next()
       return

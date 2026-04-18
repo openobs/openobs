@@ -111,7 +111,6 @@ describe('createAuthMiddleware', () => {
     expect(req.auth?.userId).toBe(user.id);
     expect(req.auth?.orgRole).toBe('Editor');
     expect(req.auth?.authenticatedBy).toBe('session');
-    expect(req.auth?.sub).toBe(user.id);
   });
 
   it('returns 401 for an unknown session cookie', async () => {

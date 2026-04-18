@@ -6,6 +6,18 @@ import { authMiddleware } from '../middleware/auth.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
 
+/**
+ * Map the new Identity's orgRole to the legacy role-name vocabulary
+ * (operator / viewer / investigator). Used by the approval store to stamp
+ * `resolvedByRoles` for audit — the underlying store still accepts the
+ * legacy strings. See middleware/rbac.ts for the full mapping.
+ */
+function legacyOrgRole(role: string | undefined): string {
+  if (role === 'Admin') return 'admin';
+  if (role === 'Editor') return 'operator';
+  return 'viewer';
+}
+
 export function createApprovalRouter(repo: IGatewayApprovalStore): Router {
   const router = Router();
 
@@ -55,8 +67,10 @@ export function createApprovalRouter(repo: IGatewayApprovalStore): Router {
       try {
         const authReq = req as AuthenticatedRequest;
         const id = req.params['id'] ?? '';
-        const resolvedBy = authReq.auth?.sub ?? 'unknown';
-        const resolvedByRoles = authReq.auth?.roles ?? [];
+        const resolvedBy = authReq.auth?.userId ?? 'unknown';
+        const resolvedByRoles = authReq.auth?.isServerAdmin
+          ? ['admin']
+          : [legacyOrgRole(authReq.auth?.orgRole)];
 
         const updated = await repo.approve(id, resolvedBy, resolvedByRoles);
         if (!updated) {
@@ -92,8 +106,10 @@ export function createApprovalRouter(repo: IGatewayApprovalStore): Router {
       try {
         const authReq = req as AuthenticatedRequest;
         const id = req.params['id'] ?? '';
-        const resolvedBy = authReq.auth?.sub ?? 'unknown';
-        const resolvedByRoles = authReq.auth?.roles ?? [];
+        const resolvedBy = authReq.auth?.userId ?? 'unknown';
+        const resolvedByRoles = authReq.auth?.isServerAdmin
+          ? ['admin']
+          : [legacyOrgRole(authReq.auth?.orgRole)];
 
         const updated = await repo.reject(id, resolvedBy, resolvedByRoles);
         if (!updated) {
@@ -129,8 +145,10 @@ export function createApprovalRouter(repo: IGatewayApprovalStore): Router {
       try {
         const authReq = req as AuthenticatedRequest;
         const id = req.params['id'] ?? '';
-        const resolvedBy = authReq.auth?.sub ?? 'unknown';
-        const resolvedByRoles = authReq.auth?.roles ?? [];
+        const resolvedBy = authReq.auth?.userId ?? 'unknown';
+        const resolvedByRoles = authReq.auth?.isServerAdmin
+          ? ['admin']
+          : [legacyOrgRole(authReq.auth?.orgRole)];
 
         const updated = await repo.override(id, resolvedBy, resolvedByRoles);
         if (!updated) {

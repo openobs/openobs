@@ -1,12 +1,14 @@
 /**
  * Produce SP metadata XML for the IdP to consume.
  *
- * Uses `@node-saml/node-saml` at runtime when present; returns null otherwise
- * so the gateway can still boot. The shape is standard SAML 2.0 SP
- * descriptor XML.
+ * Uses `@node-saml/node-saml` at runtime. Post-T9 cutover the dep is required
+ * so the dynamic-import hack is gone. Returns null only if config is invalid.
+ * The shape is standard SAML 2.0 SP descriptor XML.
  */
 
 import type { SamlConfig } from './config.js';
+// `@node-saml/node-saml` is a regular dependency post-T9 cutover.
+import * as nodeSaml from '@node-saml/node-saml';
 
 export interface SamlToolkit {
   buildMetadata: () => string;
@@ -28,14 +30,11 @@ export interface SamlProfile {
 export async function createSamlToolkit(
   cfg: SamlConfig,
 ): Promise<SamlToolkit | null> {
+  // The library exports a `SAML` class at both the namespace and default
+  // positions depending on module-resolution; handle both without eating
+  // valid configs.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let lib: any;
-  try {
-    const mod = '@node-saml/node-saml';
-    lib = await (new Function('m', 'return import(m)')(mod) as Promise<unknown>);
-  } catch {
-    return null;
-  }
+  const lib = nodeSaml as unknown as { SAML?: any; default?: { SAML?: any } };
   const SAML = lib.SAML ?? lib.default?.SAML;
   if (!SAML) return null;
   // Construct the node-saml SAML instance with our config. The library's

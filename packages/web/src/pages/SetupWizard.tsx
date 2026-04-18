@@ -1,7 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client.js';
-import { StepLlm, StepDatasources, StepNotifications, LLM_PROVIDERS, STEPS } from './setup/index.js';
+import {
+  StepAdmin,
+  StepLlm,
+  StepDatasources,
+  StepNotifications,
+  LLM_PROVIDERS,
+  STEPS,
+} from './setup/index.js';
 import type { LlmConfig, NotificationConfig } from './setup/index.js';
 
 // Step progress bar
@@ -123,6 +130,9 @@ function StepReady({
 export default function SetupWizard() {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
+  // When the server already has a user (upgraded install), the admin step
+  // is skipped automatically. `/api/setup/status` returns `hasAdmin`.
+  const [adminExists, setAdminExists] = useState<boolean | null>(null);
 
   const [llm, setLlm] = useState<LlmConfig>({
     provider: 'anthropic',
@@ -143,6 +153,16 @@ export default function SetupWizard() {
     emailFrom: '',
   });
 
+  useEffect(() => {
+    void apiClient
+      .get<{ hasAdmin?: boolean }>('/setup/status')
+      .then((res) => {
+        if (!res.error) setAdminExists(!!res.data.hasAdmin);
+        else setAdminExists(false);
+      })
+      .catch(() => setAdminExists(false));
+  }, []);
+
   const next = () => setStep((s) => s + 1);
   const back = () => setStep((s) => s - 1);
 
@@ -153,6 +173,24 @@ export default function SetupWizard() {
 
         {step === 0 && <StepWelcome onNext={next} />}
         {step === 1 && (
+          adminExists ? (
+            <div className="py-8 text-center">
+              <p className="text-on-surface-variant text-sm mb-4">
+                Administrator already configured — skipping this step.
+              </p>
+              <button
+                type="button"
+                onClick={next}
+                className="px-6 py-2 rounded-lg bg-primary text-on-primary-fixed font-semibold text-sm hover:opacity-90 transition-opacity"
+              >
+                Continue →
+              </button>
+            </div>
+          ) : (
+            <StepAdmin onComplete={() => next()} onBack={back} />
+          )
+        )}
+        {step === 2 && (
           <StepLlm
             config={llm}
             onChange={(c) => setLlm((prev) => ({ ...prev, ...c }))}
@@ -160,8 +198,8 @@ export default function SetupWizard() {
             onBack={back}
           />
         )}
-        {step === 2 && <StepDatasources onNext={next} onBack={back} />}
-        {step === 3 && (
+        {step === 3 && <StepDatasources onNext={next} onBack={back} />}
+        {step === 4 && (
           <StepNotifications
             config={notifications}
             onChange={(c) => setNotifications((prev) => ({ ...prev, ...c }))}
@@ -169,7 +207,7 @@ export default function SetupWizard() {
             onBack={back}
           />
         )}
-        {step === 4 && (
+        {step === 5 && (
           <StepReady
             llm={llm}
             onFinish={() => navigate('/')}

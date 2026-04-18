@@ -11,7 +11,18 @@ import { investigationOpenApiSpec } from './openapi.js';
 import type { SharePermission, IGatewayInvestigationStore, IGatewayFeedStore, IGatewayShareStore, IInvestigationReportRepository } from '@agentic-obs/data-layer';
 import type { CreateInvestigationBody, FollowUpBody, FeedbackBody } from './types.js';
 import { initSse, sendSseEvent, sendSseKeepAlive, closeSse } from './sse.js';
-import { getWorkspaceId } from '../../middleware/workspace-context.js';
+import { getOrgId } from '../../middleware/workspace-context.js';
+
+/**
+ * Resolve the current request's org id. Prefers `req.auth.orgId` populated by
+ * the auth middleware (post-T9 cutover); falls back to the header/query
+ * helper for test harnesses that bypass auth.
+ */
+function resolveOrgId(req: Request): string {
+  const authed = (req as Request & { auth?: { orgId?: string } }).auth;
+  if (authed?.orgId) return authed.orgId;
+  return getOrgId(req);
+}
 
 export interface InvestigationRouterDeps {
   store: IGatewayInvestigationStore;
@@ -45,11 +56,11 @@ export function createInvestigationRouter(
       }
 
       const authReq = req as AuthenticatedRequest;
-      const workspaceId = getWorkspaceId(req);
+      const workspaceId = resolveOrgId(req);
       const investigation = await store.create({
         question: body.question.trim(),
         sessionId: body.sessionId ?? `ses_${Date.now()}`,
-        userId: authReq.auth?.sub ?? 'anonymous',
+        userId: authReq.auth?.userId ?? 'anonymous',
         entity: body.entity,
         timeRange: body.timeRange,
         workspaceId,
@@ -92,7 +103,7 @@ export function createInvestigationRouter(
 
   router.get('/', requirePermission('investigation:read'), async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const workspaceId = getWorkspaceId(req);
+      const workspaceId = resolveOrgId(req);
       const all = (await store.findAll()).filter((inv) => (inv.workspaceId ?? 'default') === workspaceId).map((inv) => ({
         id: inv.id,
         status: inv.status,
@@ -117,7 +128,7 @@ export function createInvestigationRouter(
         res.status(404).json({ code: 'NOT_FOUND', message: 'Investigation not found' });
         return;
       }
-      const workspaceId = getWorkspaceId(req);
+      const workspaceId = resolveOrgId(req);
       if ((inv.workspaceId ?? 'default') !== workspaceId) {
         res.status(404).json({ code: 'NOT_FOUND', message: 'Investigation not found' });
         return;
@@ -138,7 +149,7 @@ export function createInvestigationRouter(
         res.status(404).json({ code: 'NOT_FOUND', message: 'Investigation not found' });
         return;
       }
-      const workspaceId = getWorkspaceId(req);
+      const workspaceId = resolveOrgId(req);
       if ((inv.workspaceId ?? 'default') !== workspaceId) {
         res.status(404).json({ code: 'NOT_FOUND', message: 'Investigation not found' });
         return;
@@ -278,7 +289,7 @@ export function createInvestigationRouter(
       const body = req.body as { permission?: SharePermission; expiresInMs?: number } | undefined;
       const link = await shareRepo.create({
         investigationId: id,
-        createdBy: authReq.auth?.sub ?? 'unknown',
+        createdBy: authReq.auth?.userId ?? 'unknown',
         permission: body?.permission ?? 'view_only',
         expiresInMs: body?.expiresInMs,
       });

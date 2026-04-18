@@ -18,8 +18,6 @@ import type {
   NotificationPolicyNode,
   MuteTiming,
   TimeInterval,
-  Workspace,
-  WorkspaceMember,
   AssetType,
   AssetVersion,
   EditSource,
@@ -353,23 +351,10 @@ export interface IVersionRepository {
   rollback(assetType: AssetType, assetId: string, version: number): MaybeAsync<unknown | undefined>;
 }
 
-// — Workspace
-
-export interface IWorkspaceRepository {
-  create(params: {
-    name: string;
-    slug: string;
-    ownerId: string;
-    settings?: Workspace['settings'];
-  }): MaybeAsync<Workspace>;
-  findById(id: string): MaybeAsync<Workspace | undefined>;
-  findBySlug(slug: string): MaybeAsync<Workspace | undefined>;
-  findByMember(userId: string): MaybeAsync<Workspace[]>;
-  update(id: string, patch: Partial<Pick<Workspace, 'name' | 'slug' | 'settings'>>): MaybeAsync<Workspace | undefined>;
-  delete(id: string): MaybeAsync<boolean>;
-  addMember(workspaceId: string, member: { userId: string; role: WorkspaceMember['role'] }): MaybeAsync<Workspace | undefined>;
-  removeMember(workspaceId: string, userId: string): MaybeAsync<Workspace | undefined>;
-}
+// — Workspace removed in T9 cutover. The org tenancy model from
+//   docs/auth-perm-design/04-organizations.md is the replacement; see
+//   `IOrgRepository` / `IOrgUserRepository` in
+//   packages/common/src/repositories/auth/interfaces.ts.
 
 // — InvestigationReport
 

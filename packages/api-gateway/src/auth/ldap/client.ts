@@ -1,9 +1,6 @@
 /**
  * LDAP client — thin wrapper around `ldapjs`.
  *
- * Kept dynamic-import only so the rest of the gateway compiles without
- * `ldapjs` installed. Operators who don't use LDAP never touch this path.
- *
  * Flow implemented here:
  *   1. bind as admin
  *   2. search for user by search_filter substituted with `%s` = login
@@ -16,6 +13,11 @@
 
 import type { LdapServerConfig } from './config.js';
 import { AuthError } from '@agentic-obs/common';
+// `ldapjs` is now a regular dependency (T9 / Wave 6 cutover). Prior to the
+// cutover we dynamic-imported it so operators without LDAP didn't need the
+// module installed; now that the dep is pinned in package.json the static
+// import is safe.
+import ldapjs from 'ldapjs';
 
 export interface LdapLookupInput {
   login: string;
@@ -46,26 +48,18 @@ type LdapSearchResponse = {
   ) => void;
 };
 
-async function dynamicImport(name: string): Promise<unknown> {
-  // Indirect through a variable so tsc doesn't try to resolve the literal
-  // module at compile time. `ldapjs` is an optional peer dep; operators who
-  // don't use LDAP shouldn't need to install it.
-  const nm = name;
-  // eslint-disable-next-line @typescript-eslint/no-implied-eval
-  return (new Function('m', 'return import(m)')(nm) as Promise<unknown>);
-}
-
 async function connect(cfg: LdapServerConfig): Promise<LdapJsClient> {
-  let ldap: { createClient: (opts: Record<string, unknown>) => LdapJsClient };
-  try {
-    ldap = (await dynamicImport('ldapjs')) as {
-      createClient: (opts: Record<string, unknown>) => LdapJsClient;
-    };
-  } catch {
+  // ldapjs ships CommonJS; the default import resolves to the namespace object
+  // that exposes `createClient`. Keep the narrow type ascription so we don't
+  // leak `any` into the rest of the file.
+  const lib = ldapjs as unknown as {
+    createClient: (opts: Record<string, unknown>) => LdapJsClient;
+  };
+  if (typeof lib?.createClient !== 'function') {
     throw AuthError.providerNotConfigured('ldap');
   }
   const url = `${cfg.useSsl ? 'ldaps' : 'ldap'}://${cfg.host}:${cfg.port}`;
-  return ldap.createClient({ url });
+  return lib.createClient({ url });
 }
 
 function promisifyBind(

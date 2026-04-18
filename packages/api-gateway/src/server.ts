@@ -86,6 +86,7 @@ import {
 } from '@agentic-obs/data-layer';
 import { createAuthSubsystem } from './auth/auth-manager.js';
 import { seedAdminIfNeeded } from './auth/seed-admin.js';
+import { migrateAuthToDbIfNeeded } from './migrations/auth-to-db.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createUserRouter } from './routes/user.js';
 import { createAdminRouter } from './routes/admin.js';
@@ -94,7 +95,7 @@ import {
   setAuthMiddleware,
 } from './middleware/auth.js';
 import { createOrgContextMiddleware } from './middleware/org-context.js';
-import { setBootstrapHasUsers } from './routes/setup.js';
+import { setBootstrapHasUsers, setSetupAdminDeps } from './routes/setup.js';
 // Wave 2 / T3 — RBAC service, routes, resolvers.
 import { AccessControlService } from './services/accesscontrol-service.js';
 import { createAccessControlRouter } from './routes/access-control.js';
@@ -188,13 +189,28 @@ export function createApp(): Application {
       preferences: new PreferencesRepository(sqliteDb),
     };
     void (async () => {
+      // T9.1 — idempotent auth-to-db migration on startup. Wraps the seed
+      // admin step and records a marker so subsequent boots are no-ops.
       try {
-        await seedAdminIfNeeded(authRepos);
+        await migrateAuthToDbIfNeeded({
+          db: sqliteDb,
+          users: authRepos.users,
+          orgs: authRepos.orgs,
+          orgUsers: authRepos.orgUsers,
+        });
       } catch (err) {
         log.error(
           { err: err instanceof Error ? err.message : err },
-          'seed admin failed',
+          'auth migration failed; falling back to direct seed',
         );
+        try {
+          await seedAdminIfNeeded(authRepos);
+        } catch (err2) {
+          log.error(
+            { err: err2 instanceof Error ? err2.message : err2 },
+            'seed admin fallback failed',
+          );
+        }
       }
     })();
     void (async () => {
@@ -218,6 +234,16 @@ export function createApp(): Application {
       setBootstrapHasUsers(async () => {
         const { total } = await authRepos.users.list({ limit: 1 });
         return total > 0;
+      });
+      // T9.4 — wire the setup-admin endpoint so /api/setup/admin can bootstrap
+      // the first user while the wizard is open.
+      setSetupAdminDeps({
+        users: authRepos.users,
+        orgs: authRepos.orgs,
+        orgUsers: authRepos.orgUsers,
+        sessions: authSub.sessions,
+        audit: authSub.audit,
+        defaultOrgId: 'org_main',
       });
       // Mount the auth / user / admin routers after the subsystem is built.
       // These endpoints are public or self-authenticating so mounting them
@@ -258,10 +284,13 @@ export function createApp(): Application {
         authMw,
         createAdminRouter({
           users: authRepos.users,
+          orgUsers: authRepos.orgUsers,
           userAuthTokens: authRepos.userAuthTokens,
           auditLog: authRepos.auditLog,
           sessions: authSub.sessions,
           audit: authSub.audit,
+          quotas: new QuotaRepository(sqliteDb),
+          defaultOrgId: 'org_main',
         }),
       );
 

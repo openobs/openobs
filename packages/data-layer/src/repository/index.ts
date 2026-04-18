@@ -22,7 +22,7 @@ export type {
   AlertRuleFindAllOptions,
   INotificationRepository,
   IVersionRepository,
-  IWorkspaceRepository,
+  // IWorkspaceRepository removed in T9 cutover — use IOrgRepository.
   IInvestigationReportRepository,
   IPostMortemRepository,
   IChatSessionRepository,

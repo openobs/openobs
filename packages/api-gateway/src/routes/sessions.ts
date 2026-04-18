@@ -14,7 +14,7 @@ sessionsRouter.use(authMiddleware);
 // POST /sessions - create session (always for the authenticated user)
 sessionsRouter.post('/', (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const userId = req.auth?.sub;
+    const userId = req.auth?.userId;
     if (!userId) {
       res.status(401).json({ code: 'UNAUTHORIZED', message: 'authentication required' });
       return;
@@ -29,7 +29,7 @@ sessionsRouter.post('/', (req: AuthenticatedRequest, res: Response, next: NextFu
 // GET /sessions - list sessions for the authenticated user
 sessionsRouter.get('/', (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const userId = req.auth?.sub;
+    const userId = req.auth?.userId;
     if (!userId) {
       res.status(401).json({ code: 'UNAUTHORIZED', message: 'authentication required' });
       return;
@@ -44,7 +44,7 @@ sessionsRouter.get('/', (req: AuthenticatedRequest, res: Response, next: NextFun
 // GET /sessions/:id - get session by id (ownership check)
 sessionsRouter.get('/:id', (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const userId = req.auth?.sub;
+    const userId = req.auth?.userId;
     if (!userId) {
       res.status(401).json({ code: 'UNAUTHORIZED', message: 'authentication required' });
       return;
@@ -68,7 +68,7 @@ sessionsRouter.get('/:id', (req: AuthenticatedRequest, res: Response, next: Next
 // PATCH /sessions/:id - update session (ownership check)
 sessionsRouter.patch('/:id', (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const userId = req.auth?.sub;
+    const userId = req.auth?.userId;
     if (!userId) {
       res.status(401).json({ code: 'UNAUTHORIZED', message: 'authentication required' });
       return;
@@ -95,7 +95,7 @@ sessionsRouter.patch('/:id', (req: AuthenticatedRequest, res: Response, next: Ne
 // DELETE /sessions/:id - delete session (ownership check)
 sessionsRouter.delete('/:id', (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const userId = req.auth?.sub;
+    const userId = req.auth?.userId;
     if (!userId) {
       res.status(401).json({ code: 'UNAUTHORIZED', message: 'authentication required' });
       return;
