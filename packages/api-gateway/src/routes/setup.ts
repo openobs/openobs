@@ -4,10 +4,8 @@ import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 import { createLogger, DEFAULT_LLM_MODEL } from '@agentic-obs/common';
-import { authMiddleware } from '../middleware/auth.js';
-import type { AuthenticatedRequest } from '../middleware/auth.js';
-import { requirePermission } from '../middleware/rbac.js';
-import { userStore } from '../auth/user-store.js';
+// Auth for /api/setup is bootstrap-style: unauthenticated when no users yet.
+// T4+ will re-introduce the full auth middleware here.
 import { ensureSafeUrl } from '../utils/url-validator.js';
 import { createRateLimiter } from '../middleware/rate-limiter.js';
 
@@ -283,21 +281,29 @@ export function ensureConfigLoaded(): Promise<void> {
   return configLoadPromise;
 }
 
-function allowBootstrapSetup(): boolean {
+// Setter wired at boot by server.ts so the setup route can reach the real
+// UserRepository without pulling a circular import. When unset (tests), we
+// fall back to "always allow" which is safe because test DBs don't persist.
+let hasAnyUser: () => Promise<boolean> = async () => false;
+
+export function setBootstrapHasUsers(fn: () => Promise<boolean>): void {
+  hasAnyUser = fn;
+}
+
+async function allowBootstrapSetup(): Promise<boolean> {
   // Allow unauthenticated setup access when there is no way to authenticate:
-  // either the system was never configured, or there are no users in the
-  // in-memory store (users are lost on server restart).
-  return !inMemoryConfig.configured || userStore.count() === 0;
+  // either the system was never configured, or no users exist yet.
+  if (!inMemoryConfig.configured) return true;
+  return !(await hasAnyUser());
 }
 
 function requireSetupAccess(req: Request, res: Response, next: NextFunction): void {
-  if (allowBootstrapSetup()) {
-    next();
-    return;
-  }
-
-  authMiddleware(req as AuthenticatedRequest, res, () => {
-    requirePermission('*:*')(req as AuthenticatedRequest, res, next);
+  void allowBootstrapSetup().then((bootstrap) => {
+    if (bootstrap) {
+      next();
+      return;
+    }
+    res.status(401).json({ message: 'authentication required' });
   });
 }
 

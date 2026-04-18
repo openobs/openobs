@@ -73,6 +73,7 @@ describe('migrate()', () => {
       '013_quota.sql',
       '014_audit_log.sql',
       '015_alter_resources.sql',
+      '016_drop_workspaces.sql',
     ]);
   });
 

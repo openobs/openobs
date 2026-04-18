@@ -20,6 +20,12 @@ export * from './repository/index.js';
 // ── Auth / permissions repositories (Grafana-parity, Wave 1) ────────────
 export * from './repository/auth/index.js';
 
+// ── RBAC seed (Grafana-parity, Wave 2 / T3.1) ───────────────────────────
+// Populates `role`, `permission`, `builtin_role` with the action catalog's
+// built-in + fixed roles. Consumed by the bootstrap flow and by admin
+// `POST /api/access-control/seed`.
+export { seedRbacForOrg, type SeedRbacResult } from './seed/rbac-seed.js';
+
 // ── Test fixtures & in-memory DB helper (exported so other workspaces can
 // ── use them in integration tests).
 export * from './test-support/index.js';

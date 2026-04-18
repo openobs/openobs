@@ -119,12 +119,25 @@ describe('seeders', () => {
     expect((await roleRepo.listBuiltinRoles('org_main'))).toHaveLength(3);
   });
 
-  it('seedBuiltinRoles() does NOT populate permission rows (T3.1 responsibility)', async () => {
+  it('seedBuiltinRoles() populates permission rows for basic roles (T3.1)', async () => {
     const db = createTestDb();
     await seedDefaultOrg(db);
-    const { viewerRole } = await seedBuiltinRoles(db, 'org_main');
+    const { viewerRole, editorRole, adminRole, serverAdminRole } = await seedBuiltinRoles(
+      db, 'org_main',
+    );
     const { PermissionRepository } = await import('../repository/auth/permission-repository.js');
     const permRepo = new PermissionRepository(db);
-    expect(await permRepo.listByRole(viewerRole.id)).toHaveLength(0);
+    // Every basic role has at least one permission after T3.1 seeding.
+    expect((await permRepo.listByRole(viewerRole.id)).length).toBeGreaterThan(0);
+    expect((await permRepo.listByRole(editorRole.id)).length).toBeGreaterThan(
+      (await permRepo.listByRole(viewerRole.id)).length,
+    );
+    expect((await permRepo.listByRole(adminRole.id)).length).toBeGreaterThan(
+      (await permRepo.listByRole(editorRole.id)).length,
+    );
+    // Server Admin has every action in the catalog.
+    const { ALL_ACTIONS } = await import('@agentic-obs/common');
+    const saPerms = await permRepo.listByRole(serverAdminRole.id);
+    expect(saPerms.length).toBeGreaterThanOrEqual(ALL_ACTIONS.length);
   });
 });

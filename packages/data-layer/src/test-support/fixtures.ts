@@ -34,6 +34,10 @@ import { RoleRepository } from '../repository/auth/role-repository.js';
 import { PermissionRepository } from '../repository/auth/permission-repository.js';
 import { FolderRepository } from '../repository/auth/folder-repository.js';
 import { AuditLogRepository } from '../repository/auth/audit-log-repository.js';
+// Wave 2 (T3.1): full RBAC data seeding — inserts every built-in + fixed role
+// plus their permissions. Imported here so test harnesses get a realistic
+// permission catalog out of the box.
+import { seedRbacForOrg } from '../seed/rbac-seed.js';
 
 /**
  * Fixture builders + DB seeders for the Grafana-parity auth/perm entities.
@@ -309,46 +313,32 @@ export async function seedServerAdmin(
 }
 
 /**
- * Seed the three basic roles (basic:viewer / basic:editor / basic:admin) plus
- * the global basic:server_admin, and their builtin_role linkage for `orgId`.
+ * Seed the three per-org basic roles (basic:viewer / editor / admin), the
+ * global basic:server_admin, their builtin_role linkages, AND every fixed
+ * role + every permission row — i.e. a fully populated RBAC catalog for
+ * `orgId`.
  *
- * IMPORTANT: this only creates the role rows and the builtin_role mappings —
- * it does NOT populate `permission` rows. Permission content lives in T3.1's
- * seeder (packages/data-layer/src/seed/rbac-seed.ts), which runs after this.
+ * Wave 2 (T3.1) expanded this beyond the T1 "skeleton only" behavior — we
+ * now delegate to `seedRbacForOrg` which populates permissions as well.
+ * Existing callers still get the four typed role rows back as a convenience.
  */
 export async function seedBuiltinRoles(
   db: SqliteClient,
   orgId: string,
 ): Promise<{ viewerRole: Role; editorRole: Role; adminRole: Role; serverAdminRole: Role }> {
+  await seedRbacForOrg(db, orgId);
+
   const roleRepo = new RoleRepository(db);
+  const viewer = await roleRepo.findByUid(orgId, 'basic_viewer');
+  const editor = await roleRepo.findByUid(orgId, 'basic_editor');
+  const admin = await roleRepo.findByUid(orgId, 'basic_admin');
+  const serverAdmin = await roleRepo.findByUid('', 'basic_server_admin');
 
-  const ensureRole = async (scope: string, name: string, uid: string, displayName: string) => {
-    const existing = await roleRepo.findByName(scope, name);
-    if (existing) return existing;
-    return roleRepo.create({
-      orgId: scope,
-      name,
-      uid,
-      displayName,
-      groupName: 'Basic',
-    });
-  };
-
-  const viewer = await ensureRole(orgId, 'basic:viewer', 'basic_viewer', 'Viewer');
-  const editor = await ensureRole(orgId, 'basic:editor', 'basic_editor', 'Editor');
-  const admin = await ensureRole(orgId, 'basic:admin', 'basic_admin', 'Admin');
-  // basic:server_admin is global (orgId '').
-  const serverAdmin = await ensureRole('', 'basic:server_admin', 'basic_server_admin', 'Server Admin');
-
-  await roleRepo.upsertBuiltinRole({ role: 'Viewer', roleId: viewer.id, orgId });
-  await roleRepo.upsertBuiltinRole({ role: 'Editor', roleId: editor.id, orgId });
-  await roleRepo.upsertBuiltinRole({ role: 'Admin', roleId: admin.id, orgId });
-  // server admin maps at the global scope — org_id '' by convention.
-  await roleRepo.upsertBuiltinRole({
-    role: 'Server Admin',
-    roleId: serverAdmin.id,
-    orgId: '',
-  });
+  if (!viewer || !editor || !admin || !serverAdmin) {
+    throw new Error(
+      '[seedBuiltinRoles] expected rows missing after seedRbacForOrg — internal invariant broken',
+    );
+  }
 
   return {
     viewerRole: viewer,

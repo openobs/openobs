@@ -1,269 +1,191 @@
-import { Router } from 'express';
-import type { Request, Response } from 'express';
-import { authMiddleware, type AuthenticatedRequest } from '../middleware/auth.js';
-import { requirePermission } from '../middleware/rbac.js';
-import { userStore } from '../auth/user-store.js';
-import { sessionStore } from '../auth/session-store.js';
-import { createLocalUser } from '../auth/local-provider.js';
-import type { UserRole } from '../auth/types.js';
-import crypto from 'crypto';
+/**
+ * Server-admin routes (/api/admin/*).
+ *
+ * This file is a thin read-only harness that will be fleshed out in Wave 3
+ * (T4.1 org CRUD) and Wave 4 (T6 service accounts). For T2 we only need:
+ *   - GET /api/admin/users        (list, limited)
+ *   - GET /api/admin/audit-log    (query audit_log)
+ * Everything else returns 501 with a pointer to the owning task.
+ *
+ * Earlier code paths that reached into the now-deleted in-memory userStore
+ * are removed outright (no back-compat shims per §99).
+ */
 
-// Strip passwordHash before sending to client
-function sanitizeUser(user: import('../auth/types.js').User) {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { passwordHash, ...safe } = user;
-  return safe;
+import { Router, type Request, type Response } from 'express';
+import type {
+  IAuditLogRepository,
+  IUserAuthTokenRepository,
+  IUserRepository,
+} from '@agentic-obs/common';
+import { AuditAction } from '@agentic-obs/common';
+import type { AuditWriter } from '../auth/audit-writer.js';
+import type { SessionService } from '../auth/session-service.js';
+import type { AuthenticatedRequest } from '../middleware/auth.js';
+
+export interface AdminRouterDeps {
+  users: IUserRepository;
+  userAuthTokens: IUserAuthTokenRepository;
+  auditLog: IAuditLogRepository;
+  sessions: SessionService;
+  audit: AuditWriter;
 }
 
-const VALID_ROLES = new Set(['admin', 'operator', 'investigator', 'viewer', 'readonly']);
+function requireServerAdmin(
+  req: AuthenticatedRequest,
+  res: Response,
+): boolean {
+  if (!req.auth) {
+    res.status(401).json({ message: 'authentication required' });
+    return false;
+  }
+  if (!req.auth.isServerAdmin) {
+    res.status(403).json({ message: 'server admin required' });
+    return false;
+  }
+  return true;
+}
 
-export function createAdminRouter(): Router {
+export function createAdminRouter(deps: AdminRouterDeps): Router {
   const router = Router();
 
-  // All admin routes require authentication + admin-level (*) permission
-  router.use(authMiddleware);
-  router.use(requirePermission('*:*'));
-
-  // -- Users
-
-  router.get('/users', (_req: Request, res: Response) => {
-    res.json({ users: userStore.list().map(sanitizeUser) });
-  });
-
-  router.post('/users', async (req: Request, res: Response) => {
-    const body = req.body as Record<string, string | undefined>;
-    const email = body['email'];
-    const name = body['name'];
-    const role = body['role'];
-    const password = body['password'];
-
-    if (!email || !name) {
-      res.status(400).json({ code: 'VALIDATION', message: 'email and name are required' });
-      return;
-    }
-
-    if (role !== undefined && !VALID_ROLES.has(role as UserRole)) {
-      res.status(400).json({ code: 'VALIDATION', message: `Invalid role. Must be one of: ${[...VALID_ROLES].join(', ')}` });
-      return;
-    }
-
-    if (userStore.findByEmail?.(email)) {
-      res.status(409).json({ code: 'CONFLICT', message: 'A user with this email already exists' });
-      return;
-    }
-
-    try {
-      const safeEmail = email;
-      const safeName = name;
-      const tempPassword = password ?? crypto.randomBytes(12).toString('base64url');
-      const user = await createLocalUser(safeEmail, tempPassword, safeName, (role as UserRole | undefined) ?? 'viewer');
-      userStore.addAuditEntry({
-        action: 'user_created',
-        actorId: (req as AuthenticatedRequest).auth?.sub,
-        targetId: user.id,
-        targetEmail: user.email,
-      });
-      res.status(201).json({ user: sanitizeUser(user) });
-    } catch (err) {
-      res.status(500).json({ code: 'INTERNAL', message: err instanceof Error ? err.message : 'Failed to create user' });
-    }
-  });
-
-  router.patch('/users/:id', (req: Request, res: Response) => {
-    const id = req.params['id'] ?? '';
-    const body = req.body as Record<string, unknown>;
-    const role = body['role'] as string | undefined;
-    const name = body['name'] as string | undefined;
-    const disabled = body['disabled'] as boolean | undefined;
-
-    if (role !== undefined && !VALID_ROLES.has(role as UserRole)) {
-      res.status(400).json({ code: 'VALIDATION', message: `Invalid role. Must be one of: ${[...VALID_ROLES].join(', ')}` });
-      return;
-    }
-
-    const updates: Partial<import('../auth/types.js').User> = {};
-    if (role !== undefined)
-      updates.role = role as UserRole;
-    if (name !== undefined)
-      updates.name = name;
-    if (disabled !== undefined)
-      updates.disabled = disabled;
-
-    const updated = userStore.update(id, updates);
-    if (!updated) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'User not found' });
-      return;
-    }
-
-    const actorId = (req as AuthenticatedRequest).auth?.sub;
-    if (role !== undefined) {
-      userStore.addAuditEntry({
-        action: 'role_changed',
-        actorId: actorId ?? undefined,
-        targetId: id,
-        targetEmail: updated.email,
-        details: { newRole: role },
-      });
-    } else {
-      userStore.addAuditEntry({
-        action: 'user_updated',
-        actorId: actorId ?? undefined,
-        targetId: id,
-        targetEmail: updated.email,
-      });
-    }
-
-    // Revoke existing sessions when disabling or role changes (force re-login)
-    if (disabled || role !== undefined)
-      sessionStore.revokeAllForUser?.(id);
-
-    res.json({ user: sanitizeUser(updated) });
-  });
-
-  router.delete('/users/:id', (req: Request, res: Response) => {
-    const id = req.params['id'] ?? '';
-    const actorId = (req as AuthenticatedRequest).auth?.sub;
-    if (actorId !== undefined && actorId === id) {
-      res.status(400).json({ code: 'VALIDATION', message: 'Cannot delete your own account' });
-      return;
-    }
-
-    const user = userStore.findById(id);
-    if (!user) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'User not found' });
-      return;
-    }
-
-    sessionStore.revokeAllForUser?.(id);
-    userStore.delete(id);
-    userStore.addAuditEntry({
-      action: 'user_deleted',
-      actorId: actorId ?? undefined,
-      targetId: id,
-      targetEmail: user.email,
+  router.get('/users', async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireServerAdmin(req, res)) return;
+    const perpage = Math.min(
+      parseInt((req.query['perpage'] as string | undefined) ?? '100', 10),
+      500,
+    );
+    const page = Math.max(
+      parseInt((req.query['page'] as string | undefined) ?? '1', 10),
+      1,
+    );
+    const search =
+      typeof req.query['query'] === 'string'
+        ? (req.query['query'] as string)
+        : undefined;
+    const { items, total } = await deps.users.list({
+      limit: perpage,
+      offset: (page - 1) * perpage,
+      search,
     });
-    res.json({ ok: true });
+    res.json({
+      totalCount: total,
+      users: items.map((u) => ({
+        id: u.id,
+        email: u.email,
+        login: u.login,
+        name: u.name,
+        isAdmin: u.isAdmin,
+        isDisabled: u.isDisabled,
+        isServiceAccount: u.isServiceAccount,
+        created: u.created,
+        updated: u.updated,
+        lastSeenAt: u.lastSeenAt,
+      })),
+      page,
+      perPage: perpage,
+    });
   });
 
-  // -- Teams
+  router.post(
+    '/users/:userId/disable',
+    async (req: AuthenticatedRequest, res: Response) => {
+      if (!requireServerAdmin(req, res)) return;
+      const id = req.params['userId'] ?? '';
+      await deps.users.setDisabled(id, true);
+      // Revoke any live sessions so a disabled user can't ride out an
+      // existing cookie. This is part of the `user.disabled` contract per
+      // §02 §retry-semantics.
+      await deps.sessions.revokeAllForUser(id);
+      void deps.audit.log({
+        action: AuditAction.UserDisabled,
+        actorType: 'user',
+        actorId: req.auth!.userId,
+        targetType: 'user',
+        targetId: id,
+        outcome: 'success',
+      });
+      res.json({ message: 'user disabled' });
+    },
+  );
 
-  router.get('/teams', (_req: Request, res: Response) => {
-    res.json({ teams: userStore.listTeams() });
+  router.post(
+    '/users/:userId/enable',
+    async (req: AuthenticatedRequest, res: Response) => {
+      if (!requireServerAdmin(req, res)) return;
+      const id = req.params['userId'] ?? '';
+      await deps.users.setDisabled(id, false);
+      void deps.audit.log({
+        action: AuditAction.UserEnabled,
+        actorType: 'user',
+        actorId: req.auth!.userId,
+        targetType: 'user',
+        targetId: id,
+        outcome: 'success',
+      });
+      res.json({ message: 'user enabled' });
+    },
+  );
+
+  router.post(
+    '/users/:userId/logout',
+    async (req: AuthenticatedRequest, res: Response) => {
+      if (!requireServerAdmin(req, res)) return;
+      const id = req.params['userId'] ?? '';
+      const n = await deps.sessions.revokeAllForUser(id);
+      void deps.audit.log({
+        action: AuditAction.SessionRevoked,
+        actorType: 'user',
+        actorId: req.auth!.userId,
+        targetType: 'user',
+        targetId: id,
+        outcome: 'success',
+        metadata: { revoked: n },
+      });
+      res.json({ message: 'sessions revoked', revoked: n });
+    },
+  );
+
+  router.get(
+    '/audit-log',
+    async (req: AuthenticatedRequest, res: Response) => {
+      if (!requireServerAdmin(req, res)) return;
+      const perpage = Math.min(
+        parseInt((req.query['perpage'] as string | undefined) ?? '100', 10),
+        500,
+      );
+      const page = Math.max(
+        parseInt((req.query['page'] as string | undefined) ?? '1', 10),
+        1,
+      );
+      const { items, total } = await deps.auditLog.query({
+        limit: perpage,
+        offset: (page - 1) * perpage,
+        action: req.query['action'] as string | undefined,
+        actorId: req.query['actorId'] as string | undefined,
+        targetId: req.query['targetId'] as string | undefined,
+        outcome: req.query['outcome'] as 'success' | 'failure' | undefined,
+        from: req.query['from'] as string | undefined,
+        to: req.query['to'] as string | undefined,
+      });
+      res.json({ items, total, page, perpage });
+    },
+  );
+
+  // Bare GET /api/admin/stats — placeholder for T9 stats. Returns a minimal
+  // shape so frontend queries don't crash.
+  router.get('/stats', async (req: AuthenticatedRequest, res: Response) => {
+    if (!requireServerAdmin(req, res)) return;
+    const { total: userCount } = await deps.users.list({ limit: 1 });
+    res.json({ userCount });
   });
 
-  router.post('/teams', (req: Request, res: Response) => {
-    const body = req.body as Record<string, unknown>;
-    const name = body['name'] as string | undefined;
-    const permissions = body['permissions'] as string[] | undefined;
-    if (!name) {
-      res.status(400).json({ code: 'VALIDATION', message: 'name is required' });
-      return;
-    }
-
-    const team = userStore.createTeam({ name, permissions: permissions ?? [], members: [] });
-    const actorId = (req as AuthenticatedRequest).auth?.sub;
-    userStore.addAuditEntry({ action: 'team_created', actorId: actorId ?? undefined, targetId: team.id });
-    res.status(201).json(team);
-  });
-
-  router.patch('/teams/:id', (req: Request, res: Response) => {
-    const id = req.params['id'] ?? '';
-    const body = req.body as Record<string, unknown>;
-    const name = body['name'] as string | undefined;
-    const permissions = body['permissions'] as string[] | undefined;
-
-    const updates: Record<string, unknown> = {};
-    if (name !== undefined)
-      updates.name = name;
-    if (permissions !== undefined)
-      updates.permissions = permissions;
-
-    const updated = userStore.updateTeam(id, updates);
-    if (!updated) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Team not found' });
-      return;
-    }
-
-    const actorId = (req as AuthenticatedRequest).auth?.sub;
-    userStore.addAuditEntry({ action: 'team_updated', actorId: actorId ?? undefined, targetId: id });
-    res.json(updated);
-  });
-
-  router.delete('/teams/:id', (req: Request, res: Response) => {
-    const id = req.params['id'] ?? '';
-    if (!userStore.findTeamById(id)) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Team not found' });
-      return;
-    }
-
-    const actorId = (req as AuthenticatedRequest).auth?.sub;
-    userStore.deleteTeam(id);
-    userStore.addAuditEntry({ action: 'team_deleted', actorId: actorId ?? undefined, targetId: id });
-    res.json({ ok: true });
-  });
-
-  router.post('/teams/:id/members', (req: Request, res: Response) => {
-    const id = req.params['id'] ?? '';
-    const body = req.body as Record<string, string | undefined>;
-    const userId = body['userId'];
-    const role = (body['role'] as 'owner' | 'member' | undefined) ?? 'member';
-
-    if (!userId) {
-      res.status(400).json({ code: 'VALIDATION', message: 'userId is required' });
-      return;
-    }
-
-    const team = userStore.findTeamById(id);
-    if (!team) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Team not found' });
-      return;
-    }
-
-    const safeUserId = String(userId);
-    if (!userStore.findById(safeUserId)) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'User not found' });
-      return;
-    }
-
-    const members = [...team.members];
-    const existing = members.findIndex((m) => m.userId === safeUserId);
-    if (existing >= 0)
-      members[existing] = { userId: safeUserId, role };
-    else
-      members.push({ userId: safeUserId, role });
-
-    const updated = userStore.updateTeam(id, { members });
-    const current = userStore.findById(safeUserId);
-    if (current && !current.teams.includes(id))
-      userStore.update(safeUserId, { teams: [...current.teams, id] });
-
-    res.json({ team: updated });
-  });
-
-  router.delete('/teams/:id/members/:userId', (req: Request, res: Response) => {
-    const id = req.params['id'] ?? '';
-    const userId = req.params['userId'] ?? '';
-    const team = userStore.findTeamById(id);
-    if (!team) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Team not found' });
-      return;
-    }
-
-    userStore.updateTeam(id, { members: team.members.filter((m) => m.userId !== userId) });
-    const user = userStore.findById(userId);
-    if (user)
-      userStore.update(userId, { teams: user.teams.filter((t) => t !== id) });
-
-    res.json({ ok: true });
-  });
-
-  // -- Audit Log
-
-  router.get('/audit-log', (req: Request, res: Response) => {
-    const limit = Math.min(parseInt((req.query['limit'] as string | undefined) ?? '100', 10), 500);
-    const offset = parseInt((req.query['offset'] as string | undefined) ?? '0', 10);
-    const result = userStore.getAuditLog(limit, offset);
-    res.json(result);
+  // Lingering admin endpoints not owned by T2 — return 501 with a pointer so
+  // the frontend can detect "not yet implemented" and not crash.
+  router.all('/*', (_req: Request, res: Response) => {
+    res.status(501).json({
+      message:
+        'not implemented yet — see docs/auth-perm-design/08-api-surface.md',
+    });
   });
 
   return router;

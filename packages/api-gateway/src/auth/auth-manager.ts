@@ -1,212 +1,122 @@
-import jwt from 'jsonwebtoken'
-import crypto from 'crypto'
-import { createLogger } from '@agentic-obs/common'
-import { OidcProvider } from './oidc-provider.js'
-import { getJwtSecret } from './jwt-secret.js'
+/**
+ * Auth subsystem wiring.
+ *
+ * Factory that takes the auth repositories and returns a ready-to-use set of
+ * services (SessionService, LocalProvider, AuditWriter, optional OAuth/LDAP/SAML
+ * providers). `server.ts` calls `createAuthSubsystem` once at boot and passes
+ * the result to the auth + user routers and middleware.
+ *
+ * This replaces the old monolithic AuthManager. No JWT-in-body flow; cookies
+ * only. No back-compat shims.
+ */
 
-const log = createLogger('auth-manager')
-import { OAuthProvider } from './oauth-provider.js'
-import { localLogin, createLocalUser } from './local-provider.js'
-import { sessionStore } from './session-store.js'
-import { userStore } from './user-store.js'
-import type { User, UserRole, AuthProviderConfig, UserInfoClaims } from './types.js'
+import type {
+  IApiKeyRepository,
+  IAuditLogRepository,
+  IOrgRepository,
+  IOrgUserRepository,
+  IUserAuthRepository,
+  IUserAuthTokenRepository,
+  IUserRepository,
+} from '@agentic-obs/common';
+import { AuditWriter, startAuditPruneCron, auditRetentionDays } from './audit-writer.js';
+import { LocalProvider } from './local-provider.js';
+import {
+  SessionService,
+  sessionOptionsFromEnv,
+  startSessionPruneCron,
+} from './session-service.js';
+import {
+  GenericOidcProvider,
+  GitHubProvider,
+  GoogleProvider,
+  loadGenericOidcConfig,
+  loadGitHubConfig,
+  loadGoogleConfig,
+} from './oauth/index.js';
+import { LdapProvider } from './ldap/provider.js';
+import { ldapEnabled, ldapConfigPath, loadLdapConfig } from './ldap/config.js';
+import { SamlProvider } from './saml/provider.js';
+import { loadSamlConfig } from './saml/config.js';
 
-const JWT_SECRET = getJwtSecret('auth-manager')
-const ACCESS_TOKEN_TTL_SEC = 15 * 60 // 15 minutes
-const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
-
-export interface TokenPair {
-  accessToken: string
-  refreshToken: string
-  expiresIn: number // seconds
+export interface SessionServiceDeps {
+  userAuthTokens: IUserAuthTokenRepository;
 }
 
-export interface AuthenticatedUser {
-  user: User
-  tokens: TokenPair
+export interface AuthSubsystemRepos {
+  users: IUserRepository;
+  userAuth: IUserAuthRepository;
+  userAuthTokens: IUserAuthTokenRepository;
+  orgs: IOrgRepository;
+  orgUsers: IOrgUserRepository;
+  auditLog: IAuditLogRepository;
+  apiKeys: IApiKeyRepository;
 }
 
-export class AuthManager {
-  private oidcProvider?: OidcProvider
-  private githubProvider?: OAuthProvider
-  private googleProvider?: OAuthProvider
-
-  configure(config: AuthProviderConfig): void {
-    if (config.oidc)
-      this.oidcProvider = new OidcProvider(config.oidc)
-    if (config.github)
-      this.githubProvider = new OAuthProvider(config.github)
-    if (config.google)
-      this.googleProvider = new OAuthProvider(config.google)
-  }
-
-  getEnabledProviders(): Array<{ id: string, name: string, type: string }> {
-    const providers: Array<{ id: string, name: string, type: string }> = [
-      { id: 'local', name: 'Email & Password', type: 'local' },
-    ]
-    if (this.oidcProvider)
-      providers.push({ id: 'oidc', name: 'SSO (OIDC)', type: 'oidc' })
-    if (this.githubProvider)
-      providers.push({ id: 'github', name: 'GitHub', type: 'oauth' })
-    if (this.googleProvider)
-      providers.push({ id: 'google', name: 'Google', type: 'oauth' })
-    return providers
-  }
-
-  // OIDC
-  async getOidcAuthUrl(): Promise<{ url: string, state: string }> {
-    if (!this.oidcProvider)
-      throw new Error('OIDC provider is not configured')
-    return this.oidcProvider.getAuthorizationUrl()
-  }
-
-  async handleOidcCallback(
-    code: string,
-    state: string,
-    meta?: { ipAddress?: string, userAgent?: string },
-  ): Promise<AuthenticatedUser> {
-    if (!this.oidcProvider)
-      throw new Error('OIDC provider is not configured')
-    const { claims, role } = await this.oidcProvider.handleCallback(code, state)
-    const user = await this.upsertUser(claims, 'oidc', role)
-    const tokens = this.issueTokens(user, meta)
-    userStore.addAuditEntry({ action: 'login', actorId: user.id, actorEmail: user.email, provider: 'oidc', ...meta })
-    return { user, tokens }
-  }
-
-  // OAuth (GitHub / Google)
-  getOAuthAuthUrl(provider: 'github' | 'google'): { url: string, state: string } {
-    const p = provider === 'github' ? this.githubProvider : this.googleProvider
-    if (!p)
-      throw new Error(`${provider} OAuth provider is not configured`)
-    return p.getAuthorizationUrl()
-  }
-
-  async handleOAuthCallback(
-    provider: 'github' | 'google',
-    code: string,
-    state: string,
-    meta?: { ipAddress?: string, userAgent?: string },
-  ): Promise<AuthenticatedUser> {
-    const p = provider === 'github' ? this.githubProvider : this.googleProvider
-    if (!p)
-      throw new Error(`${provider} OAuth provider is not configured`)
-    const claims = await p.handleCallback(code, state)
-    const user = await this.upsertUser(claims, provider, 'viewer')
-    const tokens = this.issueTokens(user, meta)
-    userStore.addAuditEntry({ action: 'login', actorId: user.id, actorEmail: user.email, provider, ...meta })
-    return { user, tokens }
-  }
-
-  // Local auth
-  async localLogin(
-    email: string,
-    password: string,
-    meta?: { ipAddress?: string, userAgent?: string },
-  ): Promise<AuthenticatedUser | null> {
-    const user = await localLogin(email, password)
-    if (!user) {
-      userStore.addAuditEntry({ action: 'login_failed', actorEmail: email, provider: 'local', ...meta })
-      return null
-    }
-    const tokens = this.issueTokens(user, meta)
-    userStore.addAuditEntry({ action: 'login', actorId: user.id, actorEmail: user.email, provider: 'local', ...meta })
-    return { user, tokens }
-  }
-
-  // Session management
-  refresh(refreshToken: string): TokenPair | null {
-    const session = sessionStore.getByRefreshToken(refreshToken)
-    if (!session)
-      return null
-    const user = userStore.findById(session.userId)
-    if (!user || user.disabled) {
-      sessionStore.revoke(session.id)
-      return null
-    }
-    sessionStore.revoke(session.id)
-    return this.issueTokens(user)
-  }
-
-  logout(userId: string): void {
-    sessionStore.revokeAllForUser(userId)
-    userStore.addAuditEntry({ action: 'logout', actorId: userId })
-  }
-
-  verifyAccessToken(token: string): { sub: string, userId: string, role: UserRole, roles: string[] } | null {
-    try {
-      const payload = jwt.verify(token, JWT_SECRET) as Record<string, unknown>
-      return {
-        sub: String(payload['sub'] ?? ''),
-        userId: String(payload['userId'] ?? ''),
-        role: (payload['role'] as UserRole) ?? 'viewer',
-        roles: (payload['roles'] as string[]) ?? [String(payload['role'] ?? 'viewer')],
-      }
-    }
-    catch (err) {
-      log.debug({ err }, 'failed to verify access token')
-      return null
-    }
-  }
-
-  // Helpers
-  private async upsertUser(
-    claims: UserInfoClaims,
-    provider: 'oidc' | 'github' | 'google',
-    defaultRole: UserRole,
-  ): Promise<User> {
-    let user = userStore.findByExternalId(provider, claims.sub)
-    if (!user && claims.email)
-      user = userStore.findByEmail(claims.email)
-    if (user) {
-      return userStore.update(user.id, {
-        name: claims.name ?? user.name,
-        avatarUrl: claims.picture ?? user.avatarUrl,
-        externalId: claims.sub,
-        lastLoginAt: new Date().toISOString(),
-      }) ?? user
-    }
-    const newUser = userStore.create({
-      email: claims.email ?? '',
-      name: claims.name ?? claims.email ?? 'Unknown',
-      avatarUrl: claims.picture,
-      authProvider: provider,
-      externalId: claims.sub,
-      role: defaultRole,
-      teams: [],
-    })
-    userStore.addAuditEntry({ action: 'user_created', actorId: newUser.id, actorEmail: newUser.email, provider })
-    return newUser
-  }
-
-  private issueTokens(
-    user: User,
-    meta?: { ipAddress?: string, userAgent?: string },
-  ): TokenPair {
-    const accessToken = jwt.sign(
-      { sub: user.id, userId: user.id, email: user.email, role: user.role, roles: [user.role], jti: crypto.randomBytes(8).toString('hex') },
-      JWT_SECRET,
-      { expiresIn: ACCESS_TOKEN_TTL_SEC },
-    )
-    const refreshToken = crypto.randomBytes(48).toString('hex')
-    sessionStore.create(user.id, accessToken, refreshToken, REFRESH_TOKEN_TTL_MS, meta)
-    return { accessToken, refreshToken, expiresIn: ACCESS_TOKEN_TTL_SEC }
-  }
+export interface AuthSubsystem {
+  sessions: SessionService;
+  local: LocalProvider;
+  audit: AuditWriter;
+  github: GitHubProvider | null;
+  google: GoogleProvider | null;
+  generic: GenericOidcProvider | null;
+  ldap: LdapProvider | null;
+  saml: SamlProvider | null;
+  stop: () => void;
 }
 
-export const authManager = new AuthManager()
+export async function createAuthSubsystem(
+  repos: AuthSubsystemRepos,
+  options: { defaultOrgId?: string } = {},
+): Promise<AuthSubsystem> {
+  const defaultOrgId = options.defaultOrgId ?? 'org_main';
 
-// Optional admin seed: set SEED_ADMIN=true plus SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD
-if (process.env['SEED_ADMIN'] === 'true' && userStore.count() === 0) {
-  const seedEmail = process.env['SEED_ADMIN_EMAIL']
-  const seedPassword = process.env['SEED_ADMIN_PASSWORD']
-  if (seedEmail && seedPassword) {
-    if (seedPassword.length < 12) {
-      log.warn('SEED_ADMIN_PASSWORD must be at least 12 characters; skipping admin seed')
-    } else {
-      createLocalUser(seedEmail, seedPassword, 'Admin User', 'admin').catch((err) => {
-        log.debug({ err }, 'failed to seed admin user (may already exist)')
-      })
+  const sessions = new SessionService(
+    repos.userAuthTokens,
+    sessionOptionsFromEnv(),
+  );
+  const local = new LocalProvider(repos.users);
+  const audit = new AuditWriter(repos.auditLog);
+
+  const githubCfg = loadGitHubConfig();
+  const googleCfg = loadGoogleConfig();
+  const genericCfg = await loadGenericOidcConfig().catch(() => null);
+
+  const github = githubCfg ? new GitHubProvider(githubCfg) : null;
+  const google = googleCfg ? new GoogleProvider(googleCfg) : null;
+  const generic = genericCfg ? new GenericOidcProvider(genericCfg) : null;
+
+  let ldap: LdapProvider | null = null;
+  if (ldapEnabled()) {
+    const cfg = await loadLdapConfig(ldapConfigPath());
+    if (cfg) {
+      ldap = new LdapProvider(cfg, {
+        users: repos.users,
+        orgUsers: repos.orgUsers,
+        defaultOrgId,
+      });
     }
   }
+
+  let saml: SamlProvider | null = null;
+  const samlCfg = loadSamlConfig();
+  if (samlCfg) {
+    saml = new SamlProvider(samlCfg, {
+      users: repos.users,
+      userAuth: repos.userAuth,
+      defaultOrgId,
+    });
+  }
+
+  const stopSession = startSessionPruneCron(sessions);
+  const stopAudit = startAuditPruneCron(
+    repos.auditLog,
+    auditRetentionDays(),
+  );
+  const stop = () => {
+    stopSession();
+    stopAudit();
+  };
+
+  return { sessions, local, audit, github, google, generic, ldap, saml, stop };
 }

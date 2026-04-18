@@ -18,14 +18,14 @@ import { createWebhookRouter } from './routes/webhooks.js';
 import { createInvestigationReportRouter } from './routes/investigation-reports.js';
 import { createSetupRouter } from './routes/setup.js';
 import { datasourcesRouter } from './routes/datasources.js';
-import { createAuthRouter } from './routes/auth.js';
-import { createAdminRouter } from './routes/admin.js';
 import { createQueryRouter } from './routes/dashboard/query.js';
 import { createDashboardRouter } from './routes/dashboard/router.js';
 import { createAlertRulesRouter } from './routes/alert-rules.js';
 import { createNotificationsRouter } from './routes/notifications.js';
-import { createWorkspaceRouter } from './routes/workspaces.js';
 import { createVersionRouter } from './routes/versions.js';
+import { createOrgsRouter } from './routes/orgs.js';
+import { createOrgRouter } from './routes/org.js';
+import { OrgService } from './services/org-service.js';
 import { createFolderRouter } from './routes/folders.js';
 import { createSearchRouter } from './routes/search.js';
 import { createChatRouter } from './routes/chat.js';
@@ -33,6 +33,7 @@ import {
   createSqliteClient,
   createSqliteRepositories,
   ensureSchema,
+  applyNamedMigrations,
   EventEmittingFeedRepository,
   EventEmittingApprovalRepository,
   EventEmittingAlertRuleRepository,
@@ -45,12 +46,44 @@ import {
   defaultShareStore,
   defaultFolderStore,
   defaultVersionStore,
-  defaultWorkspaceStore,
   feedStore,
   incidentStore,
   approvalStore,
   postMortemStore,
+  UserRepository,
+  UserAuthRepository,
+  UserAuthTokenRepository,
+  OrgRepository,
+  OrgUserRepository,
+  QuotaRepository,
+  ApiKeyRepository,
+  AuditLogRepository,
+  PreferencesRepository,
+  // Wave 2 / T3 RBAC
+  RoleRepository,
+  PermissionRepository,
+  UserRoleRepository,
+  TeamRoleRepository,
+  TeamMemberRepository,
+  FolderRepository,
+  seedRbacForOrg,
 } from '@agentic-obs/data-layer';
+import { createAuthSubsystem } from './auth/auth-manager.js';
+import { seedAdminIfNeeded } from './auth/seed-admin.js';
+import { createAuthRouter } from './routes/auth.js';
+import { createUserRouter } from './routes/user.js';
+import { createAdminRouter } from './routes/admin.js';
+import {
+  createAuthMiddleware,
+  setAuthMiddleware,
+} from './middleware/auth.js';
+import { createOrgContextMiddleware } from './middleware/org-context.js';
+import { setBootstrapHasUsers } from './routes/setup.js';
+// Wave 2 / T3 — RBAC service, routes, resolvers.
+import { AccessControlService } from './services/accesscontrol-service.js';
+import { createAccessControlRouter } from './routes/access-control.js';
+import { createUserPermissionsRouter } from './routes/user-permissions.js';
+import { createResolverRegistry } from './rbac/resolvers/index.js';
 import type { SqliteRepositories } from '@agentic-obs/data-layer';
 import { createLogger, requestLogger, GracefulShutdown, ShutdownPriority } from '@agentic-obs/common';
 import { registerStore, loadAll, flushStores, markDirty } from './persistence.js';
@@ -59,11 +92,15 @@ const log = createLogger('api-gateway');
 
 const DATA_DIR = process.env['DATA_DIR'] || join(process.cwd(), '.uname-data');
 
-function buildSqliteRepositories(): SqliteRepositories {
+function buildSqliteRepositories(): SqliteRepositories & {
+  _sqliteClient: ReturnType<typeof createSqliteClient>;
+} {
   const dbPath = process.env['SQLITE_PATH'] || join(DATA_DIR, 'openobs.db');
   const db = createSqliteClient({ path: dbPath });
   ensureSchema(db);
-  return createSqliteRepositories(db);
+  // Apply the name-based auth/perm migrations (001_org, 002_user, etc.).
+  applyNamedMigrations(db);
+  return Object.assign(createSqliteRepositories(db), { _sqliteClient: db });
 }
 
 function mountStaticAssets(app: Application): void {
@@ -90,8 +127,6 @@ function mountCommonRoutes(app: Application): void {
   app.use('/api/metrics', metricsRouter);
   app.use('/api/setup', createSetupRouter());
   app.use('/api/datasources', datasourcesRouter);
-  app.use('/api/auth', createAuthRouter());
-  app.use('/api/admin', createAdminRouter());
   app.use('/api/query', createQueryRouter());
 }
 
@@ -124,6 +159,177 @@ export function createApp(): Application {
   if (useSqlite) {
     // -- SQLite mode: all persistence via SQLite repos
     const repos = buildSqliteRepositories();
+    // — Auth subsystem wiring (Wave 2 / T2) ————————————————————————
+    const sqliteDb = repos._sqliteClient;
+    const authRepos = {
+      users: new UserRepository(sqliteDb),
+      userAuth: new UserAuthRepository(sqliteDb),
+      userAuthTokens: new UserAuthTokenRepository(sqliteDb),
+      orgs: new OrgRepository(sqliteDb),
+      orgUsers: new OrgUserRepository(sqliteDb),
+      auditLog: new AuditLogRepository(sqliteDb),
+      apiKeys: new ApiKeyRepository(sqliteDb),
+      preferences: new PreferencesRepository(sqliteDb),
+    };
+    void (async () => {
+      try {
+        await seedAdminIfNeeded(authRepos);
+      } catch (err) {
+        log.error(
+          { err: err instanceof Error ? err.message : err },
+          'seed admin failed',
+        );
+      }
+    })();
+    void (async () => {
+      const authSub = await createAuthSubsystem(authRepos);
+      const authMw = createAuthMiddleware({
+        sessions: authSub.sessions,
+        users: authRepos.users,
+        orgUsers: authRepos.orgUsers,
+        apiKeys: authRepos.apiKeys,
+      });
+      setAuthMiddleware(authMw);
+      setBootstrapHasUsers(async () => {
+        const { total } = await authRepos.users.list({ limit: 1 });
+        return total > 0;
+      });
+      // Mount the auth / user / admin routers after the subsystem is built.
+      // These endpoints are public or self-authenticating so mounting them
+      // lazily is safe — requests that arrive before this resolves see a 503
+      // from the auth-middleware shim, not an auth bypass.
+      app.use(
+        '/api/user',
+        authMw,
+        createOrgContextMiddleware({ orgUsers: authRepos.orgUsers }),
+        createUserRouter({
+          users: authRepos.users,
+          userAuth: authRepos.userAuth,
+          orgUsers: authRepos.orgUsers,
+          preferences: authRepos.preferences,
+          sessions: authSub.sessions,
+          audit: authSub.audit,
+        }),
+      );
+      app.use(
+        '/api',
+        createAuthRouter({
+          users: authRepos.users,
+          userAuth: authRepos.userAuth,
+          orgUsers: authRepos.orgUsers,
+          sessions: authSub.sessions,
+          local: authSub.local,
+          github: authSub.github,
+          google: authSub.google,
+          generic: authSub.generic,
+          ldap: authSub.ldap,
+          saml: authSub.saml,
+          audit: authSub.audit,
+          defaultOrgId: 'org_main',
+        }),
+      );
+      app.use(
+        '/api/admin',
+        authMw,
+        createAdminRouter({
+          users: authRepos.users,
+          userAuthTokens: authRepos.userAuthTokens,
+          auditLog: authRepos.auditLog,
+          sessions: authSub.sessions,
+          audit: authSub.audit,
+        }),
+      );
+
+      // -- Wave 2 / T3 — RBAC ------------------------------------------------
+      // Construct the access-control service, seed the role catalog into the
+      // default org (idempotent), and mount:
+      //   - /api/user/permissions   (authenticated user's resolved perms)
+      //   - /api/access-control/*   (role CRUD, assignments, etc.)
+      const rbacRoleRepo = new RoleRepository(sqliteDb);
+      const rbacPermissionRepo = new PermissionRepository(sqliteDb);
+      const rbacUserRoles = new UserRoleRepository(sqliteDb);
+      const rbacTeamRoles = new TeamRoleRepository(sqliteDb);
+      const rbacTeamMembers = new TeamMemberRepository(sqliteDb);
+      const rbacFolders = new FolderRepository(sqliteDb);
+
+      try {
+        await seedRbacForOrg(sqliteDb, 'org_main');
+      } catch (err) {
+        log.error(
+          { err: err instanceof Error ? err.message : err },
+          'seed rbac failed',
+        );
+      }
+
+      const accessControl = new AccessControlService({
+        permissions: rbacPermissionRepo,
+        roles: rbacRoleRepo,
+        userRoles: rbacUserRoles,
+        teamRoles: rbacTeamRoles,
+        teamMembers: rbacTeamMembers,
+        orgUsers: authRepos.orgUsers,
+        resolvers: (orgId) =>
+          createResolverRegistry({ folders: rbacFolders, orgId }),
+      });
+
+      app.use(
+        '/api/user',
+        authMw,
+        createOrgContextMiddleware({ orgUsers: authRepos.orgUsers }),
+        createUserPermissionsRouter(accessControl),
+      );
+
+      app.use(
+        '/api/access-control',
+        authMw,
+        createOrgContextMiddleware({ orgUsers: authRepos.orgUsers }),
+        createAccessControlRouter({
+          ac: accessControl,
+          roleRepo: rbacRoleRepo,
+          permissionRepo: rbacPermissionRepo,
+          userRoles: rbacUserRoles,
+          teamRoles: rbacTeamRoles,
+          db: sqliteDb,
+        }),
+      );
+
+      // -- Wave 3 / T4.1 — Org CRUD + membership ----------------------------
+      const quotasRepo = new QuotaRepository(sqliteDb);
+      const orgService = new OrgService({
+        orgs: authRepos.orgs,
+        orgUsers: authRepos.orgUsers,
+        users: authRepos.users,
+        quotas: quotasRepo,
+        audit: authSub.audit,
+        db: sqliteDb,
+        defaultOrgId: 'org_main',
+      });
+
+      app.use(
+        '/api/orgs',
+        authMw,
+        // Cross-org endpoints. orgContext middleware is omitted because
+        // server-admin flows here (list-all, create new org) don't require
+        // a specific current org.
+        createOrgsRouter({ orgs: orgService, ac: accessControl }),
+      );
+
+      app.use(
+        '/api/org',
+        authMw,
+        createOrgContextMiddleware({ orgUsers: authRepos.orgUsers }),
+        createOrgRouter({
+          orgs: orgService,
+          ac: accessControl,
+          preferences: authRepos.preferences,
+        }),
+      );
+    })().catch((err) => {
+      log.error(
+        { err: err instanceof Error ? err.message : err },
+        'failed to initialize auth subsystem',
+      );
+    });
 
     // Wrap repos with event emitters for pub/sub
     const eventFeedStore = new EventEmittingFeedRepository(repos.feedItems);
@@ -181,7 +387,6 @@ export function createApp(): Application {
       alertRuleStore: eventAlertRuleStore,
       folderStore: repos.folders,
     }));
-    app.use('/api/workspaces', createWorkspaceRouter({ store: repos.workspaces }));
     app.use('/api/versions', createVersionRouter(repos.versions));
   } else {
     // -- Legacy in-memory mode with JSON persistence
@@ -233,7 +438,6 @@ export function createApp(): Application {
       alertRuleStore: defaultAlertRuleStore,
       folderStore: defaultFolderStore,
     }));
-    app.use('/api/workspaces', createWorkspaceRouter({ store: defaultWorkspaceStore }));
     app.use('/api/versions', createVersionRouter(defaultVersionStore));
   }
 

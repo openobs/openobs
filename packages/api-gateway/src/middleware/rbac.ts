@@ -140,7 +140,13 @@ export function hasAllPermissions(userPermissions: string[], required: string[])
 /** Express middleware - rejects the request with 403 if permission is missing */
 export function requirePermission(permission: string) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
-    const permissions = req.auth?.permissions ?? []
+    // Legacy RBAC middleware reads the flat string[] shim populated by the
+    // new auth middleware. T3's access-control middleware reads the richer
+    // `permissions: ResolvedPermission[]` field directly.
+    const legacy = req.auth?.stringPermissions ?? [];
+    const roles = req.auth?.roles ?? [];
+    const derivedFromRoles = roleStore.resolvePermissions(roles);
+    const permissions = legacy.length > 0 ? legacy : derivedFromRoles;
     if (hasPermission(permissions, permission)) {
       next()
       return

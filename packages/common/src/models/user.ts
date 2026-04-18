@@ -131,4 +131,8 @@ export interface NewUserAuthToken {
   authTokenSeen?: boolean;
   seenAt?: string | null;
   rotatedAt?: string;
+  /** Override ISO timestamps — SessionService with an injected clock sets
+   *  these so created_at/updated_at reflect the test time, not wall clock. */
+  createdAt?: string;
+  updatedAt?: string;
 }

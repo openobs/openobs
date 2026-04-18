@@ -42,6 +42,8 @@ export class UserAuthTokenRepository implements IUserAuthTokenRepository {
   async create(input: NewUserAuthToken): Promise<UserAuthToken> {
     const id = input.id ?? uid();
     const now = nowIso();
+    const createdAt = input.createdAt ?? now;
+    const updatedAt = input.updatedAt ?? now;
     this.db.run(sql`
       INSERT INTO user_auth_token (
         id, user_id, auth_token, prev_auth_token, user_agent, client_ip,
@@ -50,7 +52,7 @@ export class UserAuthTokenRepository implements IUserAuthTokenRepository {
         ${id}, ${input.userId}, ${input.authToken}, ${input.prevAuthToken ?? ''},
         ${input.userAgent}, ${input.clientIp},
         ${fromBool(input.authTokenSeen)}, ${input.seenAt ?? null},
-        ${input.rotatedAt ?? now}, ${now}, ${now}, NULL
+        ${input.rotatedAt ?? createdAt}, ${createdAt}, ${updatedAt}, NULL
       )
     `);
     const row = await this.findById(id);

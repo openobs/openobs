@@ -24,6 +24,9 @@ export const investigations = sqliteTable(
     evidence: text('evidence', { mode: 'json' }).notNull().default('[]'),
     symptoms: text('symptoms', { mode: 'json' }).notNull().default('[]'),
     workspaceId: text('workspace_id'),
+    // Multi-org tenancy (T4.4) — every resource row is scoped by org_id.
+    // Default 'org_main' mirrors migration 015_alter_resources.sql.
+    orgId: text('org_id').notNull().default('org_main'),
     archived: integer('archived', { mode: 'boolean' }).notNull().default(false),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
@@ -33,6 +36,7 @@ export const investigations = sqliteTable(
     index('investigations_session_idx').on(t.sessionId),
     index('investigations_status_idx').on(t.status),
     index('investigations_workspace_idx').on(t.workspaceId),
+    index('investigations_org_idx').on(t.orgId),
     index('investigations_created_at_idx').on(t.createdAt),
   ],
 );
@@ -96,6 +100,7 @@ export const incidents = sqliteTable(
     timeline: text('timeline', { mode: 'json' }).notNull().default('[]'),
     assignee: text('assignee'),
     workspaceId: text('workspace_id'),
+    orgId: text('org_id').notNull().default('org_main'),
     archived: integer('archived', { mode: 'boolean' }).notNull().default(false),
     resolvedAt: text('resolved_at'),
     createdAt: text('created_at').notNull(),
@@ -106,6 +111,7 @@ export const incidents = sqliteTable(
     index('incidents_status_idx').on(t.status),
     index('incidents_severity_idx').on(t.severity),
     index('incidents_workspace_idx').on(t.workspaceId),
+    index('incidents_org_idx').on(t.orgId),
     index('incidents_created_at_idx').on(t.createdAt),
   ],
 );
@@ -127,6 +133,7 @@ export const feedItems = sqliteTable(
     hypothesisFeedback: text('hypothesis_feedback', { mode: 'json' }),
     actionFeedback: text('action_feedback', { mode: 'json' }),
     investigationId: text('investigation_id'),
+    orgId: text('org_id').notNull().default('org_main'),
     followedUp: integer('followed_up', { mode: 'boolean' }).notNull().default(false),
     createdAt: text('created_at').notNull(),
   },
@@ -135,6 +142,7 @@ export const feedItems = sqliteTable(
     index('feed_items_type_idx').on(t.type),
     index('feed_items_severity_idx').on(t.severity),
     index('feed_items_status_idx').on(t.status),
+    index('feed_items_org_idx').on(t.orgId),
     index('feed_items_created_at_idx').on(t.createdAt),
   ],
 );
@@ -152,10 +160,12 @@ export const approvals = sqliteTable(
     resolvedAt: text('resolved_at'),
     resolvedBy: text('resolved_by'),
     resolvedByRoles: text('resolved_by_roles', { mode: 'json' }),
+    orgId: text('org_id').notNull().default('org_main'),
     createdAt: text('created_at').notNull(),
   },
   (t) => [
     index('approvals_status_idx').on(t.status),
+    index('approvals_org_idx').on(t.orgId),
     index('approvals_created_at_idx').on(t.createdAt),
   ],
 );
@@ -197,6 +207,7 @@ export const dashboards = sqliteTable(
     useExistingMetrics: integer('use_existing_metrics', { mode: 'boolean' }).notNull().default(true),
     folder: text('folder'),
     workspaceId: text('workspace_id'),
+    orgId: text('org_id').notNull().default('org_main'),
     sessionId: text('session_id'),
     version: integer('version'),
     publishStatus: text('publish_status'),
@@ -207,6 +218,7 @@ export const dashboards = sqliteTable(
   (t) => [
     index('dashboards_user_idx').on(t.userId),
     index('dashboards_workspace_idx').on(t.workspaceId),
+    index('dashboards_org_idx').on(t.orgId),
     index('dashboards_session_idx').on(t.sessionId),
     index('dashboards_status_idx').on(t.status),
     index('dashboards_created_at_idx').on(t.createdAt),
@@ -223,10 +235,12 @@ export const dashboardMessages = sqliteTable(
     role: text('role').notNull(),
     content: text('content').notNull(),
     actions: text('actions', { mode: 'json' }),
+    orgId: text('org_id').notNull().default('org_main'),
     timestamp: text('timestamp').notNull(),
   },
   (t) => [
     index('dashboard_messages_dashboard_idx').on(t.dashboardId),
+    index('dashboard_messages_org_idx').on(t.orgId),
   ],
 );
 
@@ -249,6 +263,7 @@ export const alertRules = sqliteTable(
     notificationPolicyId: text('notification_policy_id'),
     investigationId: text('investigation_id'),
     workspaceId: text('workspace_id'),
+    orgId: text('org_id').notNull().default('org_main'),
     createdBy: text('created_by').notNull(),
     lastEvaluatedAt: text('last_evaluated_at'),
     lastFiredAt: text('last_fired_at'),
@@ -260,6 +275,7 @@ export const alertRules = sqliteTable(
     index('alert_rules_state_idx').on(t.state),
     index('alert_rules_severity_idx').on(t.severity),
     index('alert_rules_workspace_idx').on(t.workspaceId),
+    index('alert_rules_org_idx').on(t.orgId),
     index('alert_rules_updated_at_idx').on(t.updatedAt),
   ],
 );
@@ -486,11 +502,13 @@ export const chatSessions = sqliteTable(
     id: text('id').primaryKey(),
     title: text('title').notNull().default(''),
     contextSummary: text('context_summary'),
+    orgId: text('org_id').notNull().default('org_main'),
     createdAt: text('created_at').notNull(),
     updatedAt: text('updated_at').notNull(),
   },
   (t) => [
     index('chat_sessions_updated_at_idx').on(t.updatedAt),
+    index('chat_sessions_org_idx').on(t.orgId),
   ],
 );
 
