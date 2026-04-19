@@ -113,15 +113,23 @@ export const LLM_PROVIDERS: Array<{
   },
 ];
 
-export const DATASOURCE_TYPES = [
-  { value: 'loki', label: 'Loki', category: 'Logs' },
-  { value: 'elasticsearch', label: 'Elasticsearch', category: 'Logs' },
-  { value: 'clickhouse', label: 'ClickHouse', category: 'Logs' },
-  { value: 'tempo', label: 'Tempo', category: 'Traces' },
-  { value: 'jaeger', label: 'Jaeger', category: 'Traces' },
-  { value: 'otel', label: 'OTel Collector', category: 'Traces' },
-  { value: 'prometheus', label: 'Prometheus', category: 'Metrics' },
-  { value: 'victoria-metrics', label: 'VictoriaMetrics', category: 'Metrics' },
+// `supported: false` = backend has no adapter wired yet. The entry still
+// appears in the picker but disabled, so the UI is honest about what the
+// running product can do. Flip to true as adapters land.
+export const DATASOURCE_TYPES: Array<{
+  value: string;
+  label: string;
+  category: 'Logs' | 'Traces' | 'Metrics';
+  supported: boolean;
+}> = [
+  { value: 'prometheus',       label: 'Prometheus',       category: 'Metrics', supported: true  },
+  { value: 'victoria-metrics', label: 'VictoriaMetrics',  category: 'Metrics', supported: true  },
+  { value: 'loki',             label: 'Loki',             category: 'Logs',    supported: false },
+  { value: 'elasticsearch',    label: 'Elasticsearch',    category: 'Logs',    supported: false },
+  { value: 'clickhouse',       label: 'ClickHouse',       category: 'Logs',    supported: false },
+  { value: 'tempo',            label: 'Tempo',            category: 'Traces',  supported: false },
+  { value: 'jaeger',           label: 'Jaeger',           category: 'Traces',  supported: false },
+  { value: 'otel',             label: 'OTel Collector',   category: 'Traces',  supported: false },
 ];
 
 export const STEPS = ['Welcome', 'Administrator', 'LLM Provider', 'Data Sources', 'Notifications', 'Ready'];
