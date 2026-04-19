@@ -21,3 +21,9 @@ pictures/
 .claude/
 .vscode/
 .idea/
+
+# packages/cli is a generated distribution — build with `npm run dist`
+packages/cli/dist/
+packages/cli/web-dist/
+packages/cli/*.tgz
+packages/cli/README.md

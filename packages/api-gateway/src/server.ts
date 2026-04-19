@@ -123,9 +123,13 @@ function buildSqliteRepositories(): SqliteRepositories & {
 }
 
 function mountStaticAssets(app: Application): void {
+  const here = dirname(fileURLToPath(import.meta.url));
   const webDistCandidates = [
-    join(dirname(fileURLToPath(import.meta.url)), '../../web/dist'),
-    join(dirname(fileURLToPath(import.meta.url)), '../../../web/dist'),
+    // Source-tree layout (packages/api-gateway/dist/server.js → packages/web/dist)
+    join(here, '../../web/dist'),
+    join(here, '../../../web/dist'),
+    // Published npm layout (node_modules/openobs/dist/server.mjs → node_modules/openobs/web-dist)
+    join(here, '../web-dist'),
   ];
   const webDist = webDistCandidates.find((p) => existsSync(p));
   if (webDist) {
