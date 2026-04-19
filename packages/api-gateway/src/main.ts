@@ -5,16 +5,18 @@
 // runs. Server / websocket-gateway / secret-box imports happen inside
 // startServer, so the env is ready by the time they resolve.
 
-import { join } from 'node:path';
 import { createLogger } from '@agentic-obs/common/logging';
 import { bootstrapSecretsIfNeeded } from './auth/bootstrap-secrets.js';
+import { dataDir } from './paths.js';
 
 const log = createLogger('main');
 
-// Resolve DATA_DIR the same way server.ts does — one source of truth for
-// where the local SQLite + secrets live.
-const DATA_DIR = process.env['DATA_DIR'] || join(process.cwd(), '.agentic-obs');
-const bootstrap = bootstrapSecretsIfNeeded(DATA_DIR);
+// Every path in the gateway resolves through ./paths.ts — historically
+// this block resolved DATA_DIR independently and five different modules
+// each picked a different default directory name (.uname-data vs
+// .agentic-obs vs ~/.agentic-obs), so the SQLite DB, secrets, and
+// config.json landed in three separate places.
+const bootstrap = bootstrapSecretsIfNeeded(dataDir());
 if (bootstrap.injected.length > 0) {
   log.info(
     { injected: bootstrap.injected, generated: bootstrap.generated, path: bootstrap.path },

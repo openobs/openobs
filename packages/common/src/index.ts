@@ -28,14 +28,12 @@ export * from './auth/index.js';
 export * from './audit/index.js';
 export * from './rbac/index.js';
 
-// Config: only the browser-safe schema + model defaults. ConfigLoader is
-// server-only and lives at @agentic-obs/common/config/loader.
-export {
-  AppConfigSchema,
-  type AppConfig,
-  type ConfigLoaderOptions,
-  DEFAULT_LLM_MODEL,
-} from './config/index.js';
+// Config: only the model-defaults constant. The legacy YAML+dotenv
+// `ConfigLoader` and its Zod `AppConfigSchema` were never wired into
+// the running server and have been removed — runtime config now lives
+// in SQLite (org_user, preferences, instance_settings) plus
+// `<DATA_DIR>/setup-config.json` during the transition.
+export { DEFAULT_LLM_MODEL } from './config/index.js';
 
 // Lifecycle: graceful-shutdown hooks use node:process signals — server only.
 // Imported via @agentic-obs/common/lifecycle subpath.

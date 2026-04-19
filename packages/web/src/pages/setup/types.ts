@@ -4,6 +4,7 @@ export type LlmProvider =
   | 'anthropic'
   | 'openai'
   | 'gemini'
+  | 'deepseek'
   | 'azure-openai'
   | 'aws-bedrock'
   | 'ollama'
@@ -71,6 +72,13 @@ export const LLM_PROVIDERS: Array<{
     value: 'gemini',
     label: 'Google Gemini',
     fallbackModels: ['gemini-2.5-flash', 'gemini-2.5-pro'],
+    needsKey: true,
+    supportsModelFetch: true,
+  },
+  {
+    value: 'deepseek',
+    label: 'DeepSeek',
+    fallbackModels: ['deepseek-chat', 'deepseek-reasoner'],
     needsKey: true,
     supportsModelFetch: true,
   },

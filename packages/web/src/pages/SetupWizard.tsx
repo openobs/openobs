@@ -163,8 +163,19 @@ export default function SetupWizard() {
       .catch(() => setAdminExists(false));
   }, []);
 
+  // Once an admin exists, `POST /api/setup/admin` is locked (returns 409).
+  // Back-navigating into the Admin step would strand the user on a form
+  // that can't be submitted, so we skip it: any Back attempt that would
+  // land on step 1 jumps past it instead.
+  const ADMIN_STEP = 1;
+
   const next = () => setStep((s) => s + 1);
-  const back = () => setStep((s) => s - 1);
+  const back = () => setStep((s) => {
+    const target = s - 1;
+    // Skip past Admin when an admin already exists.
+    if (adminExists && target === ADMIN_STEP) return ADMIN_STEP - 1;
+    return Math.max(target, 0);
+  });
 
   return (
     <div className="min-h-screen bg-surface flex items-center justify-center px-4 py-12">
@@ -187,7 +198,15 @@ export default function SetupWizard() {
               </button>
             </div>
           ) : (
-            <StepAdmin onComplete={() => next()} onBack={back} />
+            <StepAdmin
+              onComplete={() => {
+                // Admin just created — mark it so Back from the next step
+                // skips past the now-locked Admin form. See `back()` above.
+                setAdminExists(true);
+                next();
+              }}
+              onBack={back}
+            />
           )
         )}
         {step === 2 && (

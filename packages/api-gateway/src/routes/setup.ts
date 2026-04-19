@@ -14,6 +14,7 @@ import type {
 // T4+ will re-introduce the full auth middleware here.
 import { ensureSafeUrl } from '../utils/url-validator.js';
 import { createRateLimiter } from '../middleware/rate-limiter.js';
+import { dataDir } from '../paths.js';
 import { hashPassword, passwordMinLength } from '../auth/local-provider.js';
 import type { SessionService } from '../auth/session-service.js';
 import { SESSION_COOKIE_NAME } from '../auth/session-service.js';
@@ -70,9 +71,22 @@ export interface SetupConfig {
 }
 
 // -- Persistence
+//
+// Setup config (LLM / datasources / notifications) lives at
+// `<DATA_DIR>/setup-config.json`. Historically it was written to
+// `~/.agentic-obs/config.json`, which split state between HOME and
+// the working-dir data directory. On first read we still check the
+// legacy path and migrate it forward, so upgrades don't lose config.
 
-const CONFIG_DIR = join(homedir(), '.agentic-obs');
-const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
+const CONFIG_FILENAME = 'setup-config.json';
+
+function currentConfigPath(): string {
+  return join(dataDir(), CONFIG_FILENAME);
+}
+
+function legacyHomeConfigPath(): string {
+  return join(homedir(), '.agentic-obs', 'config.json');
+}
 
 let inMemoryConfig: SetupConfig = {
   configured: false,
@@ -99,20 +113,33 @@ function normalizeSetupConfig(config: SetupConfig): SetupConfig {
 }
 
 async function loadConfig(): Promise<SetupConfig> {
+  // Preferred location: DATA_DIR/setup-config.json.
   try {
-    const raw = await fs.readFile(CONFIG_FILE, 'utf-8');
+    const raw = await fs.readFile(currentConfigPath(), 'utf-8');
     return normalizeSetupConfig(JSON.parse(raw) as SetupConfig);
-  } catch (err) {
-    log.debug({ err }, 'failed to load config file, using in-memory config');
-    return inMemoryConfig;
-  }
+  } catch { /* fall through to legacy import */ }
+
+  // Legacy fallback: ~/.agentic-obs/config.json (pre-consolidation).
+  // If present, import it and migrate so subsequent reads stay local.
+  try {
+    const raw = await fs.readFile(legacyHomeConfigPath(), 'utf-8');
+    const imported = normalizeSetupConfig(JSON.parse(raw) as SetupConfig);
+    log.info(
+      { from: legacyHomeConfigPath(), to: currentConfigPath() },
+      'migrated legacy setup config into DATA_DIR',
+    );
+    await saveConfig(imported);
+    return imported;
+  } catch { /* no legacy file either — first-run */ }
+
+  return inMemoryConfig;
 }
 
 async function saveConfig(config: SetupConfig): Promise<void> {
   inMemoryConfig = normalizeSetupConfig(config);
   try {
-    await fs.mkdir(CONFIG_DIR, { recursive: true });
-    await fs.writeFile(CONFIG_FILE, JSON.stringify(inMemoryConfig, null, 2), 'utf-8');
+    await fs.mkdir(dataDir(), { recursive: true });
+    await fs.writeFile(currentConfigPath(), JSON.stringify(inMemoryConfig, null, 2), 'utf-8');
   } catch (err) {
     log.debug({ err }, 'failed to persist config file (best-effort)');
   }
@@ -122,6 +149,28 @@ async function saveConfig(config: SetupConfig): Promise<void> {
 
 function resolveToken(cfg: LlmConfig): string | null {
   return cfg.apiKey ?? null;
+}
+
+/**
+ * Max time we'll wait for any upstream provider probe (test-connection or
+ * model-list). Kept tight so the wizard surfaces a concrete failure instead of
+ * hanging at "Testing…" / "Loading…". If a provider legitimately needs more
+ * than 15s to answer a trivial GET, the UX is broken anyway.
+ */
+const PROVIDER_PROBE_TIMEOUT_MS = 15_000;
+
+/**
+ * Normalize an AbortError / timeout into a user-facing message so callers can
+ * show "provider did not respond" instead of a cryptic DOMException.
+ */
+function describeFetchError(err: unknown): string {
+  if (err instanceof Error) {
+    if (err.name === 'AbortError' || err.name === 'TimeoutError') {
+      return `Provider did not respond within ${Math.round(PROVIDER_PROBE_TIMEOUT_MS / 1000)}s`;
+    }
+    return err.message;
+  }
+  return 'Connection failed';
 }
 
 async function testLlmConnection(cfg: LlmConfig): Promise<{ ok: boolean; message: string }> {
@@ -154,7 +203,7 @@ async function testLlmConnection(cfg: LlmConfig): Promise<{ ok: boolean; message
           messages: [{ role: 'user', content: 'Say "ok".' }],
           max_tokens: 5,
         }),
-        signal: AbortSignal.timeout(15_000),
+        signal: AbortSignal.timeout(PROVIDER_PROBE_TIMEOUT_MS),
       });
 
       if (res.ok)
@@ -170,6 +219,7 @@ async function testLlmConnection(cfg: LlmConfig): Promise<{ ok: boolean; message
       const baseUrl = cfg.baseUrl || 'https://api.anthropic.com';
       const res = await fetch(`${baseUrl}/v1/models`, {
         headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+        signal: AbortSignal.timeout(PROVIDER_PROBE_TIMEOUT_MS),
       });
       if (res.ok)
         return { ok: true, message: 'Connected successfully' };
@@ -181,11 +231,15 @@ async function testLlmConnection(cfg: LlmConfig): Promise<{ ok: boolean; message
       const key = cfg.apiKey ?? '';
       if (!key)
         return { ok: false, message: 'API key is required' };
+      // DeepSeek's OpenAI-compatible models endpoint is /v1/models (the /v1
+      // prefix is part of their public API path, same as OpenAI). Keep the
+      // default baseUrl aligned so users can paste just "https://api.deepseek.com".
       const base = cfg.provider === 'deepseek'
-        ? (cfg.baseUrl || 'https://api.deepseek.com')
+        ? (cfg.baseUrl || 'https://api.deepseek.com/v1')
         : (cfg.baseUrl || 'https://api.openai.com/v1');
       const res = await fetch(`${base}/models`, {
         headers: { Authorization: `Bearer ${key}` },
+        signal: AbortSignal.timeout(PROVIDER_PROBE_TIMEOUT_MS),
       });
       if (res.ok)
         return { ok: true, message: 'Connected successfully' };
@@ -195,7 +249,9 @@ async function testLlmConnection(cfg: LlmConfig): Promise<{ ok: boolean; message
 
     if (cfg.provider === 'ollama') {
       const base = cfg.baseUrl || 'http://localhost:11434';
-      const res = await fetch(`${base}/api/tags`);
+      const res = await fetch(`${base}/api/tags`, {
+        signal: AbortSignal.timeout(PROVIDER_PROBE_TIMEOUT_MS),
+      });
       if (res.ok)
         return { ok: true, message: 'Connected successfully' };
       return { ok: false, message: `HTTP ${res.status}` };
@@ -206,7 +262,9 @@ async function testLlmConnection(cfg: LlmConfig): Promise<{ ok: boolean; message
       if (!key)
         return { ok: false, message: 'API key is required' };
       const base = cfg.baseUrl || 'https://generativelanguage.googleapis.com';
-      const res = await fetch(`${base}/v1beta/models?key=${key}`);
+      const res = await fetch(`${base}/v1beta/models?key=${key}`, {
+        signal: AbortSignal.timeout(PROVIDER_PROBE_TIMEOUT_MS),
+      });
       if (res.ok)
         return { ok: true, message: 'Connected successfully' };
       const body = await res.json().catch(() => ({})) as { error?: { message?: string } };
@@ -227,7 +285,11 @@ async function testLlmConnection(cfg: LlmConfig): Promise<{ ok: boolean; message
 
     return { ok: false, message: 'Unknown provider' };
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : 'Connection failed' };
+    log.warn(
+      { err, provider: cfg.provider, baseUrl: cfg.baseUrl },
+      'LLM test-connection failed',
+    );
+    return { ok: false, message: describeFetchError(err) };
   }
 }
 
@@ -237,6 +299,15 @@ import { testDatasourceConnection } from '../utils/datasource.js';
 
 // -- Model Listing
 
+/**
+ * List models the user can pick from in the wizard. Each branch is wrapped
+ * with an AbortSignal timeout so an unreachable provider fails fast (the
+ * wizard's "Fetch Models" button otherwise hangs at "Loading…").
+ *
+ * Never throws — returns `[]` on any failure so the route handler can always
+ * respond. Callers of the HTTP endpoint get `{ models: [], warning }` so the
+ * frontend can render a concrete hint instead of being stuck.
+ */
 async function fetchModels(cfg: { provider: string; apiKey?: string; baseUrl?: string }): Promise<ModelInfo[]> {
   try {
     switch (cfg.provider) {
@@ -244,13 +315,16 @@ async function fetchModels(cfg: { provider: string; apiKey?: string; baseUrl?: s
         const provider = new AnthropicProvider({ apiKey: cfg.apiKey ?? '' , baseUrl: cfg.baseUrl });
         return await provider.listModels();
       }
-      case 'openai':
-      case 'deepseek': {
-        const base = cfg.provider === 'deepseek'
-          ? (cfg.baseUrl || 'https://api.deepseek.com')
-          : cfg.baseUrl;
-        const provider = new OpenAIProvider({ apiKey: cfg.apiKey ?? '', baseUrl: base });
+      case 'openai': {
+        const provider = new OpenAIProvider({ apiKey: cfg.apiKey ?? '', baseUrl: cfg.baseUrl });
         return await provider.listModels();
+      }
+      case 'deepseek': {
+        // DeepSeek exposes an OpenAI-compatible /v1/models but returns ids
+        // like "deepseek-chat" / "deepseek-reasoner", which OpenAIProvider
+        // filters out via `startsWith('gpt')`. Do a direct fetch instead so
+        // the user actually sees the real model list.
+        return await fetchDeepseekModels(cfg.apiKey ?? '', cfg.baseUrl);
       }
       case 'gemini': {
         const provider = new GeminiProvider({ apiKey: cfg.apiKey ?? '', baseUrl: cfg.baseUrl });
@@ -263,7 +337,34 @@ async function fetchModels(cfg: { provider: string; apiKey?: string; baseUrl?: s
       default:
         return [];
     }
-  } catch {
+  } catch (err) {
+    log.warn(
+      { err, provider: cfg.provider, baseUrl: cfg.baseUrl },
+      'fetchModels failed',
+    );
+    return [];
+  }
+}
+
+async function fetchDeepseekModels(apiKey: string, baseUrl?: string): Promise<ModelInfo[]> {
+  const base = baseUrl || 'https://api.deepseek.com/v1';
+  try {
+    const res = await fetch(`${base}/models`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(PROVIDER_PROBE_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      log.warn({ status: res.status, base }, 'DeepSeek /models returned non-OK');
+      return [];
+    }
+    const body = (await res.json()) as { data?: Array<{ id: string; owned_by?: string }> };
+    const data = body.data ?? [];
+    return data
+      .map((m) => m.id)
+      .sort()
+      .map((id) => ({ id, name: id, provider: 'deepseek' }));
+  } catch (err) {
+    log.warn({ err, base }, 'DeepSeek /models fetch failed');
     return [];
   }
 }
@@ -539,7 +640,10 @@ export function createSetupRouter(): Router {
     res.status(result.ok ? 200 : 400).json(result);
   });
 
-  // POST /api/setup/llm/models — fetch available models from provider
+  // POST /api/setup/llm/models — fetch available models from provider.
+  // Contract: always responds 200 with `{ models }` (possibly empty). If the
+  // upstream probe failed/timed out, include a `warning` so the UI can show a
+  // concrete hint instead of silently falling back to the hardcoded list.
   router.post('/llm/models', async (req: Request, res: Response) => {
     const cfg = req.body as { provider: string; apiKey?: string; baseUrl?: string };
     if (!cfg?.provider) {
@@ -547,6 +651,13 @@ export function createSetupRouter(): Router {
       return;
     }
     const models = await fetchModels(cfg);
+    if (models.length === 0) {
+      res.json({
+        models,
+        warning: `Could not fetch models from ${cfg.provider}. Check your API key / URL, or continue with the default list.`,
+      });
+      return;
+    }
     res.json({ models });
   });
 

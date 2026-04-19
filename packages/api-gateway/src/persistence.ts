@@ -2,13 +2,14 @@
 // Like Grafana's default SQLite - zero-config, data survives restarts
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
 import { createLogger } from '@agentic-obs/common/logging';
+import { dataDir, legacyStoresPath } from './paths.js';
 
 const log = createLogger('persistence');
 
-const DATA_DIR = process.env['DATA_DIR'] || join(process.cwd(), '.uname-data');
-const STORE_FILE = join(DATA_DIR, 'stores.json');
+// Resolved lazily so tests can override DATA_DIR before the first read.
+function storeFile(): string { return legacyStoresPath(); }
+function storeDir(): string { return dataDir(); }
 
 export interface Persistable {
   toJSON(): unknown;
@@ -25,7 +26,7 @@ export function registerStore(name: string, store: Persistable): void {
 
 export async function loadAll(): Promise<void> {
   try {
-    const raw = await readFile(STORE_FILE, 'utf-8');
+    const raw = await readFile(storeFile(), 'utf-8');
     const data = JSON.parse(raw) as Record<string, unknown>;
     for (const [name, store] of registry) {
       if (data[name] !== undefined) {
@@ -37,7 +38,7 @@ export async function loadAll(): Promise<void> {
       }
     }
 
-    log.info({ storeCount: registry.size, file: STORE_FILE }, 'loaded stores');
+    log.info({ storeCount: registry.size, file: storeFile() }, 'loaded stores');
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
       log.info('no saved data found - starting fresh');
@@ -57,11 +58,11 @@ async function flush(): Promise<void> {
     snapshot[name] = store.toJSON();
 
   try {
-    await mkdir(DATA_DIR, { recursive: true });
+    await mkdir(storeDir(), { recursive: true });
     // Write to temp file first, then rename for atomicity
-    const tmpFile = `${STORE_FILE}.tmp`;
+    const tmpFile = `${storeFile()}.tmp`;
     await writeFile(tmpFile, JSON.stringify(snapshot, null, 2), 'utf-8');
-    await (await import('node:fs/promises')).rename(tmpFile, STORE_FILE);
+    await (await import('node:fs/promises')).rename(tmpFile, storeFile());
   } catch (err) {
     log.error({ err }, 'failed to write store file');
   }

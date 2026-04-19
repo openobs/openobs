@@ -107,16 +107,16 @@ import type { SqliteRepositories } from '@agentic-obs/data-layer';
 import { createLogger, requestLogger } from '@agentic-obs/common/logging';
 import { GracefulShutdown, ShutdownPriority } from '@agentic-obs/common/lifecycle';
 import { registerStore, loadAll, flushStores, markDirty } from './persistence.js';
+import { dbPath } from './paths.js';
 
 const log = createLogger('api-gateway');
-
-const DATA_DIR = process.env['DATA_DIR'] || join(process.cwd(), '.uname-data');
 
 function buildSqliteRepositories(): SqliteRepositories & {
   _sqliteClient: ReturnType<typeof createSqliteClient>;
 } {
-  const dbPath = process.env['SQLITE_PATH'] || join(DATA_DIR, 'openobs.db');
-  const db = createSqliteClient({ path: dbPath });
+  // Use the shared resolver from ./paths.ts so the DB lives alongside
+  // secrets.json in the same DATA_DIR.
+  const db = createSqliteClient({ path: dbPath() });
   ensureSchema(db);
   // Apply the name-based auth/perm migrations (001_org, 002_user, etc.).
   applyNamedMigrations(db);

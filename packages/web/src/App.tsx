@@ -29,37 +29,45 @@ function RouteFallback() {
   );
 }
 
-// Redirect to /setup on first visit if not yet configured
+// Redirect to /setup when the instance has either no platform config OR
+// no administrator yet. Both paths lead to the Setup Wizard — Wave 6
+// added the "Create administrator" step so a first-run instance lands
+// there regardless of which half is missing.
 function SetupGuard({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    if (location.pathname === '/setup') {
+    if (location.pathname === '/setup' || location.pathname === '/login') {
       setChecked(true);
       return;
     }
 
-    void apiClient.get<{ configured: boolean }>('/setup/status').then((res) => {
-      if (!res.error && !res.data.configured) {
-        navigate('/setup', { replace: true });
-      } else {
-        setChecked(true);
-      }
-    });
+    void apiClient
+      .get<{ configured: boolean; hasAdmin: boolean }>('/setup/status')
+      .then((res) => {
+        if (!res.error && (!res.data.configured || !res.data.hasAdmin)) {
+          navigate('/setup', { replace: true });
+        } else {
+          setChecked(true);
+        }
+      });
   }, [navigate, location.pathname]);
 
-  if (!checked && location.pathname !== '/setup') return null;
+  if (!checked && location.pathname !== '/setup' && location.pathname !== '/login') {
+    return null;
+  }
   return <>{children}</>;
 }
 
-// Redirects unauthenticated users to /login. In dev mode, skips auth entirely.
+// Redirects unauthenticated users to /login. Used to have a dev-mode
+// bypass (`if (import.meta.env.DEV) return children`), but that hid the
+// real login flow from every developer and masked auth-related bugs. If
+// you want a frictionless dev session, complete the setup wizard once
+// and your session cookie is persisted across `npm start` runs.
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-
-  // Dev mode: skip authentication
-  if (import.meta.env.DEV) return <>{children}</>;
   if (loading) return null;
   if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
