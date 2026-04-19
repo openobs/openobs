@@ -35,6 +35,7 @@ import {
   type OAuthIdentityResolution,
 } from './base.js';
 import { AuthError } from '@agentic-obs/common';
+import { ensureSafeUrl } from '../../utils/url-validator.js';
 
 export interface GenericOidcConfig extends OAuthProviderConfig {
   module: 'oauth_generic';
@@ -101,6 +102,11 @@ export async function fetchDiscovery(issuerUrl: string): Promise<DiscoveryDoc> {
   const url = issuerUrl.endsWith('/')
     ? `${issuerUrl}.well-known/openid-configuration`
     : `${issuerUrl}/.well-known/openid-configuration`;
+  // SSRF guard: the issuer URL is operator-configurable via
+  // OAUTH_GENERIC_ISSUER_URL. In hardened (production) deployments this
+  // rejects discovery pointed at internal services; in self-hosted mode it
+  // allows loopback / RFC1918 per the default policy.
+  await ensureSafeUrl(url);
   const res = await fetch(url);
   if (!res.ok) {
     throw new Error(`oidc discovery failed: ${res.status}`);

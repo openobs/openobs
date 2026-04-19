@@ -112,6 +112,23 @@ async function deliverWebhook(
     deliveryLog.shift();
   deliveryLog.push(delivery);
 
+  // SSRF re-check at delivery time. Subscription creation already validates
+  // `url`, but `OPENOBS_ALLOW_PRIVATE_URLS` / `NODE_ENV` can change between
+  // write and delivery (e.g. promoting a dev install to production), so the
+  // stored URL must be re-validated against the current policy before we hit
+  // the network.
+  try {
+    await ensureSafeUrl(sub.url);
+  } catch (err) {
+    delivery.status = 'failed';
+    delivery.error = err instanceof Error ? err.message : 'Invalid URL';
+    log.warn(
+      { subId: sub.id, url: sub.url, event: eventType, error: delivery.error },
+      'webhook delivery blocked by URL validation',
+    );
+    return;
+  }
+
   const body = JSON.stringify({ event: eventType, payload, deliveryId: delivery.id });
   const sig = createHmac('sha256', sub.secret).update(body).digest('hex');
 

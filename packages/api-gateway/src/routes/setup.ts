@@ -13,7 +13,7 @@ import type {
 // Auth for /api/setup is bootstrap-style: unauthenticated when no users yet.
 // T4+ will re-introduce the full auth middleware here.
 import { ensureSafeUrl } from '../utils/url-validator.js';
-import { createRateLimiter } from '../middleware/rate-limiter.js';
+import { createRateLimiter, loginRateLimiter } from '../middleware/rate-limiter.js';
 import { dataDir } from '../paths.js';
 import { hashPassword, passwordMinLength } from '../auth/local-provider.js';
 import type { SessionService } from '../auth/session-service.js';
@@ -173,13 +173,23 @@ function describeFetchError(err: unknown): string {
   return 'Connection failed';
 }
 
+/**
+ * SSRF guard: only validate when the URL came from user input. Built-in
+ * literals (https://api.anthropic.com, https://api.openai.com, etc.) are
+ * trusted and skip validation. If the user overrode `baseUrl`, we validate
+ * the *final* URL (base + path) so both the base host and any path-smuggling
+ * tricks are covered.
+ */
+async function guardProviderUrl(
+  finalUrl: string,
+  userSuppliedBase: string | undefined,
+): Promise<void> {
+  if (!userSuppliedBase) return;
+  await ensureSafeUrl(finalUrl);
+}
+
 async function testLlmConnection(cfg: LlmConfig): Promise<{ ok: boolean; message: string }> {
   try {
-    // SSRF protection: validate baseUrl if provided
-    if (cfg.baseUrl) {
-      await ensureSafeUrl(cfg.baseUrl);
-    }
-
     if (cfg.provider === 'corporate-gateway') {
       const token = resolveToken(cfg);
       if (!token)
@@ -188,8 +198,11 @@ async function testLlmConnection(cfg: LlmConfig): Promise<{ ok: boolean; message
       if (!baseUrl)
         return { ok: false, message: 'Gateway base URL is required' };
 
+      const target = `${baseUrl}/v1/messages`;
+      await guardProviderUrl(target, baseUrl);
+
       // Test with a minimal API call
-      const res = await fetch(`${baseUrl}/v1/messages`, {
+      const res = await fetch(target, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -217,7 +230,9 @@ async function testLlmConnection(cfg: LlmConfig): Promise<{ ok: boolean; message
       if (!key)
         return { ok: false, message: 'API key is required' };
       const baseUrl = cfg.baseUrl || 'https://api.anthropic.com';
-      const res = await fetch(`${baseUrl}/v1/models`, {
+      const target = `${baseUrl}/v1/models`;
+      await guardProviderUrl(target, cfg.baseUrl);
+      const res = await fetch(target, {
         headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
         signal: AbortSignal.timeout(PROVIDER_PROBE_TIMEOUT_MS),
       });
@@ -237,7 +252,9 @@ async function testLlmConnection(cfg: LlmConfig): Promise<{ ok: boolean; message
       const base = cfg.provider === 'deepseek'
         ? (cfg.baseUrl || 'https://api.deepseek.com/v1')
         : (cfg.baseUrl || 'https://api.openai.com/v1');
-      const res = await fetch(`${base}/models`, {
+      const target = `${base}/models`;
+      await guardProviderUrl(target, cfg.baseUrl);
+      const res = await fetch(target, {
         headers: { Authorization: `Bearer ${key}` },
         signal: AbortSignal.timeout(PROVIDER_PROBE_TIMEOUT_MS),
       });
@@ -249,7 +266,9 @@ async function testLlmConnection(cfg: LlmConfig): Promise<{ ok: boolean; message
 
     if (cfg.provider === 'ollama') {
       const base = cfg.baseUrl || 'http://localhost:11434';
-      const res = await fetch(`${base}/api/tags`, {
+      const target = `${base}/api/tags`;
+      await guardProviderUrl(target, cfg.baseUrl);
+      const res = await fetch(target, {
         signal: AbortSignal.timeout(PROVIDER_PROBE_TIMEOUT_MS),
       });
       if (res.ok)
@@ -262,7 +281,9 @@ async function testLlmConnection(cfg: LlmConfig): Promise<{ ok: boolean; message
       if (!key)
         return { ok: false, message: 'API key is required' };
       const base = cfg.baseUrl || 'https://generativelanguage.googleapis.com';
-      const res = await fetch(`${base}/v1beta/models?key=${key}`, {
+      const target = `${base}/v1beta/models?key=${key}`;
+      await guardProviderUrl(target, cfg.baseUrl);
+      const res = await fetch(target, {
         signal: AbortSignal.timeout(PROVIDER_PROBE_TIMEOUT_MS),
       });
       if (res.ok)
@@ -346,10 +367,29 @@ async function fetchModels(cfg: { provider: string; apiKey?: string; baseUrl?: s
   }
 }
 
+/** Return the URL `listModels()` will hit for a given provider + baseUrl. */
+function buildModelsProbeUrl(provider: string, baseUrl: string): string | null {
+  switch (provider) {
+    case 'anthropic':
+      return `${baseUrl}/v1/models`;
+    case 'openai':
+    case 'deepseek':
+      return `${baseUrl}/models`;
+    case 'gemini':
+      return `${baseUrl}/v1beta/models`;
+    case 'ollama':
+      return `${baseUrl}/api/tags`;
+    default:
+      return null;
+  }
+}
+
 async function fetchDeepseekModels(apiKey: string, baseUrl?: string): Promise<ModelInfo[]> {
   const base = baseUrl || 'https://api.deepseek.com/v1';
+  const target = `${base}/models`;
   try {
-    const res = await fetch(`${base}/models`, {
+    if (baseUrl) await ensureSafeUrl(target);
+    const res = await fetch(target, {
       headers: { Authorization: `Bearer ${apiKey}` },
       signal: AbortSignal.timeout(PROVIDER_PROBE_TIMEOUT_MS),
     });
@@ -483,7 +523,11 @@ export function createSetupRouter(): Router {
   // POST /api/setup/admin — first-admin bootstrap. Public but one-shot:
   // returns 409 once any user exists. On success creates the user, seeds
   // org_user(role=Admin), issues a session cookie, and returns the new ids.
-  router.post('/admin', async (req: Request, res: Response) => {
+  //
+  // Same strict `loginRateLimiter` as `/api/login` — this endpoint accepts
+  // an unauth password field and is a natural target for credential-stuffing
+  // probes while the wizard is open.
+  router.post('/admin', loginRateLimiter, async (req: Request, res: Response) => {
     if (!setupAdminDeps) {
       res.status(503).json({ message: 'auth subsystem not ready' });
       return;
@@ -649,6 +693,22 @@ export function createSetupRouter(): Router {
     if (!cfg?.provider) {
       res.status(400).json({ error: { code: 'VALIDATION', message: 'provider is required' } });
       return;
+    }
+    // SSRF guard: when the user overrode `baseUrl`, validate the final URL
+    // we'll probe before handing off to llm-gateway providers (their fetch
+    // happens deeper in the stack and would otherwise bypass validation).
+    if (cfg.baseUrl) {
+      const probeUrl = buildModelsProbeUrl(cfg.provider, cfg.baseUrl);
+      if (probeUrl) {
+        try {
+          await ensureSafeUrl(probeUrl);
+        } catch (err) {
+          res.status(400).json({
+            error: { code: 'INVALID_URL', message: err instanceof Error ? err.message : 'Invalid URL' },
+          });
+          return;
+        }
+      }
     }
     const models = await fetchModels(cfg);
     if (models.length === 0) {
