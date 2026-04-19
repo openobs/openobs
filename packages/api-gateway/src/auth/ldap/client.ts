@@ -12,6 +12,7 @@
  */
 
 import type { LdapServerConfig } from './config.js';
+import { escapeLdapFilterValue } from './filter-escape.js';
 import { AuthError } from '@agentic-obs/common';
 // `ldapjs` is now a regular dependency (T9 / Wave 6 cutover). Prior to the
 // cutover we dynamic-imported it so operators without LDAP didn't need the
@@ -123,8 +124,14 @@ export async function authenticate(
     // 1. admin bind
     await promisifyBind(client, cfg.bindDn, cfg.bindPassword);
 
-    // 2. search
-    const filter = cfg.searchFilter.replace(/%s/g, input.login);
+    // 2. search — `input.login` is user-supplied, so escape LDAP filter
+    // meta-characters (RFC 4515) before substituting it into the filter
+    // template. Without this, a login like `admin)(|(uid=*` would break out
+    // of the `(cn=%s)` clause and match arbitrary entries.
+    const filter = cfg.searchFilter.replace(
+      /%s/g,
+      escapeLdapFilterValue(input.login),
+    );
     let entry: Record<string, unknown> | null = null;
     for (const base of cfg.searchBaseDns) {
       const results = await promisifySearch(client, base, {
