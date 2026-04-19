@@ -100,26 +100,13 @@ async function main() {
     execSync('npm run build', { cwd: ROOT, stdio: 'inherit' });
   }
 
-  // Dev-mode convenience: inject defaults for the handful of env vars the
-  // server hard-requires, so `npm start` works on a fresh clone without any
-  // manual configuration. Production deployments set NODE_ENV=production and
-  // these branches skip.
-  //
-  // SECRET_KEY + JWT_SECRET are both validated to be ≥32 chars at startup.
-  // The "dev-*" placeholders below are clearly labeled as non-production.
-  const isProd = process.env['NODE_ENV'] === 'production';
-  if (!isProd) {
-    const devDefaults: Record<string, string> = {
-      JWT_SECRET:              'dev-jwt-secret-not-for-production-min-32c',
-      SECRET_KEY:              'dev-secret-key-not-for-production-min-32c',
-      SESSION_COOKIE_SECURE:   'false',
-    };
-    for (const [k, v] of Object.entries(devDefaults)) {
-      if (!process.env[k]) {
-        process.env[k] = v;
-        log(`env: injected dev default for ${k}`);
-      }
-    }
+  // Dev-mode convenience: only SESSION_COOKIE_SECURE defaults here. The
+  // crypto secrets (JWT_SECRET + SECRET_KEY) are persisted on first boot
+  // by the api-gateway's bootstrap-secrets.ts — that keeps them stable
+  // across restarts and survives this script being bypassed by direct
+  // `node dist/main.js` calls.
+  if (process.env['NODE_ENV'] !== 'production' && !process.env['SESSION_COOKIE_SECURE']) {
+    process.env['SESSION_COOKIE_SECURE'] = 'false';
   }
 
   const apiPort = await requirePort(3000);
