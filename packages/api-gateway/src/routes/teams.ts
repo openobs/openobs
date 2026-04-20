@@ -215,6 +215,9 @@ export function createTeamsRouter(deps: TeamsRouterDeps): Router {
           req.auth!.orgId,
           req.params['id']!,
         );
+        // Include login/email/name so the admin drawer can render each
+        // row without a separate /api/org/users lookup. Matches
+        // Grafana's /api/teams/:teamId/members shape.
         res.json(
           members.map((m) => ({
             orgId: m.orgId,
@@ -222,6 +225,9 @@ export function createTeamsRouter(deps: TeamsRouterDeps): Router {
             userId: m.userId,
             permission: m.permission,
             external: m.external,
+            login: m.login,
+            email: m.email,
+            name: m.name,
             created: m.created,
             updated: m.updated,
           })),

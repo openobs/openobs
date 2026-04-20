@@ -34,6 +34,7 @@ import type {
   Team,
   TeamMember,
   TeamMemberPermission,
+  TeamMemberWithProfile,
   Preferences,
   PreferencesPatch,
 } from '@agentic-obs/common';
@@ -381,12 +382,15 @@ export class TeamService {
     });
   }
 
-  async listMembers(orgId: string, teamId: string): Promise<TeamMember[]> {
+  async listMembers(
+    orgId: string,
+    teamId: string,
+  ): Promise<TeamMemberWithProfile[]> {
     const team = await this.deps.teams.findById(teamId);
     if (!team || team.orgId !== orgId) {
       throw new TeamServiceError('not_found', 'team not found', 404);
     }
-    return this.deps.teamMembers.listByTeam(teamId);
+    return this.deps.teamMembers.listByTeamWithProfile(teamId);
   }
 
   async listTeamsForUser(orgId: string, userId: string): Promise<Team[]> {

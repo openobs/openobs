@@ -165,11 +165,23 @@ export interface ITeamRepository {
 
 // — TeamMember ———————————————————————————————————————————————
 
+export interface TeamMemberWithProfile extends TeamMember {
+  email: string;
+  name: string;
+  login: string;
+  isServiceAccount: boolean;
+}
+
 export interface ITeamMemberRepository {
   create(input: NewTeamMember): Promise<TeamMember>;
   findById(id: string): Promise<TeamMember | null>;
   findMembership(teamId: string, userId: string): Promise<TeamMember | null>;
   listByTeam(teamId: string): Promise<TeamMember[]>;
+  /**
+   * Same as `listByTeam` but joins `user` so the admin Team-drawer can
+   * render login/email/name next to each member without a second round-trip.
+   */
+  listByTeamWithProfile(teamId: string): Promise<TeamMemberWithProfile[]>;
   listTeamsForUser(userId: string, orgId?: string): Promise<TeamMember[]>;
   updatePermission(teamId: string, userId: string, permission: TeamMemberPermission): Promise<TeamMember | null>;
   remove(teamId: string, userId: string): Promise<boolean>;
