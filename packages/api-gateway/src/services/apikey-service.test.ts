@@ -125,13 +125,13 @@ describe('ApiKeyService.issueServiceAccountToken', () => {
   it('rejects blank name (400)', async () => {
     await expect(
       ctx.svc.issueServiceAccountToken('org_main', ctx.saId, { name: '' }),
-    ).rejects.toMatchObject({ kind: 'validation', statusCode: 400 });
+    ).rejects.toMatchObject({ code: 'VALIDATION', statusCode: 400 });
   });
 
   it('404 when SA not found', async () => {
     await expect(
       ctx.svc.issueServiceAccountToken('org_main', 'u_missing', { name: 'n' }),
-    ).rejects.toMatchObject({ kind: 'not_found', statusCode: 404 });
+    ).rejects.toMatchObject({ code: 'NOT_FOUND', statusCode: 404 });
   });
 
   it('404 when target user is not an SA', async () => {
@@ -139,7 +139,7 @@ describe('ApiKeyService.issueServiceAccountToken', () => {
       ctx.svc.issueServiceAccountToken('org_main', ctx.humanUserId, {
         name: 'n',
       }),
-    ).rejects.toMatchObject({ kind: 'not_found' });
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
   it('honours secondsToLive', async () => {
@@ -198,7 +198,7 @@ describe('ApiKeyService.issuePersonalAccessToken', () => {
   it('refuses SA as owner', async () => {
     await expect(
       ctx.svc.issuePersonalAccessToken('org_main', ctx.saId, { name: 'x' }),
-    ).rejects.toMatchObject({ kind: 'validation' });
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
   });
 
   it('defaults PAT role to owner org role', async () => {
@@ -324,7 +324,7 @@ describe('ApiKeyService.revoke', () => {
   it('404 on unknown id', async () => {
     await expect(
       ctx.svc.revoke('org_main', 'apikey_missing', ctx.humanUserId),
-    ).rejects.toMatchObject({ kind: 'not_found' });
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
   it('audit event serviceaccount.token_revoked for SA token', async () => {
