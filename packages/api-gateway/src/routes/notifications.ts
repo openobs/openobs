@@ -7,34 +7,38 @@ import type {
   TimeInterval,
   AlertGroup,
 } from '@agentic-obs/common';
+import { ac, ACTIONS } from '@agentic-obs/common';
 import type { INotificationRepository, IAlertRuleRepository } from '@agentic-obs/data-layer';
 import { defaultNotificationStore, defaultAlertRuleStore } from '@agentic-obs/data-layer';
 import { authMiddleware } from '../middleware/auth.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
-import { requirePermission } from '../middleware/rbac.js';
+import { createRequirePermission } from '../middleware/require-permission.js';
+import type { AccessControlSurface } from '../services/accesscontrol-holder.js';
 import { ensureSafeUrl } from '../utils/url-validator.js';
 
 export interface NotificationsRouterDeps {
   notificationStore?: INotificationRepository;
   alertRuleStore?: IAlertRuleRepository;
-}
-
-function withPermission(permission: string) {
-  return (req: Request, res: Response, next: NextFunction): void => {
-    requirePermission(permission)(req as AuthenticatedRequest, res, next);
-  };
+  /**
+   * RBAC surface. Contact points / policies / mute timings / alert groups all
+   * gate on `alert.notifications:read` (Viewer) and `alert.notifications:write`
+   * (Editor+) — matching Grafana's stock alerting role grants. The holder
+   * forwards to the real service once the auth subsystem finishes wiring.
+   */
+  ac: AccessControlSurface;
 }
 
 function extractWebhookUrl(settings: Record<string, string> | undefined): string {
   return settings?.url ?? settings?.webhookUrl ?? '';
 }
 
-export function createNotificationsRouter(deps: NotificationsRouterDeps = {}): Router {
+export function createNotificationsRouter(deps: NotificationsRouterDeps): Router {
   const notifStore = deps.notificationStore ?? defaultNotificationStore;
   const alertStore = deps.alertRuleStore ?? defaultAlertRuleStore;
   const router = Router();
-  const requireDashboardRead = withPermission('dashboard:read');
-  const requireDashboardWrite = withPermission('dashboard:write');
+  const requirePermission = createRequirePermission(deps.ac);
+  const requireDashboardRead = requirePermission(() => ac.eval(ACTIONS.AlertNotificationsRead));
+  const requireDashboardWrite = requirePermission(() => ac.eval(ACTIONS.AlertNotificationsWrite));
 
   router.use((req: Request, res: Response, next: NextFunction) => {
     authMiddleware(req as AuthenticatedRequest, res, next);
@@ -326,5 +330,3 @@ export function createNotificationsRouter(deps: NotificationsRouterDeps = {}): R
   return router;
 }
 
-// Backward-compatible export for existing code
-export const notificationsRouter = createNotificationsRouter();

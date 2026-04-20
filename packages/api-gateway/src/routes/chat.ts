@@ -2,9 +2,10 @@ import { Router } from 'express';
 import type { Router as ExpressRouter, Request, Response, NextFunction } from 'express';
 import { createLogger } from '@agentic-obs/common/logging';
 import type { DashboardSseEvent } from '@agentic-obs/common';
+import { ac, ACTIONS } from '@agentic-obs/common';
 import { authMiddleware } from '../middleware/auth.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
-import { requirePermission } from '../middleware/rbac.js';
+import { createRequirePermission } from '../middleware/require-permission.js';
 import { ChatService } from '../services/chat-service.js';
 import type { ChatServiceDeps } from '../services/chat-service.js';
 
@@ -79,11 +80,12 @@ async function handleChatStream(
 
 export function createChatRouter(deps: ChatServiceDeps): ExpressRouter {
   const router = Router();
+  const requirePermission = createRequirePermission(deps.accessControl);
 
   router.use(authMiddleware);
 
   // POST /chat — unified session-based chat endpoint (SSE streaming)
-  router.post('/', requirePermission('dashboard:write'), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  router.post('/', requirePermission(() => ac.eval(ACTIONS.ChatUse)), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const body = req.body as { message?: string; sessionId?: string; pageContext?: { kind: string; id?: string } };
       if (typeof body.message !== 'string' || body.message.trim() === '') {
@@ -104,7 +106,7 @@ export function createChatRouter(deps: ChatServiceDeps): ExpressRouter {
   });
 
   // GET /chat/sessions — list recent chat sessions
-  router.get('/sessions', requirePermission('dashboard:read'), async (req: Request, res: Response, next: NextFunction) => {
+  router.get('/sessions', requirePermission(() => ac.eval(ACTIONS.ChatUse)), async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!deps.chatSessionStore) {
         res.json({ sessions: [] });
@@ -122,7 +124,7 @@ export function createChatRouter(deps: ChatServiceDeps): ExpressRouter {
   // a session. The `events` array lets the web client rebuild the full chat
   // panel (agent activity blocks, tool calls, panel-added notices, etc.)
   // exactly as it looked during the live run.
-  router.get('/sessions/:id/messages', requirePermission('dashboard:read'), async (req: Request, res: Response, next: NextFunction) => {
+  router.get('/sessions/:id/messages', requirePermission(() => ac.eval(ACTIONS.ChatUse)), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const sessionId = req.params['id'] ?? '';
       if (!sessionId) {
@@ -143,7 +145,7 @@ export function createChatRouter(deps: ChatServiceDeps): ExpressRouter {
   });
 
   // GET /chat/:sessionId — retrieve conversation history for a session (legacy)
-  router.get('/:sessionId', requirePermission('dashboard:read'), async (req: Request, res: Response, next: NextFunction) => {
+  router.get('/:sessionId', requirePermission(() => ac.eval(ACTIONS.ChatUse)), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const sessionId = req.params['sessionId'] ?? '';
       if (!sessionId) {

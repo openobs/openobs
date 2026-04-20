@@ -1,10 +1,12 @@
 import { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import type { AssetType } from '@agentic-obs/common';
+import { ac, ACTIONS } from '@agentic-obs/common';
 import type { IVersionRepository } from '@agentic-obs/data-layer';
 import { authMiddleware } from '../middleware/auth.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
-import { requirePermission } from '../middleware/rbac.js';
+import { createRequirePermission } from '../middleware/require-permission.js';
+import type { AccessControlSurface } from '../services/accesscontrol-holder.js';
 
 const VALID_ASSET_TYPES: AssetType[] = ['dashboard', 'alert_rule', 'investigation_report'];
 
@@ -12,14 +14,25 @@ function isValidAssetType(value: string): value is AssetType {
   return (VALID_ASSET_TYPES as string[]).includes(value);
 }
 
-export function createVersionRouter(store: IVersionRepository): Router {
+export interface VersionRouterDeps {
+  store: IVersionRepository;
+  /**
+   * RBAC surface. Version history is the asset's audit trail — gating it on
+   * the asset's own read/write actions keeps the rule simple. The asset can
+   * be a dashboard, alert rule, or investigation report; rather than a
+   * polymorphic per-type lookup we use `dashboards:read` / `dashboards:write`
+   * as the umbrella since assets in this API are predominantly dashboards
+   * and the version table is the same regardless of asset type.
+   */
+  ac: AccessControlSurface;
+}
+
+export function createVersionRouter(deps: VersionRouterDeps): Router {
+  const store = deps.store;
   const router = Router();
-  const requireDashboardRead = (req: Request, res: Response, next: NextFunction): void => {
-    requirePermission('dashboard:read')(req as AuthenticatedRequest, res, next);
-  };
-  const requireDashboardWrite = (req: Request, res: Response, next: NextFunction): void => {
-    requirePermission('dashboard:write')(req as AuthenticatedRequest, res, next);
-  };
+  const requirePermission = createRequirePermission(deps.ac);
+  const requireDashboardRead = requirePermission(() => ac.eval(ACTIONS.DashboardsRead, 'dashboards:*'));
+  const requireDashboardWrite = requirePermission(() => ac.eval(ACTIONS.DashboardsWrite, 'dashboards:*'));
 
   router.use((req: Request, res: Response, next: NextFunction) => {
     authMiddleware(req as AuthenticatedRequest, res, next);

@@ -93,6 +93,7 @@ import { SetupConfigService } from './services/setup-config-service.js';
 // Wave 2 / T3 — RBAC service, routes, resolvers.
 import { AccessControlService } from './services/accesscontrol-service.js';
 import { AccessControlHolder } from './services/accesscontrol-holder.js';
+import type { AccessControlSurface } from './services/accesscontrol-holder.js';
 import { AuditWriter } from './auth/audit-writer.js';
 import { createAccessControlRouter } from './routes/access-control.js';
 import { createUserPermissionsRouter } from './routes/user-permissions.js';
@@ -136,11 +137,17 @@ function mountStaticAssets(app: Application): void {
   }
 }
 
-function mountCommonRoutes(app: Application): void {
+function mountCommonRoutes(
+  app: Application,
+  deps: { ac: AccessControlSurface },
+): void {
   app.use('/api/health', healthRouter);
   app.use('/api/sessions', sessionsRouter);
   app.use('/api/openapi.json', openApiRouter);
-  app.use('/api/webhooks', createWebhookRouter());
+  // Webhook subscription mgmt is admin-only — gated via the late-bound
+  // `accessControlHolder`. The router itself constructs its
+  // `requirePermission` upfront so handlers run after the holder is wired.
+  app.use('/api/webhooks', createWebhookRouter({ ac: deps.ac }));
   app.use('/api/metrics', metricsRouter);
   // /api/setup, /api/datasources, and /api/query are mounted inside the
   // async auth IIFE below — they depend on SetupConfigService which needs
@@ -184,7 +191,7 @@ export function createApp(): Application {
   const useSqlite = !dbUrl;
 
   // Mount common routes shared across all backends
-  mountCommonRoutes(app);
+  mountCommonRoutes(app, { ac: accessControlHolder });
 
   if (useSqlite) {
     // -- SQLite mode: all persistence via SQLite repos
@@ -632,7 +639,10 @@ export function createApp(): Application {
       reportStore: repos.investigationReports,
       ac: accessControlHolder,
     }));
-    app.use('/api/feed', createFeedRouter(eventFeedStore));
+    app.use('/api/feed', createFeedRouter({
+      store: eventFeedStore,
+      ac: accessControlHolder,
+    }));
     app.use('/api/shared', createSharedRouter({
       shareRepo: repos.shares,
       investigationStore: repos.investigations,
@@ -640,6 +650,7 @@ export function createApp(): Application {
     app.use('/api/meta', createMetaRouter({
       investigationStore: repos.investigations,
       feedStore: eventFeedStore,
+      ac: accessControlHolder,
     }));
     app.use('/api/approvals', createApprovalRouter({
       approvals: eventApprovalStore,
@@ -648,8 +659,12 @@ export function createApp(): Application {
     app.use('/api/notifications', createNotificationsRouter({
       notificationStore: repos.notifications,
       alertRuleStore: eventAlertRuleStore,
+      ac: accessControlHolder,
     }));
-    app.use('/api/investigation-reports', createInvestigationReportRouter(repos.investigationReports));
+    app.use('/api/investigation-reports', createInvestigationReportRouter({
+      store: repos.investigationReports,
+      ac: accessControlHolder,
+    }));
     app.use('/api/dashboards', createDashboardRouter({
       store: repos.dashboards,
       conversationStore: repos.conversations,
@@ -690,7 +705,10 @@ export function createApp(): Application {
       alertRuleStore: eventAlertRuleStore,
       folderStore: repos.folders,
     }));
-    app.use('/api/versions', createVersionRouter(repos.versions));
+    app.use('/api/versions', createVersionRouter({
+      store: repos.versions,
+      ac: accessControlHolder,
+    }));
   } else {
     // -- Legacy in-memory mode removed in W2.
     //
