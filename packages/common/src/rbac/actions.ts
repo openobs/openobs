@@ -109,7 +109,11 @@ export const ACTIONS = {
   ServiceAccountsPermissionsRead: 'serviceaccounts.permissions:read',
   ServiceAccountsPermissionsWrite: 'serviceaccounts.permissions:write',
 
-  // -- API keys (legacy, kept for back-compat) ------------------------------
+  // -- API keys ------------------------------------------------------------
+  // Grafana-parity surface at /api/auth/keys. New tokens should be minted via
+  // /api/serviceaccounts/:id/tokens, but the legacy route is still live (it
+  // transparently creates an SA + token under the hood) so these actions are
+  // part of the active RBAC vocabulary, not dead.
   ApiKeysRead: 'apikeys:read',
   ApiKeysCreate: 'apikeys:create',
   ApiKeysDelete: 'apikeys:delete',

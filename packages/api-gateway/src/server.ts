@@ -54,15 +54,6 @@ import {
   EventEmittingFeedRepository,
   EventEmittingApprovalRepository,
   EventEmittingAlertRuleRepository,
-  defaultInvestigationStore,
-  defaultInvestigationReportStore,
-  defaultNotificationStore,
-  defaultAlertRuleStore,
-  defaultDashboardStore,
-  defaultConversationStore,
-  defaultShareStore,
-  defaultFolderStore,
-  defaultVersionStore,
   feedStore,
   incidentStore,
   approvalStore,
@@ -110,7 +101,6 @@ import { createResolverRegistry } from './rbac/resolvers/index.js';
 import type { SqliteRepositories } from '@agentic-obs/data-layer';
 import { createLogger, requestLogger } from '@agentic-obs/common/logging';
 import { GracefulShutdown, ShutdownPriority } from '@agentic-obs/common/lifecycle';
-import { registerStore, loadAll, flushStores, markDirty } from './persistence.js';
 import { dbPath } from './paths.js';
 
 const log = createLogger('api-gateway');
@@ -712,44 +702,16 @@ export function createApp(): Application {
 
   mountStaticAssets(app);
 
-  // 404 + error handlers are mounted LAST, after every route registration
-  // completes. For the sqlite branch, this happens in the auth IIFE's
-  // `.finally()` above (because /api/user, /api/admin, etc. are added
-  // asynchronously). For the legacy in-memory branch, we mount them here
-  // since all routes in that path are synchronous.
-  if (process.env['DATABASE_URL']) {
-    app.use(notFoundHandler);
-    app.use(errorHandler);
-  }
-
+  // 404 + error handlers for the SQLite branch are mounted inside the auth
+  // IIFE's `.finally()` above, once /api/user, /api/admin, etc. have been
+  // asynchronously registered. (The legacy `DATABASE_URL` branch was
+  // removed — `createApp` throws for it before reaching this point.)
   return app;
 }
 
 export function startServer(port = 3000): void {
   const app = createApp();
   const shutdown = new GracefulShutdown();
-  const useSqlite = !process.env['DATABASE_URL'];
-
-  if (!useSqlite) {
-    // Legacy in-memory mode: load JSON persistence
-    void (async () => {
-      const { setMarkDirty } = await import('@agentic-obs/data-layer');
-      setMarkDirty(markDirty);
-
-      registerStore('dashboards', defaultDashboardStore);
-      registerStore('alertRules', defaultAlertRuleStore);
-      registerStore('conversations', defaultConversationStore);
-      registerStore('investigationReports', defaultInvestigationReportStore);
-      registerStore('investigations', defaultInvestigationStore);
-      registerStore('shares', defaultShareStore);
-      registerStore('notifications', defaultNotificationStore);
-      registerStore('folders', defaultFolderStore);
-      await loadAll();
-      log.info('Persisted store data loaded');
-    })().catch((err) => {
-      log.error({ err: err instanceof Error ? err.message : err }, 'failed to load persisted stores');
-    });
-  }
 
   // Wrap Express app in httpServer + attach Socket.io WebSocket gateway
   void import('./websocket/gateway.js').then(({ createWebSocketGateway }) => {
@@ -775,16 +737,6 @@ export function startServer(port = 3000): void {
       timeoutMs: 5_000,
       handler: () => gateway.close(),
     });
-
-    // Flush in-memory stores to disk only in legacy mode
-    if (!useSqlite) {
-      shutdown.register({
-        name: 'persistence-flush',
-        priority: ShutdownPriority.STOP_WORKERS,
-        timeoutMs: 5_000,
-        handler: () => flushStores(),
-      });
-    }
 
     // Attach OS signal handlers
     shutdown.listen();

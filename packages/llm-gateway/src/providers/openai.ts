@@ -1,4 +1,7 @@
+import { createLogger } from '@agentic-obs/common/logging';
 import type { LLMProvider, LLMOptions, LLMResponse, CompletionMessage, ModelInfo } from '../types.js';
+
+const log = createLogger('openai-provider');
 
 export interface OpenAIConfig {
   apiKey: string;
@@ -71,18 +74,30 @@ export class OpenAIProvider implements LLMProvider {
   }
 
   async listModels(): Promise<ModelInfo[]> {
-    const response = await fetch(`${this.baseUrl}/models`, {
-      headers: { Authorization: `Bearer ${this.apiKey}` },
-    });
-    if (!response.ok) return [];
-    const data = (await response.json()) as { data: Array<{ id: string; owned_by?: string }> };
-    return data.data
-      .filter((m) => m.id.startsWith('gpt'))
-      .sort((a, b) => a.id.localeCompare(b.id))
-      .map((m) => ({
-        id: m.id,
-        name: m.id,
-        provider: 'openai',
-      }));
+    try {
+      const response = await fetch(`${this.baseUrl}/models`, {
+        headers: { Authorization: `Bearer ${this.apiKey}` },
+      });
+      if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        log.warn(
+          { provider: 'openai', status: response.status, body: body.slice(0, 200), baseUrl: this.baseUrl },
+          'listModels failed',
+        );
+        return [];
+      }
+      const data = (await response.json()) as { data: Array<{ id: string; owned_by?: string }> };
+      return data.data
+        .filter((m) => m.id.startsWith('gpt'))
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .map((m) => ({
+          id: m.id,
+          name: m.id,
+          provider: 'openai',
+        }));
+    } catch (err) {
+      log.warn({ err, provider: 'openai', baseUrl: this.baseUrl }, 'listModels failed');
+      return [];
+    }
   }
 }

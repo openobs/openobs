@@ -1,4 +1,7 @@
+import { createLogger } from '@agentic-obs/common/logging';
 import type { LLMProvider, LLMOptions, LLMResponse, CompletionMessage, ModelInfo } from '../types.js';
+
+const log = createLogger('ollama-provider');
 
 export interface OllamaConfig {
   baseUrl?: string;
@@ -78,15 +81,27 @@ export class OllamaProvider implements LLMProvider {
   }
 
   async listModels(): Promise<ModelInfo[]> {
-    const response = await fetch(`${this.baseUrl}/api/tags`);
-    if (!response.ok) return [];
+    try {
+      const response = await fetch(`${this.baseUrl}/api/tags`);
+      if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        log.warn(
+          { provider: 'ollama', status: response.status, body: body.slice(0, 200), baseUrl: this.baseUrl },
+          'listModels failed',
+        );
+        return [];
+      }
 
-    const data = (await response.json()) as OllamaTagsResponse;
-    return data.models.map((m) => ({
-      id: m.name,
-      name: m.name,
-      provider: 'ollama',
-      description: [m.details.family, m.details.parameter_size].filter(Boolean).join(' · '),
-    }));
+      const data = (await response.json()) as OllamaTagsResponse;
+      return data.models.map((m) => ({
+        id: m.name,
+        name: m.name,
+        provider: 'ollama',
+        description: [m.details.family, m.details.parameter_size].filter(Boolean).join(' · '),
+      }));
+    } catch (err) {
+      log.warn({ err, provider: 'ollama', baseUrl: this.baseUrl }, 'listModels failed');
+      return [];
+    }
   }
 }

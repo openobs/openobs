@@ -22,10 +22,6 @@
       "import": "./dist/crypto/index.js",
       "types": "./dist/crypto/index.d.ts"
     },
-    "./config/loader": {
-      "import": "./dist/config/loader.js",
-      "types": "./dist/config/loader.d.ts"
-    },
     "./events": {
       "import": "./dist/events/index.js",
       "types": "./dist/events/index.d.ts"

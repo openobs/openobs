@@ -10,7 +10,7 @@
 //   @agentic-obs/common/crypto       ← AES-GCM secret box, node:crypto
 //   @agentic-obs/common/queue        ← BullMQ worker queue, ioredis
 //   @agentic-obs/common/events/redis ← Redis event bus adapter
-//   @agentic-obs/common/config/loader← fs/dotenv config loader
+//   @agentic-obs/common/lifecycle    ← graceful shutdown hooks (node:process)
 //
 // Tests on this file live in the corresponding sub-module directories.
 // Adding a re-export to this barrel that drags a Node module into the web
@@ -30,9 +30,9 @@ export * from './rbac/index.js';
 
 // Config: only the model-defaults constant. The legacy YAML+dotenv
 // `ConfigLoader` and its Zod `AppConfigSchema` were never wired into
-// the running server and have been removed — runtime config now lives
-// in SQLite (org_user, preferences, instance_settings) plus
-// `<DATA_DIR>/setup-config.json` during the transition.
+// the running server and have been removed — runtime config lives in
+// SQLite (org_user, preferences, instance_settings, instance_llm_config,
+// instance_datasources, notification_channels).
 export { DEFAULT_LLM_MODEL } from './config/index.js';
 
 // Lifecycle: graceful-shutdown hooks use node:process signals — server only.

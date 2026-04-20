@@ -3,7 +3,10 @@
 // Accepts any ioredis-compatible client so callers can inject real or mock
 // instances without hard-coupling to the ioredis package at the call site.
 
+import { createLogger } from '@agentic-obs/common/logging';
 import type { CacheProvider } from './types.js';
+
+const log = createLogger('redis-cache');
 
 /**
  * Minimal interface for the ioredis methods we use.
@@ -27,7 +30,11 @@ export class RedisCacheProvider implements CacheProvider {
     if (raw === null) return null;
     try {
       return JSON.parse(raw) as T;
-    } catch {
+    } catch (err) {
+      // Cache entry is corrupt (partial write, encoding drift, wrong type).
+      // The caller contract is "miss on parse failure", so keep returning null
+      // — but log so the operator sees *why* the cache suddenly went cold.
+      log.warn({ err, key }, 'cache entry JSON.parse failed; returning null');
       return null;
     }
   }

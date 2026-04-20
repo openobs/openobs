@@ -11,7 +11,6 @@ export * from './dashboard.js';
 export * from './alert.js';
 export * from './postmortem.js';
 export * from './explanation.js';
-// workspace model removed in T9 cutover — use Org from ./org.js instead.
 export * from './version.js';
 
 // — Auth / permissions (Grafana-parity) —

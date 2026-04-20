@@ -1,4 +1,7 @@
+import { createLogger } from '@agentic-obs/common/logging';
 import type { LLMProvider, LLMOptions, LLMResponse, CompletionMessage, ModelInfo } from '../types.js';
+
+const log = createLogger('gemini-provider');
 
 export interface GeminiConfig {
   apiKey: string;
@@ -99,20 +102,32 @@ export class GeminiProvider implements LLMProvider {
   }
 
   async listModels(): Promise<ModelInfo[]> {
-    const response = await fetch(
-      `${this.baseUrl}/v1beta/models?key=${this.apiKey}`,
-    );
-    if (!response.ok) return [];
+    try {
+      const response = await fetch(
+        `${this.baseUrl}/v1beta/models?key=${this.apiKey}`,
+      );
+      if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        log.warn(
+          { provider: 'gemini', status: response.status, body: body.slice(0, 200), baseUrl: this.baseUrl },
+          'listModels failed',
+        );
+        return [];
+      }
 
-    const data = (await response.json()) as GeminiModelsResponse;
-    return data.models
-      .filter((m) => m.supportedGenerationMethods?.includes('generateContent'))
-      .map((m) => ({
-        id: m.name.replace('models/', ''),
-        name: m.displayName,
-        provider: 'gemini',
-        contextWindow: m.inputTokenLimit,
-        description: m.description,
-      }));
+      const data = (await response.json()) as GeminiModelsResponse;
+      return data.models
+        .filter((m) => m.supportedGenerationMethods?.includes('generateContent'))
+        .map((m) => ({
+          id: m.name.replace('models/', ''),
+          name: m.displayName,
+          provider: 'gemini',
+          contextWindow: m.inputTokenLimit,
+          description: m.description,
+        }));
+    } catch (err) {
+      log.warn({ err, provider: 'gemini', baseUrl: this.baseUrl }, 'listModels failed');
+      return [];
+    }
   }
 }
