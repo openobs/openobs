@@ -6,7 +6,8 @@
  *   2. Bearer token / x-api-key → ApiKeyRepository.
  *
  * On success, populates `req.auth` per docs/auth-perm-design/02-authentication.md
- * §identity-model. On failure, returns 401 with `{ message }` per §08.
+ * §identity-model. On failure, returns 401 with the canonical
+ * `{ error: { code, message } }` envelope (see `error-handler.ts`).
  *
  * The old JWT / in-memory auth path is removed by design — Wave 6 handles
  * any back-compat concerns; do not reintroduce shims here.
@@ -103,7 +104,9 @@ export function authMiddleware(
   next: NextFunction,
 ): void {
   if (!resolvedMiddleware) {
-    res.status(503).json({ message: 'auth subsystem not initialised' });
+    res.status(503).json({
+      error: { code: 'SERVICE_UNAVAILABLE', message: 'auth subsystem not initialised' },
+    });
     return;
   }
   void resolvedMiddleware(req, res, next);
@@ -123,12 +126,16 @@ export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
       try {
         const row = await deps.sessions.lookupByToken(rawSessionToken);
         if (!row) {
-          res.status(401).json({ message: 'session expired' });
+          res.status(401).json({
+            error: { code: 'SESSION_EXPIRED', message: 'session expired' },
+          });
           return;
         }
         const user = await deps.users.findById(row.userId);
         if (!user || user.isDisabled) {
-          res.status(401).json({ message: 'user disabled' });
+          res.status(401).json({
+            error: { code: 'USER_DISABLED', message: 'user disabled' },
+          });
           return;
         }
         const membership = await deps.orgUsers.findMembership(
@@ -158,7 +165,9 @@ export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
           { err: err instanceof Error ? err.message : err },
           'session lookup failed',
         );
-        res.status(500).json({ message: 'internal auth error' });
+        res.status(500).json({
+          error: { code: 'INTERNAL_ERROR', message: 'internal auth error' },
+        });
         return;
       }
     }
@@ -172,7 +181,9 @@ export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
         if (deps.apiKeyService) {
           const lookup = await deps.apiKeyService.validateAndLookup(token);
           if (!lookup) {
-            res.status(401).json({ message: 'invalid api key' });
+            res.status(401).json({
+              error: { code: 'INVALID_API_KEY', message: 'invalid api key' },
+            });
             return;
           }
           req.auth = {
@@ -192,11 +203,15 @@ export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
         const hashed = hashApiKey(token);
         const row = await deps.apiKeys.findByHashedKey(hashed);
         if (!row) {
-          res.status(401).json({ message: 'invalid api key' });
+          res.status(401).json({
+            error: { code: 'INVALID_API_KEY', message: 'invalid api key' },
+          });
           return;
         }
         if (row.expires && Date.parse(row.expires) < Date.now()) {
-          res.status(401).json({ message: 'api key expired' });
+          res.status(401).json({
+            error: { code: 'API_KEY_EXPIRED', message: 'api key expired' },
+          });
           return;
         }
         deps.apiKeys
@@ -213,7 +228,9 @@ export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
         if (principalId) {
           const principal = await deps.users.findById(principalId);
           if (!principal || principal.isDisabled) {
-            res.status(401).json({ message: 'principal disabled' });
+            res.status(401).json({
+              error: { code: 'USER_DISABLED', message: 'principal disabled' },
+            });
             return;
           }
           isServerAdmin = principal.isAdmin;
@@ -240,11 +257,15 @@ export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
           { err: err instanceof Error ? err.message : err },
           'api key lookup failed',
         );
-        res.status(500).json({ message: 'internal auth error' });
+        res.status(500).json({
+          error: { code: 'INTERNAL_ERROR', message: 'internal auth error' },
+        });
         return;
       }
     }
 
-    res.status(401).json({ message: 'authentication required' });
+    res.status(401).json({
+      error: { code: 'UNAUTHORIZED', message: 'authentication required' },
+    });
   };
 }

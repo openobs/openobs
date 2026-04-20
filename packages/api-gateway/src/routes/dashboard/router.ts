@@ -68,7 +68,7 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
     try {
       const body = req.body as { prompt?: string, title?: string, datasourceIds?: string[], useExistingMetrics?: boolean, folder?: string, stream?: boolean }
       if (!body.prompt || typeof body.prompt !== 'string' || !body.prompt.trim()) {
-        res.status(400).json({ code: 'INVALID_INPUT', message: 'prompt is required and must be a non-empty string' })
+        res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'prompt is required and must be a non-empty string' } })
         return
       }
 
@@ -143,7 +143,7 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
       const id = req.params['id'] ?? ''
       const dashboard = await store.findById(id)
       if (!dashboard) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Dashboard not found' } })
         return
       }
       const filename = `${dashboard.title.replace(/[^a-zA-Z0-9_-]/g, '_')}.json`
@@ -159,12 +159,12 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
       const id = req.params['id'] ?? ''
       const dashboard = await store.findById(id)
       if (!dashboard) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Dashboard not found' } })
         return
       }
       const workspaceId = resolveOrgId(req)
       if ((dashboard.workspaceId ?? 'default') !== workspaceId) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Dashboard not found' } })
         return
       }
       res.json(dashboard)
@@ -190,7 +190,7 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
 
       const updated = await store.update(id, patch)
       if (!updated) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Dashboard not found' } })
         return
       }
 
@@ -207,7 +207,7 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
       const id = req.params['id'] ?? ''
       const deleted = await store.delete(id)
       if (!deleted) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Dashboard not found' } })
         return
       }
       // Cascade: remove associated conversation messages
@@ -225,13 +225,13 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
       const id = req.params['id'] ?? ''
       const body = req.body as { panels?: PanelConfig[] }
       if (!Array.isArray(body.panels)) {
-        res.status(400).json({ code: 'INVALID_INPUT', message: 'panels must be an array' })
+        res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'panels must be an array' } })
         return
       }
 
       const updated = await store.updatePanels(id, body.panels)
       if (!updated) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Dashboard not found' } })
         return
       }
 
@@ -248,20 +248,20 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
       const id = req.params['id'] ?? ''
       const d = await store.findById(id)
       if (!d) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Dashboard not found' } })
         return
       }
 
       const body = req.body as Omit<PanelConfig, 'id'>
       if (!body.title || typeof body.title !== 'string') {
-        res.status(400).json({ code: 'INVALID_INPUT', message: 'title is required' })
+        res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'title is required' } })
         return
       }
 
       const panel: PanelConfig = { ...body, id: randomUUID() }
       const updated = await store.updatePanels(id, [...d.panels, panel])
       if (!updated) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Dashboard not found' } })
         return
       }
 
@@ -279,13 +279,13 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
       const panelId = req.params['panelId'] ?? ''
       const d = await store.findById(id)
       if (!d) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Dashboard not found' } })
         return
       }
 
       const panels = d.panels.filter((p) => p.id !== panelId)
       if (panels.length === d.panels.length) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Panel not found' })
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Panel not found' } })
         return
       }
 
@@ -303,7 +303,7 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
       const id = req.params['id'] ?? ''
       const body = req.body as { message?: string; timeRange?: { start?: string; end?: string; timezone?: string } }
       if (typeof body.message !== 'string' || body.message.trim() === '') {
-        res.status(400).json({ code: 'INVALID_INPUT', message: 'message is required and must be a non-empty string' })
+        res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'message is required and must be a non-empty string' } })
         return
       }
 
@@ -320,7 +320,7 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
       const id = req.params['id'] ?? ''
       const dashboard = await store.findById(id)
       if (!dashboard) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Dashboard not found' } })
         return
       }
 
@@ -366,7 +366,7 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
       const id = req.params['id'] ?? ''
       const dashboard = await store.findById(id)
       if (!dashboard) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Dashboard not found' } })
         return
       }
 

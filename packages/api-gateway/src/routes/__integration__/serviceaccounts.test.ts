@@ -257,7 +257,7 @@ describe('/api/serviceaccounts CRUD', () => {
       .set('x-test-user', 'admin')
       .send({ name: 'c', role: 'Viewer' });
     expect(res.status).toBe(403);
-    expect(res.body.message).toMatch(/Quota/i);
+    expect(res.body.error?.message).toMatch(/Quota/i);
   });
 });
 

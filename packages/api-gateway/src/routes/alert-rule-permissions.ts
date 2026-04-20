@@ -25,11 +25,21 @@ export interface AlertRulePermissionsRouterDeps {
 
 function handleServiceError(err: unknown, res: Response): void {
   if (err instanceof ResourcePermissionServiceError) {
-    res.status(err.statusCode).json({ message: err.message });
+    const code = err.statusCode >= 500 ? 'INTERNAL_ERROR'
+      : err.statusCode === 404 ? 'NOT_FOUND'
+      : err.statusCode === 409 ? 'CONFLICT'
+      : err.statusCode === 403 ? 'FORBIDDEN'
+      : 'VALIDATION';
+    res.status(err.statusCode).json({
+      error: { code, message: err.message },
+    });
     return;
   }
   res.status(500).json({
-    message: err instanceof Error ? err.message : 'internal error',
+    error: {
+      code: 'INTERNAL_ERROR',
+      message: err instanceof Error ? err.message : 'internal error',
+    },
   });
 }
 
@@ -78,7 +88,9 @@ export function createAlertRulePermissionsRouter(
         const folderUid = req.params['folderUid']!;
         const body = req.body as { items?: ResourcePermissionSetItem[] };
         if (!Array.isArray(body.items)) {
-          res.status(400).json({ message: 'items must be an array' });
+          res.status(400).json({
+            error: { code: 'VALIDATION', message: 'items must be an array' },
+          });
           return;
         }
         await deps.permissionService.setBulk(

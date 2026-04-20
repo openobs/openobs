@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express'
-import type { ApiError } from '@agentic-obs/common'
+import type { ApiError, ApiErrorResponse } from '@agentic-obs/common'
 import { AppError } from '@agentic-obs/common'
 import { createLogger } from '@agentic-obs/common/logging'
 
@@ -34,12 +34,13 @@ export function errorHandler(
 
     const safeMessage = statusCode >= 500 ? 'Internal server error' : message
 
-    const error: ApiError = { code, message: safeMessage }
+    const inner: ApiError = { code, message: safeMessage }
     if (details !== undefined) {
-      error.details = details
+      inner.details = details
     }
 
-    res.status(statusCode).json(error)
+    const body: ApiErrorResponse = { error: inner }
+    res.status(statusCode).json(body)
     return
   }
 
@@ -52,7 +53,7 @@ export function errorHandler(
       ? legacyErr.message
       : 'Request could not be processed'
 
-  const error: ApiError = {
+  const inner: ApiError = {
     code: legacyErr.code ?? (statusCode >= 500 ? 'INTERNAL_ERROR' : 'BAD_REQUEST'),
     message: safeMessage,
   }
@@ -61,13 +62,16 @@ export function errorHandler(
     log.error({ statusCode, message: legacyErr.message, stack: legacyErr.stack }, 'unhandled server error')
   }
 
-  res.status(statusCode).json(error)
+  const body: ApiErrorResponse = { error: inner }
+  res.status(statusCode).json(body)
 }
 
 export function notFoundHandler(req: Request, res: Response): void {
-  const error: ApiError = {
-    code: 'NOT_FOUND',
-    message: `Route ${req.method} ${req.path} not found`,
+  const body: ApiErrorResponse = {
+    error: {
+      code: 'NOT_FOUND',
+      message: `Route ${req.method} ${req.path} not found`,
+    },
   }
-  res.status(404).json(error)
+  res.status(404).json(body)
 }

@@ -217,7 +217,7 @@ describe('POST /api/admin/users', () => {
         password: 'correcthorsebattery',
       });
     expect(res.status).toBe(409);
-    expect(res.body.message).toMatch(/email/);
+    expect(res.body.error?.message).toMatch(/email/);
   });
 
   it('400 on invalid email', async () => {
@@ -229,7 +229,7 @@ describe('POST /api/admin/users', () => {
         password: 'correcthorsebattery',
       });
     expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/email/);
+    expect(res.body.error?.message).toMatch(/email/);
   });
 
   it('400 on short password', async () => {
@@ -241,7 +241,7 @@ describe('POST /api/admin/users', () => {
         password: 'short',
       });
     expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/characters/);
+    expect(res.body.error?.message).toMatch(/characters/);
   });
 
   it('enforces users quota via env var', async () => {
@@ -256,7 +256,7 @@ describe('POST /api/admin/users', () => {
         password: 'correcthorsebattery',
       });
     expect(res.status).toBe(403);
-    expect(res.body.message).toMatch(/Quota/);
+    expect(res.body.error?.message).toMatch(/Quota/);
   });
 
   it('enforces users quota via QuotaRepository row', async () => {
@@ -337,7 +337,7 @@ describe('DELETE /api/admin/users/:id', () => {
   it('refuses to delete the last server admin', async () => {
     const res = await request(ctx.app).delete(`/api/admin/users/${ctx.adminId}`);
     expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/last server admin/);
+    expect(res.body.error?.message).toMatch(/last server admin/);
   });
 
   it('404 for missing user', async () => {
@@ -409,7 +409,7 @@ describe('POST /api/admin/users/:id/permissions', () => {
       .post(`/api/admin/users/${ctx.adminId}/permissions`)
       .send({ isServerAdmin: false });
     expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/last server admin/);
+    expect(res.body.error?.message).toMatch(/last server admin/);
   });
 
   it('400 when body is missing', async () => {

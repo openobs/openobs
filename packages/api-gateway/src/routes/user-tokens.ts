@@ -17,23 +17,31 @@
  */
 
 import { Router, type Response } from 'express';
+import { AppError } from '@agentic-obs/common';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
-import {
-  ApiKeyService,
-  ApiKeyServiceError,
-} from '../services/apikey-service.js';
+import { ApiKeyService } from '../services/apikey-service.js';
 
 export interface UserTokensRouterDeps {
   apiKeys: ApiKeyService;
 }
 
+/**
+ * Render `AppError` subclasses (thrown by `ApiKeyService`) with the canonical
+ * `{ error: { code, message } }` envelope. Unknown errors fall through to
+ * 500.
+ */
 function handleServiceError(err: unknown, res: Response): void {
-  if (err instanceof ApiKeyServiceError) {
-    res.status(err.statusCode).json({ message: err.message });
+  if (err instanceof AppError) {
+    const message = err.statusCode >= 500 ? 'Internal server error' : err.message;
+    const inner = { code: err.code, message, ...(err.details !== undefined ? { details: err.details } : {}) };
+    res.status(err.statusCode).json({ error: inner });
     return;
   }
   res.status(500).json({
-    message: err instanceof Error ? err.message : 'internal error',
+    error: {
+      code: 'INTERNAL_ERROR',
+      message: err instanceof Error ? err.message : 'internal error',
+    },
   });
 }
 
@@ -46,7 +54,9 @@ export function createUserTokensRouter(deps: UserTokensRouterDeps): Router {
     '/access-tokens',
     async (req: AuthenticatedRequest, res: Response) => {
       if (!req.auth) {
-        res.status(401).json({ message: 'authentication required' });
+        res.status(401).json({
+          error: { code: 'UNAUTHORIZED', message: 'authentication required' },
+        });
         return;
       }
       try {
@@ -77,7 +87,9 @@ export function createUserTokensRouter(deps: UserTokensRouterDeps): Router {
     '/access-tokens',
     async (req: AuthenticatedRequest, res: Response) => {
       if (!req.auth) {
-        res.status(401).json({ message: 'authentication required' });
+        res.status(401).json({
+          error: { code: 'UNAUTHORIZED', message: 'authentication required' },
+        });
         return;
       }
       try {
@@ -86,7 +98,9 @@ export function createUserTokensRouter(deps: UserTokensRouterDeps): Router {
           secondsToLive?: number | null;
         };
         if (!body.name) {
-          res.status(400).json({ message: 'name is required' });
+          res.status(400).json({
+            error: { code: 'VALIDATION', message: 'name is required' },
+          });
           return;
         }
         const issued = await deps.apiKeys.issuePersonalAccessToken(
@@ -114,20 +128,26 @@ export function createUserTokensRouter(deps: UserTokensRouterDeps): Router {
     '/access-tokens/:id',
     async (req: AuthenticatedRequest, res: Response) => {
       if (!req.auth) {
-        res.status(401).json({ message: 'authentication required' });
+        res.status(401).json({
+          error: { code: 'UNAUTHORIZED', message: 'authentication required' },
+        });
         return;
       }
       try {
         const tokenId = req.params['id']!;
         const token = await deps.apiKeys.getById(req.auth.orgId, tokenId);
         if (!token) {
-          res.status(404).json({ message: 'token not found' });
+          res.status(404).json({
+            error: { code: 'NOT_FOUND', message: 'token not found' },
+          });
           return;
         }
         // PAT owners can only revoke their own tokens. Server admins bypass
         // (they can manage any token in their org).
         if (token.ownerUserId !== req.auth.userId && !req.auth.isServerAdmin) {
-          res.status(403).json({ message: 'not the owner of this token' });
+          res.status(403).json({
+            error: { code: 'FORBIDDEN', message: 'not the owner of this token' },
+          });
           return;
         }
         await deps.apiKeys.revoke(req.auth.orgId, token.id, req.auth.userId);

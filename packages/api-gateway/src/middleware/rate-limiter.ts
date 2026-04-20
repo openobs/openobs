@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express'
-import type { ApiError } from '@agentic-obs/common'
+import type { ApiErrorResponse } from '@agentic-obs/common'
 
 interface RateLimiterOptions {
   windowMs: number
@@ -44,8 +44,10 @@ export function createRateLimiter(options: RateLimiterOptions) {
       res.setHeader('Retry-After', Math.ceil(retryAfterMs / 1000))
       res.setHeader('X-RateLimit-Limit', max)
       res.setHeader('X-RateLimit-Remaining', 0)
-      const error: ApiError = { code: 'RATE_LIMITED', message: 'Too many requests' }
-      res.status(429).json(error)
+      const body: ApiErrorResponse = {
+        error: { code: 'RATE_LIMITED', message: 'Too many requests' },
+      }
+      res.status(429).json(body)
       return
     }
 

@@ -31,11 +31,21 @@ export interface TeamsRouterDeps {
 
 function handleServiceError(err: unknown, res: Response): void {
   if (err instanceof TeamServiceError) {
-    res.status(err.statusCode).json({ message: err.message });
+    const code = err.statusCode === 404 ? 'NOT_FOUND'
+      : err.statusCode === 409 ? 'CONFLICT'
+      : err.statusCode === 403 ? 'FORBIDDEN'
+      : err.statusCode >= 500 ? 'INTERNAL_ERROR'
+      : 'VALIDATION';
+    res.status(err.statusCode).json({
+      error: { code, message: err.message },
+    });
     return;
   }
   res.status(500).json({
-    message: err instanceof Error ? err.message : 'internal error',
+    error: {
+      code: 'INTERNAL_ERROR',
+      message: err instanceof Error ? err.message : 'internal error',
+    },
   });
 }
 
@@ -102,7 +112,9 @@ export function createTeamsRouter(deps: TeamsRouterDeps): Router {
       try {
         const body = (req.body ?? {}) as { name?: string; email?: string };
         if (!body.name || typeof body.name !== 'string') {
-          res.status(400).json({ message: 'name is required' });
+          res.status(400).json({
+            error: { code: 'VALIDATION', message: 'name is required' },
+          });
           return;
         }
         const team = await deps.teams.create(req.auth!.orgId, {
@@ -129,7 +141,9 @@ export function createTeamsRouter(deps: TeamsRouterDeps): Router {
       try {
         const team = await deps.teams.getById(req.auth!.orgId, req.params['id']!);
         if (!team) {
-          res.status(404).json({ message: 'team not found' });
+          res.status(404).json({
+            error: { code: 'NOT_FOUND', message: 'team not found' },
+          });
           return;
         }
         res.json({
@@ -228,7 +242,9 @@ export function createTeamsRouter(deps: TeamsRouterDeps): Router {
       try {
         const body = (req.body ?? {}) as { userId?: string; permission?: unknown };
         if (!body.userId || typeof body.userId !== 'string') {
-          res.status(400).json({ message: 'userId is required' });
+          res.status(400).json({
+            error: { code: 'VALIDATION', message: 'userId is required' },
+          });
           return;
         }
         const perm =
@@ -236,7 +252,9 @@ export function createTeamsRouter(deps: TeamsRouterDeps): Router {
             ? TEAM_MEMBER_PERMISSION_MEMBER
             : parseMemberPermission(body.permission);
         if (perm === null) {
-          res.status(400).json({ message: 'permission must be 0 or 4' });
+          res.status(400).json({
+            error: { code: 'VALIDATION', message: 'permission must be 0 or 4' },
+          });
           return;
         }
         await deps.teams.addMember(
@@ -264,7 +282,9 @@ export function createTeamsRouter(deps: TeamsRouterDeps): Router {
         const body = (req.body ?? {}) as { permission?: unknown };
         const perm = parseMemberPermission(body.permission);
         if (perm === null) {
-          res.status(400).json({ message: 'permission must be 0 or 4' });
+          res.status(400).json({
+            error: { code: 'VALIDATION', message: 'permission must be 0 or 4' },
+          });
           return;
         }
         await deps.teams.updateMember(

@@ -16,10 +16,11 @@
  * honouring the legacy surface.
  */
 
-import { Router, type Response } from 'express';
+import { Router, type NextFunction, type Response } from 'express';
 import {
   ac,
   ACTIONS,
+  AppError,
   ORG_ROLES,
   type OrgRole,
 } from '@agentic-obs/common';
@@ -30,10 +31,7 @@ import {
   ServiceAccountService,
   ServiceAccountServiceError,
 } from '../services/serviceaccount-service.js';
-import {
-  ApiKeyService,
-  ApiKeyServiceError,
-} from '../services/apikey-service.js';
+import { ApiKeyService } from '../services/apikey-service.js';
 
 export interface AuthKeysRouterDeps {
   serviceAccounts: ServiceAccountService;
@@ -41,18 +39,29 @@ export interface AuthKeysRouterDeps {
   ac: AccessControlService;
 }
 
-function handleError(err: unknown, res: Response): void {
+/**
+ * Forward service-layer errors to the global error-handler middleware.
+ * `ApiKeyService` now throws `AppError` subclasses, so they render with the
+ * canonical `{ error: { code, message } }` envelope automatically. The only
+ * pre-AppError hierarchy still live is `ServiceAccountServiceError` (audit
+ * item §12 flagged it); we translate it here until it's migrated too.
+ */
+function forwardError(err: unknown, next: NextFunction): void {
+  if (err instanceof AppError) {
+    next(err);
+    return;
+  }
   if (err instanceof ServiceAccountServiceError) {
-    res.status(err.statusCode).json({ message: err.message });
+    const code = err.statusCode === 404 ? 'NOT_FOUND'
+      : err.statusCode === 409 ? 'CONFLICT'
+      : err.statusCode === 403 ? 'FORBIDDEN'
+      : err.statusCode >= 500 ? 'INTERNAL_ERROR'
+      : 'VALIDATION';
+    const wrapped = new AppError(code, err.statusCode, err.message);
+    next(wrapped);
     return;
   }
-  if (err instanceof ApiKeyServiceError) {
-    res.status(err.statusCode).json({ message: err.message });
-    return;
-  }
-  res.status(500).json({
-    message: err instanceof Error ? err.message : 'internal error',
-  });
+  next(err);
 }
 
 export function createAuthKeysRouter(deps: AuthKeysRouterDeps): Router {
@@ -63,7 +72,7 @@ export function createAuthKeysRouter(deps: AuthKeysRouterDeps): Router {
   router.get(
     '/',
     requirePermission(ac.eval(ACTIONS.ApiKeysRead, 'apikeys:*')),
-    async (req: AuthenticatedRequest, res: Response) => {
+    async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       try {
         // All SA tokens + all PATs in the current org. Shape matches
         // Grafana's legacy list response (id/name/role/expiration).
@@ -93,7 +102,7 @@ export function createAuthKeysRouter(deps: AuthKeysRouterDeps): Router {
         }
         res.json(keys);
       } catch (err) {
-        handleError(err, res);
+        forwardError(err, next);
       }
     },
   );
@@ -102,7 +111,7 @@ export function createAuthKeysRouter(deps: AuthKeysRouterDeps): Router {
   router.post(
     '/',
     requirePermission(ac.eval(ACTIONS.ApiKeysCreate)),
-    async (req: AuthenticatedRequest, res: Response) => {
+    async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       try {
         const body = (req.body ?? {}) as {
           name?: string;
@@ -110,13 +119,18 @@ export function createAuthKeysRouter(deps: AuthKeysRouterDeps): Router {
           secondsToLive?: number | null;
         };
         if (!body.name) {
-          res.status(400).json({ message: 'name is required' });
+          res.status(400).json({
+            error: { code: 'VALIDATION', message: 'name is required' },
+          });
           return;
         }
         const role = body.role ?? 'Viewer';
         if (!(ORG_ROLES as readonly string[]).includes(role)) {
           res.status(400).json({
-            message: `role must be one of: ${ORG_ROLES.join(', ')}`,
+            error: {
+              code: 'VALIDATION',
+              message: `role must be one of: ${ORG_ROLES.join(', ')}`,
+            },
           });
           return;
         }
@@ -147,7 +161,7 @@ export function createAuthKeysRouter(deps: AuthKeysRouterDeps): Router {
           key: issued.key,
         });
       } catch (err) {
-        handleError(err, res);
+        forwardError(err, next);
       }
     },
   );
@@ -156,14 +170,16 @@ export function createAuthKeysRouter(deps: AuthKeysRouterDeps): Router {
   router.delete(
     '/:id',
     requirePermission(ac.eval(ACTIONS.ApiKeysDelete)),
-    async (req: AuthenticatedRequest, res: Response) => {
+    async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
       try {
         const token = await deps.apiKeys.getById(
           req.auth!.orgId,
           req.params['id']!,
         );
         if (!token) {
-          res.status(404).json({ message: 'api key not found' });
+          res.status(404).json({
+            error: { code: 'NOT_FOUND', message: 'api key not found' },
+          });
           return;
         }
         await deps.apiKeys.revoke(
@@ -173,7 +189,7 @@ export function createAuthKeysRouter(deps: AuthKeysRouterDeps): Router {
         );
         res.json({ message: 'API key deleted' });
       } catch (err) {
-        handleError(err, res);
+        forwardError(err, next);
       }
     },
   );

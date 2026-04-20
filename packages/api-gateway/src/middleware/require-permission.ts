@@ -17,7 +17,7 @@
  * `(req) => Evaluator` — the latter lets handlers read `req.params` before
  * building the check.
  *
- * On deny: 403 `{ message: "User has no permission to <evaluator.string()>" }`.
+ * On deny: 403 `{ error: { code: 'FORBIDDEN', message: 'User has no permission to <evaluator.string()>' } }`.
  * On allow: `next()`.
  *
  * Request-scoped cache: after the first resolution, `req.auth.permissions` is
@@ -41,7 +41,9 @@ export function createRequirePermission(ac: AccessControlService) {
       next: NextFunction,
     ): Promise<void> {
       if (!req.auth) {
-        res.status(401).json({ message: 'authentication required' });
+        res.status(401).json({
+          error: { code: 'UNAUTHORIZED', message: 'authentication required' },
+        });
         return;
       }
 
@@ -53,7 +55,10 @@ export function createRequirePermission(ac: AccessControlService) {
             : evaluatorOrFactory;
       } catch (err) {
         res.status(500).json({
-          message: `permission check failed: ${err instanceof Error ? err.message : String(err)}`,
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: `permission check failed: ${err instanceof Error ? err.message : String(err)}`,
+          },
         });
         return;
       }
@@ -62,14 +67,20 @@ export function createRequirePermission(ac: AccessControlService) {
         const allowed = await ac.evaluate(req.auth, evaluator);
         if (!allowed) {
           res.status(403).json({
-            message: `User has no permission to ${evaluator.string()}`,
+            error: {
+              code: 'FORBIDDEN',
+              message: `User has no permission to ${evaluator.string()}`,
+            },
           });
           return;
         }
         next();
       } catch (err) {
         res.status(500).json({
-          message: `permission check failed: ${err instanceof Error ? err.message : String(err)}`,
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: `permission check failed: ${err instanceof Error ? err.message : String(err)}`,
+          },
         });
       }
     };

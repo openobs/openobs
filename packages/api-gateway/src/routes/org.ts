@@ -31,11 +31,21 @@ export interface OrgRouterDeps {
 
 function handleServiceError(err: unknown, res: Response): void {
   if (err instanceof OrgServiceError) {
-    res.status(err.statusCode).json({ message: err.message });
+    const code = err.statusCode === 404 ? 'NOT_FOUND'
+      : err.statusCode === 409 ? 'CONFLICT'
+      : err.statusCode === 403 ? 'FORBIDDEN'
+      : err.statusCode >= 500 ? 'INTERNAL_ERROR'
+      : 'VALIDATION';
+    res.status(err.statusCode).json({
+      error: { code, message: err.message },
+    });
     return;
   }
   res.status(500).json({
-    message: err instanceof Error ? err.message : 'internal error',
+    error: {
+      code: 'INTERNAL_ERROR',
+      message: err instanceof Error ? err.message : 'internal error',
+    },
   });
 }
 
@@ -53,7 +63,9 @@ export function createOrgRouter(deps: OrgRouterDeps): Router {
       try {
         const org = await deps.orgs.getById(req.auth!.orgId);
         if (!org) {
-          res.status(404).json({ message: 'organization not found' });
+          res.status(404).json({
+            error: { code: 'NOT_FOUND', message: 'organization not found' },
+          });
           return;
         }
         res.json(org);
@@ -142,7 +154,9 @@ export function createOrgRouter(deps: OrgRouterDeps): Router {
           role?: string;
         };
         if (!body.loginOrEmail) {
-          res.status(400).json({ message: 'loginOrEmail is required' });
+          res.status(400).json({
+            error: { code: 'VALIDATION', message: 'loginOrEmail is required' },
+          });
           return;
         }
         if (!body.role || !(ORG_ROLES as readonly string[]).includes(body.role)) {
@@ -249,7 +263,12 @@ export function createOrgRouter(deps: OrgRouterDeps): Router {
     ),
     async (req: AuthenticatedRequest, res: Response) => {
       if (!deps.preferences) {
-        res.status(501).json({ message: 'preferences not configured' });
+        res.status(501).json({
+          error: {
+            code: 'NOT_IMPLEMENTED',
+            message: 'preferences not configured',
+          },
+        });
         return;
       }
       try {

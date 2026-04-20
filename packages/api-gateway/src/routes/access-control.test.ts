@@ -103,7 +103,7 @@ describe('/api/access-control routes', () => {
       const h = await makeHarness('Viewer');
       const res = await request(h.app).get('/api/access-control/roles');
       expect(res.status).toBe(403);
-      expect(res.body.message).toMatch(/User has no permission to/);
+      expect(res.body.error?.message).toMatch(/User has no permission to/);
     });
   });
 
@@ -173,7 +173,7 @@ describe('/api/access-control routes', () => {
         .put('/api/access-control/roles/basic_viewer')
         .send({ version: 0 });
       expect(res.status).toBe(400);
-      expect(res.body.message).toMatch(/read-only/);
+      expect(res.body.error?.message).toMatch(/read-only/);
     });
 
     it('updates a custom role', async () => {

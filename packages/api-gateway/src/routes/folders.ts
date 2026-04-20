@@ -32,15 +32,32 @@ export interface FolderRouterDeps {
 
 function handleServiceError(err: unknown, res: Response): void {
   if (err instanceof FolderServiceError) {
-    res.status(err.statusCode).json({ message: err.message });
+    const code = err.statusCode >= 500 ? 'INTERNAL_ERROR'
+      : err.statusCode === 404 ? 'NOT_FOUND'
+      : err.statusCode === 409 ? 'CONFLICT'
+      : err.statusCode === 403 ? 'FORBIDDEN'
+      : 'VALIDATION';
+    res.status(err.statusCode).json({
+      error: { code, message: err.message },
+    });
     return;
   }
   if (err instanceof ResourcePermissionServiceError) {
-    res.status(err.statusCode).json({ message: err.message });
+    const code = err.statusCode >= 500 ? 'INTERNAL_ERROR'
+      : err.statusCode === 404 ? 'NOT_FOUND'
+      : err.statusCode === 409 ? 'CONFLICT'
+      : err.statusCode === 403 ? 'FORBIDDEN'
+      : 'VALIDATION';
+    res.status(err.statusCode).json({
+      error: { code, message: err.message },
+    });
     return;
   }
   res.status(500).json({
-    message: err instanceof Error ? err.message : 'internal error',
+    error: {
+      code: 'INTERNAL_ERROR',
+      message: err instanceof Error ? err.message : 'internal error',
+    },
   });
 }
 
@@ -100,7 +117,9 @@ export function createFolderRouter(deps: FolderRouterDeps): Router {
           parentUid?: string;
         };
         if (!body.title) {
-          res.status(400).json({ message: 'title is required' });
+          res.status(400).json({
+            error: { code: 'VALIDATION', message: 'title is required' },
+          });
           return;
         }
         const folder = await deps.folderService.create(
@@ -133,7 +152,9 @@ export function createFolderRouter(deps: FolderRouterDeps): Router {
           req.params['uid']!,
         );
         if (!folder) {
-          res.status(404).json({ message: 'folder not found' });
+          res.status(404).json({
+            error: { code: 'NOT_FOUND', message: 'folder not found' },
+          });
           return;
         }
         const parents = await deps.folderService.getParents(
@@ -224,7 +245,9 @@ export function createFolderRouter(deps: FolderRouterDeps): Router {
         const uid = req.params['uid']!;
         const existing = await deps.folderService.getByUid(req.auth!.orgId, uid);
         if (!existing) {
-          res.status(404).json({ message: 'folder not found' });
+          res.status(404).json({
+            error: { code: 'NOT_FOUND', message: 'folder not found' },
+          });
           return;
         }
         const entries = await deps.permissionService.list(
@@ -250,12 +273,16 @@ export function createFolderRouter(deps: FolderRouterDeps): Router {
         const uid = req.params['uid']!;
         const existing = await deps.folderService.getByUid(req.auth!.orgId, uid);
         if (!existing) {
-          res.status(404).json({ message: 'folder not found' });
+          res.status(404).json({
+            error: { code: 'NOT_FOUND', message: 'folder not found' },
+          });
           return;
         }
         const body = req.body as { items?: ResourcePermissionSetItem[] };
         if (!Array.isArray(body.items)) {
-          res.status(400).json({ message: 'items must be an array' });
+          res.status(400).json({
+            error: { code: 'VALIDATION', message: 'items must be an array' },
+          });
           return;
         }
         await deps.permissionService.setBulk(

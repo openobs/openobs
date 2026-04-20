@@ -69,7 +69,21 @@ class ApiClient {
         window.location.href = '/login';
         return { data: null as T, error: { code: 'UNAUTHORIZED', message: 'Redirecting to login...' } };
       }
-      const error = await res.json().catch(() => ({ code: 'UNKNOWN', message: res.statusText }));
+      // Canonical error envelope is `{ error: { code, message, details? } }`
+      // (see `middleware/error-handler.ts`). Fall back to the unwrapped shape
+      // so this client works while routes are being migrated, and to
+      // `res.statusText` when the body isn't JSON at all.
+      const raw = await res.json().catch(() => null) as
+        | { error?: { code?: string; message?: string; details?: unknown } | null; code?: string; message?: string }
+        | null;
+      const inner = raw?.error ?? raw;
+      const error = {
+        code: inner?.code ?? 'UNKNOWN',
+        message: inner?.message ?? res.statusText,
+        ...(inner && 'details' in inner && inner.details !== undefined
+          ? { details: inner.details }
+          : {}),
+      };
       return { data: null as T, error };
     }
 
@@ -344,9 +358,15 @@ async function authFetch<T>(
     let message = res.statusText || `Request failed (${res.status})`;
     try {
       body = await res.json();
-      if (body && typeof body === 'object' && 'message' in body) {
-        const m = (body as { message?: unknown }).message;
-        if (typeof m === 'string') message = m;
+      // Canonical shape is `{ error: { code, message } }`; fall back to the
+      // legacy `{ message }` shape until every auth route is migrated. 2xx
+      // success messages (e.g. /api/login → { message: 'Logged in' }) don't
+      // hit this branch.
+      if (body && typeof body === 'object') {
+        const nested = (body as { error?: { message?: unknown } }).error?.message;
+        const flat = (body as { message?: unknown }).message;
+        const m = typeof nested === 'string' ? nested : typeof flat === 'string' ? flat : undefined;
+        if (m) message = m;
       }
     } catch {
       // non-JSON body; keep statusText

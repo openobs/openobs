@@ -36,12 +36,12 @@ export async function handleChatMessage(
   folderRepository?: import('@agentic-obs/common').IFolderRepository,
 ): Promise<void> {
   if (!req.auth) {
-    res.status(401).json({ message: 'authentication required' })
+    res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'authentication required' } })
     return
   }
   const dashboard = await store.findById(dashboardId)
   if (!dashboard) {
-    res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Dashboard not found' } })
     return
   }
 

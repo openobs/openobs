@@ -16,7 +16,7 @@ sessionsRouter.post('/', (req: AuthenticatedRequest, res: Response, next: NextFu
   try {
     const userId = req.auth?.userId;
     if (!userId) {
-      res.status(401).json({ code: 'UNAUTHORIZED', message: 'authentication required' });
+      res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'authentication required' } });
       return;
     }
     const session = store.create(userId);
@@ -31,7 +31,7 @@ sessionsRouter.get('/', (req: AuthenticatedRequest, res: Response, next: NextFun
   try {
     const userId = req.auth?.userId;
     if (!userId) {
-      res.status(401).json({ code: 'UNAUTHORIZED', message: 'authentication required' });
+      res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'authentication required' } });
       return;
     }
     const sessions = store.listByUser(userId);
@@ -46,17 +46,17 @@ sessionsRouter.get('/:id', (req: AuthenticatedRequest, res: Response, next: Next
   try {
     const userId = req.auth?.userId;
     if (!userId) {
-      res.status(401).json({ code: 'UNAUTHORIZED', message: 'authentication required' });
+      res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'authentication required' } });
       return;
     }
 
     const session = store.get(req.params['id'] ?? '');
     if (!session) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Session not found' });
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Session not found' } });
       return;
     }
     if (session.userId !== userId) {
-      res.status(403).json({ code: 'FORBIDDEN', message: 'you do not own this session' });
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: 'you do not own this session' } });
       return;
     }
     res.json(session);
@@ -70,18 +70,18 @@ sessionsRouter.patch('/:id', (req: AuthenticatedRequest, res: Response, next: Ne
   try {
     const userId = req.auth?.userId;
     if (!userId) {
-      res.status(401).json({ code: 'UNAUTHORIZED', message: 'authentication required' });
+      res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'authentication required' } });
       return;
     }
 
     const id = req.params['id'] ?? '';
     const existing = store.get(id);
     if (!existing) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Session not found' });
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Session not found' } });
       return;
     }
     if (existing.userId !== userId) {
-      res.status(403).json({ code: 'FORBIDDEN', message: 'you do not own this session' });
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: 'you do not own this session' } });
       return;
     }
 
@@ -97,18 +97,18 @@ sessionsRouter.delete('/:id', (req: AuthenticatedRequest, res: Response, next: N
   try {
     const userId = req.auth?.userId;
     if (!userId) {
-      res.status(401).json({ code: 'UNAUTHORIZED', message: 'authentication required' });
+      res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'authentication required' } });
       return;
     }
 
     const id = req.params['id'] ?? '';
     const existing = store.get(id);
     if (!existing) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Session not found' });
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Session not found' } });
       return;
     }
     if (existing.userId !== userId) {
-      res.status(403).json({ code: 'FORBIDDEN', message: 'you do not own this session' });
+      res.status(403).json({ error: { code: 'FORBIDDEN', message: 'you do not own this session' } });
       return;
     }
 

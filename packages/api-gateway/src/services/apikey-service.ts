@@ -26,8 +26,12 @@
 
 import { createHash, randomBytes } from 'node:crypto';
 import {
+  AppError,
   AuditAction,
+  ForbiddenError,
+  NotFoundError,
   ORG_ROLES,
+  ValidationError,
   type ApiKey,
   type IApiKeyRepository,
   type IOrgUserRepository,
@@ -41,7 +45,16 @@ import type { AuditWriter } from '../auth/audit-writer.js';
 export const TOKEN_PREFIX_SA = 'openobs_sa_';
 export const TOKEN_PREFIX_PAT = 'openobs_pat_';
 
-export class ApiKeyServiceError extends Error {
+/**
+ * @deprecated Kept only so existing `instanceof` checks (e.g. in
+ * `apikey-service.test.ts`) keep working. New throws use the proper
+ * `AppError` subclasses — `ValidationError`, `NotFoundError`,
+ * `ConflictError`, `ForbiddenError` — so the global error-handler
+ * middleware renders them with the canonical `{ error: { code, message } }`
+ * envelope. Remove the shim once every caller has been migrated off
+ * `ApiKeyServiceError`.
+ */
+export class ApiKeyServiceError extends AppError {
   constructor(
     public readonly kind:
       | 'validation'
@@ -49,9 +62,13 @@ export class ApiKeyServiceError extends Error {
       | 'quota_exceeded'
       | 'conflict',
     message: string,
-    public readonly statusCode: number,
+    statusCode: number,
   ) {
-    super(message);
+    const code = kind === 'validation' ? 'VALIDATION'
+      : kind === 'not_found' ? 'NOT_FOUND'
+      : kind === 'quota_exceeded' ? 'QUOTA_EXCEEDED'
+      : 'CONFLICT';
+    super(code, statusCode, message);
     this.name = 'ApiKeyServiceError';
   }
 }
@@ -157,15 +174,11 @@ export class ApiKeyService {
   ): Promise<IssuedToken> {
     const name = input.name?.trim();
     if (!name) {
-      throw new ApiKeyServiceError('validation', 'name is required', 400);
+      throw new ValidationError('name is required');
     }
     const sa = await this.deps.users.findById(serviceAccountId);
     if (!sa || !sa.isServiceAccount || sa.orgId !== orgId) {
-      throw new ApiKeyServiceError(
-        'not_found',
-        'service account not found',
-        404,
-      );
+      throw new NotFoundError('service account');
     }
 
     // Quota: per-SA cap on active tokens. Env override lets operators cap the
@@ -227,26 +240,20 @@ export class ApiKeyService {
   ): Promise<IssuedToken> {
     const name = input.name?.trim();
     if (!name) {
-      throw new ApiKeyServiceError('validation', 'name is required', 400);
+      throw new ValidationError('name is required');
     }
     if (input.role !== undefined && !ORG_ROLES.includes(input.role)) {
-      throw new ApiKeyServiceError(
-        'validation',
+      throw new ValidationError(
         `role must be one of: ${ORG_ROLES.join(', ')}`,
-        400,
       );
     }
 
     const user = await this.deps.users.findById(userId);
     if (!user) {
-      throw new ApiKeyServiceError('not_found', 'user not found', 404);
+      throw new NotFoundError('user');
     }
     if (user.isServiceAccount) {
-      throw new ApiKeyServiceError(
-        'validation',
-        'service accounts must use SA tokens',
-        400,
-      );
+      throw new ValidationError('service accounts must use SA tokens');
     }
 
     // Quota: per-user PAT cap.
@@ -335,7 +342,7 @@ export class ApiKeyService {
   async revoke(orgId: string, keyId: string, actorId: string): Promise<void> {
     const row = await this.deps.apiKeys.findById(keyId);
     if (!row || row.orgId !== orgId) {
-      throw new ApiKeyServiceError('not_found', 'api key not found', 404);
+      throw new NotFoundError('api key');
     }
     if (row.isRevoked) {
       // Idempotent no-op: per §06 already-revoked revoke() must not error.
@@ -461,7 +468,8 @@ export class ApiKeyService {
       current = rows.filter((r) => !r.isRevoked).length;
     }
     if (current >= limit) {
-      throw new ApiKeyServiceError('quota_exceeded', 'Quota exceeded', 403);
+      // 403 per Grafana semantics (not 429 — this is a configured limit, not rate).
+      throw new ForbiddenError('Quota exceeded');
     }
   }
 

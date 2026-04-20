@@ -168,8 +168,10 @@ export function requirePermission(permission: string) {
     }
 
     res.status(403).json({
-      code: 'FORBIDDEN',
-      message: `Insufficient permissions: requires ${permission}`,
+      error: {
+        code: 'FORBIDDEN',
+        message: `Insufficient permissions: requires ${permission}`,
+      },
     })
   }
 }

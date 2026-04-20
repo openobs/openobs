@@ -229,7 +229,7 @@ export function createWebhookRouter(bus?: IEventBus): Router {
         (s) => s.active && s.description === `inbound:${source}`,
       );
       if (!sourceSub) {
-        res.status(404).json({ code: 'NOT_FOUND', message: `No subscription registered for source "${source}"` });
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: `No subscription registered for source "${source}"` } });
         return;
       }
 
@@ -241,11 +241,11 @@ export function createWebhookRouter(bus?: IEventBus): Router {
 
       if (sourceSub.secret) {
         if (!signature) {
-          res.status(401).json({ code: 'MISSING_SIGNATURE', message: 'Webhook signature is required' });
+          res.status(401).json({ error: { code: 'MISSING_SIGNATURE', message: 'Webhook signature is required' } });
           return;
         }
         if (!verifySignature(rawBody, signature, sourceSub.secret)) {
-          res.status(401).json({ code: 'INVALID_SIGNATURE', message: 'Signature mismatch' });
+          res.status(401).json({ error: { code: 'INVALID_SIGNATURE', message: 'Signature mismatch' } });
           return;
         }
       }
@@ -297,7 +297,7 @@ export function createWebhookRouter(bus?: IEventBus): Router {
     };
 
     if (!url || !events || !Array.isArray(events) || events.length === 0) {
-      res.status(400).json({ code: 'INVALID_INPUT', message: 'url and events[] are required' });
+      res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'url and events[] are required' } });
       return;
     }
 
@@ -305,7 +305,7 @@ export function createWebhookRouter(bus?: IEventBus): Router {
     try {
       await ensureSafeUrl(url);
     } catch (err) {
-      res.status(400).json({ code: 'INVALID_URL', message: err instanceof Error ? err.message : 'Invalid URL' });
+      res.status(400).json({ error: { code: 'INVALID_URL', message: err instanceof Error ? err.message : 'Invalid URL' } });
       return;
     }
 
@@ -328,7 +328,7 @@ export function createWebhookRouter(bus?: IEventBus): Router {
   router.get('/webhook-subscriptions/:id', authMiddleware, requirePermission('*:*'), (req, res) => {
     const sub = subscriptions.get(req.params['id'] as string);
     if (!sub) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Subscription not found' });
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Subscription not found' } });
       return;
     }
     res.json(maskSubscription(sub));
@@ -337,7 +337,7 @@ export function createWebhookRouter(bus?: IEventBus): Router {
   router.put('/webhook-subscriptions/:id', authMiddleware, requirePermission('*:*'), async (req, res) => {
     const sub = subscriptions.get(req.params['id'] as string);
     if (!sub) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Subscription not found' });
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Subscription not found' } });
       return;
     }
 
@@ -348,7 +348,7 @@ export function createWebhookRouter(bus?: IEventBus): Router {
       try {
         await ensureSafeUrl(url);
       } catch (err) {
-        res.status(400).json({ code: 'INVALID_URL', message: err instanceof Error ? err.message : 'Invalid URL' });
+        res.status(400).json({ error: { code: 'INVALID_URL', message: err instanceof Error ? err.message : 'Invalid URL' } });
         return;
       }
     }
@@ -369,7 +369,7 @@ export function createWebhookRouter(bus?: IEventBus): Router {
   router.delete('/webhook-subscriptions/:id', authMiddleware, requirePermission('*:*'), (req, res) => {
     const id = req.params['id'] as string;
     if (!subscriptions.has(id)) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Subscription not found' });
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Subscription not found' } });
       return;
     }
 

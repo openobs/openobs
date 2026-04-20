@@ -24,10 +24,8 @@ import {
   ServiceAccountService,
   ServiceAccountServiceError,
 } from '../services/serviceaccount-service.js';
-import {
-  ApiKeyService,
-  ApiKeyServiceError,
-} from '../services/apikey-service.js';
+import { ApiKeyService } from '../services/apikey-service.js';
+import { AppError } from '@agentic-obs/common';
 
 export interface ServiceAccountsRouterDeps {
   serviceAccounts: ServiceAccountService;
@@ -35,17 +33,36 @@ export interface ServiceAccountsRouterDeps {
   ac: AccessControlService;
 }
 
+/**
+ * Map service-layer errors onto the canonical `{ error: { code, message } }`
+ * envelope. `ApiKeyService` now throws `AppError` subclasses directly, so we
+ * just emit them raw; `ServiceAccountService` still uses its own hierarchy
+ * (audit item §12) and gets wrapped here.
+ */
 function handleServiceError(err: unknown, res: Response): void {
-  if (err instanceof ServiceAccountServiceError) {
-    res.status(err.statusCode).json({ message: err.message });
+  if (err instanceof AppError) {
+    const body = err.statusCode >= 500
+      ? { error: { code: err.code, message: 'Internal server error' } }
+      : { error: { code: err.code, message: err.message, ...(err.details !== undefined ? { details: err.details } : {}) } };
+    res.status(err.statusCode).json(body);
     return;
   }
-  if (err instanceof ApiKeyServiceError) {
-    res.status(err.statusCode).json({ message: err.message });
+  if (err instanceof ServiceAccountServiceError) {
+    const code = err.statusCode === 404 ? 'NOT_FOUND'
+      : err.statusCode === 409 ? 'CONFLICT'
+      : err.statusCode === 403 ? 'FORBIDDEN'
+      : err.statusCode >= 500 ? 'INTERNAL_ERROR'
+      : 'VALIDATION';
+    res.status(err.statusCode).json({
+      error: { code, message: err.message },
+    });
     return;
   }
   res.status(500).json({
-    message: err instanceof Error ? err.message : 'internal error',
+    error: {
+      code: 'INTERNAL_ERROR',
+      message: err instanceof Error ? err.message : 'internal error',
+    },
   });
 }
 
@@ -90,12 +107,17 @@ export function createServiceAccountsRouter(
           isDisabled?: boolean;
         };
         if (!body.name) {
-          res.status(400).json({ message: 'name is required' });
+          res.status(400).json({
+            error: { code: 'VALIDATION', message: 'name is required' },
+          });
           return;
         }
         if (!body.role || !(ORG_ROLES as readonly string[]).includes(body.role)) {
           res.status(400).json({
-            message: `role must be one of: ${ORG_ROLES.join(', ')}`,
+            error: {
+              code: 'VALIDATION',
+              message: `role must be one of: ${ORG_ROLES.join(', ')}`,
+            },
           });
           return;
         }
@@ -208,7 +230,9 @@ export function createServiceAccountsRouter(
           req.params['id']!,
         );
         if (!sa) {
-          res.status(404).json({ message: 'service account not found' });
+          res.status(404).json({
+            error: { code: 'NOT_FOUND', message: 'service account not found' },
+          });
           return;
         }
         res.json(sa);
@@ -239,7 +263,10 @@ export function createServiceAccountsRouter(
           !(ORG_ROLES as readonly string[]).includes(body.role)
         ) {
           res.status(400).json({
-            message: `role must be one of: ${ORG_ROLES.join(', ')}`,
+            error: {
+              code: 'VALIDATION',
+              message: `role must be one of: ${ORG_ROLES.join(', ')}`,
+            },
           });
           return;
         }
@@ -297,7 +324,9 @@ export function createServiceAccountsRouter(
         const saId = req.params['id']!;
         const sa = await deps.serviceAccounts.getById(req.auth!.orgId, saId);
         if (!sa) {
-          res.status(404).json({ message: 'service account not found' });
+          res.status(404).json({
+            error: { code: 'NOT_FOUND', message: 'service account not found' },
+          });
           return;
         }
         const tokens = await deps.apiKeys.listByServiceAccount(
@@ -339,7 +368,9 @@ export function createServiceAccountsRouter(
           secondsToLive?: number | null;
         };
         if (!body.name) {
-          res.status(400).json({ message: 'name is required' });
+          res.status(400).json({
+            error: { code: 'VALIDATION', message: 'name is required' },
+          });
           return;
         }
         const issued = await deps.apiKeys.issueServiceAccountToken(
@@ -380,7 +411,9 @@ export function createServiceAccountsRouter(
           req.params['tokenId']!,
         );
         if (!token || token.serviceAccountId !== req.params['id']) {
-          res.status(404).json({ message: 'token not found' });
+          res.status(404).json({
+            error: { code: 'NOT_FOUND', message: 'token not found' },
+          });
           return;
         }
         await deps.apiKeys.revoke(

@@ -391,7 +391,7 @@ describe('/api/teams/:id/members — membership', () => {
       .set('x-test-user', 'admin')
       .send({ userId: memberUserId });
     expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/externally managed/i);
+    expect(res.body.error?.message).toMatch(/externally managed/i);
   });
 
   it('GET /api/teams/:id/members lists members', async () => {

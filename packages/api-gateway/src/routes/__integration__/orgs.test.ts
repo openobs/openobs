@@ -332,7 +332,7 @@ describe('/api/orgs/:id/users — cross-org membership management', () => {
       .set('x-test-user', 'admin')
       .send({ loginOrEmail: 'ghost', role: 'Viewer' });
     expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/user not found/i);
+    expect(res.body.error?.message).toMatch(/user not found/i);
   });
 
   it('POST /api/orgs/:id/users 409 when already a member', async () => {
@@ -345,7 +345,7 @@ describe('/api/orgs/:id/users — cross-org membership management', () => {
       .set('x-test-user', 'admin')
       .send({ loginOrEmail: 'member', role: 'Editor' });
     expect(res.status).toBe(409);
-    expect(res.body.message).toMatch(/already member/i);
+    expect(res.body.error?.message).toMatch(/already member/i);
   });
 
   it('POST /api/orgs/:id/users 400 on invalid role', async () => {
@@ -508,7 +508,7 @@ describe('/api/org — current-org endpoints', () => {
       .set('x-test-user', 'admin')
       .send({ loginOrEmail: 'ghost', role: 'Viewer' });
     expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/user not found/i);
+    expect(res.body.error?.message).toMatch(/user not found/i);
   });
 
   it('PATCH /api/org/users/:userId updates role', async () => {

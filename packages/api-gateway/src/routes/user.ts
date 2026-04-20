@@ -36,7 +36,9 @@ export interface UserRouterDeps {
 
 function requireAuth(req: AuthenticatedRequest, res: Response): boolean {
   if (!req.auth) {
-    res.status(401).json({ message: 'authentication required' });
+    res.status(401).json({
+      error: { code: 'UNAUTHORIZED', message: 'authentication required' },
+    });
     return false;
   }
   return true;
@@ -50,7 +52,9 @@ export function createUserRouter(deps: UserRouterDeps): Router {
     if (!requireAuth(req, res)) return;
     const user = await deps.users.findById(req.auth!.userId);
     if (!user) {
-      res.status(404).json({ message: 'user not found' });
+      res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'user not found' },
+      });
       return;
     }
     const memberships = await deps.orgUsers.listOrgsByUser(user.id);
@@ -90,7 +94,9 @@ export function createUserRouter(deps: UserRouterDeps): Router {
       login: body.login,
     });
     if (!updated) {
-      res.status(404).json({ message: 'user not found' });
+      res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'user not found' },
+      });
       return;
     }
     void deps.audit.log({
@@ -115,25 +121,41 @@ export function createUserRouter(deps: UserRouterDeps): Router {
         newPassword?: string;
       };
       if (!body.oldPassword || !body.newPassword) {
-        res
-          .status(400)
-          .json({ message: 'oldPassword and newPassword are required' });
+        res.status(400).json({
+          error: {
+            code: 'VALIDATION',
+            message: 'oldPassword and newPassword are required',
+          },
+        });
         return;
       }
       if (body.newPassword.length < passwordMinLength()) {
         res.status(400).json({
-          message: `password must be at least ${passwordMinLength()} characters`,
+          error: {
+            code: 'VALIDATION',
+            message: `password must be at least ${passwordMinLength()} characters`,
+          },
         });
         return;
       }
       const user = await deps.users.findById(req.auth!.userId);
       if (!user || !user.password) {
-        res.status(400).json({ message: 'user has no local password set' });
+        res.status(400).json({
+          error: {
+            code: 'NO_LOCAL_PASSWORD',
+            message: 'user has no local password set',
+          },
+        });
         return;
       }
       const valid = await verifyPassword(body.oldPassword, user.password);
       if (!valid) {
-        res.status(401).json({ message: 'invalid username or password' });
+        res.status(401).json({
+          error: {
+            code: 'INVALID_CREDENTIALS',
+            message: 'invalid username or password',
+          },
+        });
         return;
       }
       const newHash = await hashPassword(body.newPassword);
@@ -177,7 +199,12 @@ export function createUserRouter(deps: UserRouterDeps): Router {
     async (req: AuthenticatedRequest, res: Response) => {
       if (!requireAuth(req, res)) return;
       if (!deps.preferences) {
-        res.status(501).json({ message: 'preferences not configured' });
+        res.status(501).json({
+          error: {
+            code: 'NOT_IMPLEMENTED',
+            message: 'preferences not configured',
+          },
+        });
         return;
       }
       const body = (req.body ?? {}) as {
@@ -224,7 +251,9 @@ export function createUserRouter(deps: UserRouterDeps): Router {
       const id = req.params['id'] ?? '';
       const row = await deps.userAuth.findById(id);
       if (!row || row.userId !== req.auth!.userId) {
-        res.status(404).json({ message: 'auth token not found' });
+        res.status(404).json({
+          error: { code: 'NOT_FOUND', message: 'auth token not found' },
+        });
         return;
       }
       await deps.userAuth.delete(id);
@@ -265,7 +294,9 @@ export function createUserRouter(deps: UserRouterDeps): Router {
       if (!requireAuth(req, res)) return;
       const body = (req.body ?? {}) as { authTokenId?: string };
       if (!body.authTokenId) {
-        res.status(400).json({ message: 'authTokenId is required' });
+        res.status(400).json({
+          error: { code: 'VALIDATION', message: 'authTokenId is required' },
+        });
         return;
       }
       await deps.sessions.revoke(body.authTokenId);
@@ -292,7 +323,9 @@ export function createUserRouter(deps: UserRouterDeps): Router {
         req.auth!.userId,
       );
       if (!membership) {
-        res.status(403).json({ message: 'not a member of that org' });
+        res.status(403).json({
+          error: { code: 'FORBIDDEN', message: 'not a member of that org' },
+        });
         return;
       }
       await deps.users.update(req.auth!.userId, { orgId: newOrgId });

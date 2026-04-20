@@ -30,7 +30,7 @@ export function createVersionRouter(store: IVersionRepository): Router {
     const assetType = req.params['assetType'] as string;
     const assetId = req.params['assetId'] as string;
     if (!isValidAssetType(assetType)) {
-      res.status(400).json({ code: 'INVALID_ASSET_TYPE', message: `Invalid asset type: ${assetType}` });
+      res.status(400).json({ error: { code: 'INVALID_ASSET_TYPE', message: `Invalid asset type: ${assetType}` } });
       return;
     }
     const history = await store.getHistory(assetType, assetId);
@@ -42,17 +42,17 @@ export function createVersionRouter(store: IVersionRepository): Router {
     const assetType = req.params['assetType'] as string;
     const assetId = req.params['assetId'] as string;
     if (!isValidAssetType(assetType)) {
-      res.status(400).json({ code: 'INVALID_ASSET_TYPE', message: `Invalid asset type: ${assetType}` });
+      res.status(400).json({ error: { code: 'INVALID_ASSET_TYPE', message: `Invalid asset type: ${assetType}` } });
       return;
     }
     const body = req.body as { version?: number };
     if (typeof body?.version !== 'number' || body.version < 1) {
-      res.status(400).json({ code: 'INVALID_VERSION', message: 'body.version must be a positive integer' });
+      res.status(400).json({ error: { code: 'INVALID_VERSION', message: 'body.version must be a positive integer' } });
       return;
     }
     const snapshot = await store.rollback(assetType, assetId, body.version);
     if (snapshot === undefined) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Version not found' });
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Version not found' } });
       return;
     }
     res.json({ snapshot });
@@ -64,17 +64,17 @@ export function createVersionRouter(store: IVersionRepository): Router {
     const assetId = req.params['assetId'] as string;
     const versionStr = req.params['version'] as string;
     if (!isValidAssetType(assetType)) {
-      res.status(400).json({ code: 'INVALID_ASSET_TYPE', message: `Invalid asset type: ${assetType}` });
+      res.status(400).json({ error: { code: 'INVALID_ASSET_TYPE', message: `Invalid asset type: ${assetType}` } });
       return;
     }
     const version = parseInt(versionStr, 10);
     if (isNaN(version) || version < 1) {
-      res.status(400).json({ code: 'INVALID_VERSION', message: 'version must be a positive integer' });
+      res.status(400).json({ error: { code: 'INVALID_VERSION', message: 'version must be a positive integer' } });
       return;
     }
     const entry = await store.getVersion(assetType, assetId, version);
     if (!entry) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Version not found' });
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Version not found' } });
       return;
     }
     res.json(entry);

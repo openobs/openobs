@@ -18,9 +18,9 @@ import {
 } from '@agentic-obs/data-layer';
 import type { SqliteClient } from '@agentic-obs/data-layer';
 import { AuditWriter } from '../auth/audit-writer.js';
+import { ForbiddenError } from '@agentic-obs/common';
 import {
   ApiKeyService,
-  ApiKeyServiceError,
   TOKEN_PREFIX_PAT,
   TOKEN_PREFIX_SA,
   generatePATToken,
@@ -508,8 +508,12 @@ describe('ApiKeyService quota', () => {
       { QUOTA_API_KEYS_PER_SA: '1' },
     );
     await svc.issueServiceAccountToken('org_main', ctx.saId, { name: 'a' });
+    // T4.1: quota failures now throw the canonical `ForbiddenError` (AppError
+    // subclass) so the global error-handler middleware renders them with the
+    // `{ error: { code, message } }` envelope. The old `ApiKeyServiceError`
+    // hierarchy has been collapsed into AppError subclasses.
     await expect(
       svc.issueServiceAccountToken('org_main', ctx.saId, { name: 'b' }),
-    ).rejects.toBeInstanceOf(ApiKeyServiceError);
+    ).rejects.toBeInstanceOf(ForbiddenError);
   });
 });

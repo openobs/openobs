@@ -111,7 +111,7 @@ describe('POST /api/login (integration)', () => {
       .post('/api/login')
       .send({ user: 'alice', password: 'bad' });
     expect(res.status).toBe(401);
-    expect(res.body.message).toBe('invalid username or password');
+    expect(res.body.error?.message).toBe('invalid username or password');
   });
 
   it('401 on unknown user (same message)', async () => {
@@ -119,7 +119,7 @@ describe('POST /api/login (integration)', () => {
       .post('/api/login')
       .send({ user: 'nobody', password: 'whatever' });
     expect(res.status).toBe(401);
-    expect(res.body.message).toBe('invalid username or password');
+    expect(res.body.error?.message).toBe('invalid username or password');
   });
 
   it('401 for disabled user', async () => {
@@ -211,7 +211,7 @@ describe('POST /api/login (integration)', () => {
       .post('/api/login')
       .send({ user: 'sa-bot', password: 'irrelevant' });
     expect(res.status).toBe(403);
-    expect(res.body.message).toMatch(/service account/i);
+    expect(res.body.error?.message).toMatch(/service account/i);
   });
 });
 

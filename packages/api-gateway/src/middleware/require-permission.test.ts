@@ -65,7 +65,7 @@ describe('requirePermission middleware', () => {
     const app = makeApp(service, null);
     const res = await request(app).get('/protected');
     expect(res.status).toBe(401);
-    expect(res.body.message).toMatch(/authentication required/);
+    expect(res.body.error?.message).toMatch(/authentication required/);
   });
 
   it('403 when identity lacks the required permission', async () => {
@@ -79,8 +79,8 @@ describe('requirePermission middleware', () => {
     const app = makeApp(service, id);
     const res = await request(app).get('/protected');
     expect(res.status).toBe(403);
-    expect(res.body.message).toMatch(/User has no permission to/);
-    expect(res.body.message).toContain('dashboards:read');
+    expect(res.body.error?.message).toMatch(/User has no permission to/);
+    expect(res.body.error?.message).toContain('dashboards:read');
   });
 
   it('200 when viewer requests a dashboard read', async () => {

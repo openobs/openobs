@@ -95,11 +95,21 @@ export function createAccessControlRouter(
   // Helper: handle RoleServiceError with the service's status code.
   const handleServiceError = (err: unknown, res: Response): void => {
     if (err instanceof RoleServiceError) {
-      res.status(err.statusCode).json({ message: err.message });
+      const code = err.statusCode >= 500 ? 'INTERNAL_ERROR'
+        : err.statusCode === 404 ? 'NOT_FOUND'
+        : err.statusCode === 409 ? 'CONFLICT'
+        : err.statusCode === 403 ? 'FORBIDDEN'
+        : 'VALIDATION';
+      res.status(err.statusCode).json({
+        error: { code, message: err.message },
+      });
       return;
     }
     res.status(500).json({
-      message: err instanceof Error ? err.message : 'internal error',
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: err instanceof Error ? err.message : 'internal error',
+      },
     });
   };
 
@@ -119,7 +129,12 @@ export function createAccessControlRouter(
     }),
     async (req: AuthenticatedRequest, res: Response) => {
       if (!deps.db) {
-        res.status(501).json({ message: 'seed not available in this deployment' });
+        res.status(501).json({
+          error: {
+            code: 'NOT_IMPLEMENTED',
+            message: 'seed not available in this deployment',
+          },
+        });
         return;
       }
       try {
@@ -172,7 +187,9 @@ export function createAccessControlRouter(
           permissions?: Array<{ action: string; scope?: string }>;
         };
         if (!body.name) {
-          res.status(400).json({ message: 'name is required' });
+          res.status(400).json({
+            error: { code: 'VALIDATION', message: 'name is required' },
+          });
           return;
         }
         const orgId = body.global ? '' : req.auth!.orgId;
@@ -211,7 +228,9 @@ export function createAccessControlRouter(
           req.params['roleUid']!,
         );
         if (!result) {
-          res.status(404).json({ message: 'role not found' });
+          res.status(404).json({
+            error: { code: 'NOT_FOUND', message: 'role not found' },
+          });
           return;
         }
         res.json(
@@ -240,7 +259,9 @@ export function createAccessControlRouter(
           permissions?: Array<{ action: string; scope?: string }>;
         };
         if (typeof body.version !== 'number') {
-          res.status(400).json({ message: 'version is required' });
+          res.status(400).json({
+            error: { code: 'VALIDATION', message: 'version is required' },
+          });
           return;
         }
         const result = await service.updateRole({
@@ -275,7 +296,9 @@ export function createAccessControlRouter(
           req.params['roleUid']!,
         );
         if (!ok) {
-          res.status(404).json({ message: 'role not found' });
+          res.status(404).json({
+            error: { code: 'NOT_FOUND', message: 'role not found' },
+          });
           return;
         }
         res.status(204).send();
@@ -309,7 +332,9 @@ export function createAccessControlRouter(
       try {
         const body = req.body as { roleUid?: string };
         if (!body.roleUid) {
-          res.status(400).json({ message: 'roleUid is required' });
+          res.status(400).json({
+            error: { code: 'VALIDATION', message: 'roleUid is required' },
+          });
           return;
         }
         await service.assignRoleToUser(
@@ -335,7 +360,9 @@ export function createAccessControlRouter(
           req.params['roleUid']!,
         );
         if (!ok) {
-          res.status(404).json({ message: 'assignment not found' });
+          res.status(404).json({
+            error: { code: 'NOT_FOUND', message: 'assignment not found' },
+          });
           return;
         }
         res.status(204).send();
@@ -352,7 +379,9 @@ export function createAccessControlRouter(
       try {
         const body = req.body as { roleUids?: string[] };
         if (!Array.isArray(body.roleUids)) {
-          res.status(400).json({ message: 'roleUids must be an array' });
+          res.status(400).json({
+            error: { code: 'VALIDATION', message: 'roleUids must be an array' },
+          });
           return;
         }
         await service.setUserRoles(
@@ -391,7 +420,9 @@ export function createAccessControlRouter(
       try {
         const body = req.body as { roleUid?: string };
         if (!body.roleUid) {
-          res.status(400).json({ message: 'roleUid is required' });
+          res.status(400).json({
+            error: { code: 'VALIDATION', message: 'roleUid is required' },
+          });
           return;
         }
         await service.assignRoleToTeam(
@@ -417,7 +448,9 @@ export function createAccessControlRouter(
           req.params['roleUid']!,
         );
         if (!ok) {
-          res.status(404).json({ message: 'assignment not found' });
+          res.status(404).json({
+            error: { code: 'NOT_FOUND', message: 'assignment not found' },
+          });
           return;
         }
         res.status(204).send();
@@ -434,7 +467,9 @@ export function createAccessControlRouter(
       try {
         const body = req.body as { roleUids?: string[] };
         if (!Array.isArray(body.roleUids)) {
-          res.status(400).json({ message: 'roleUids must be an array' });
+          res.status(400).json({
+            error: { code: 'VALIDATION', message: 'roleUids must be an array' },
+          });
           return;
         }
         await service.setTeamRoles(
@@ -479,7 +514,12 @@ export function createAccessControlRouter(
       try {
         const action = req.query['action'];
         if (typeof action !== 'string') {
-          res.status(400).json({ message: 'action query param is required' });
+          res.status(400).json({
+            error: {
+              code: 'VALIDATION',
+              message: 'action query param is required',
+            },
+          });
           return;
         }
         const rows = await deps.permissionRepo.listByAction(action);

@@ -31,7 +31,9 @@ export function createOrgContextMiddleware(deps: OrgContextMiddlewareDeps) {
     next: NextFunction,
   ): Promise<void> {
     if (!req.auth) {
-      res.status(401).json({ message: 'authentication required' });
+      res.status(401).json({
+        error: { code: 'UNAUTHORIZED', message: 'authentication required' },
+      });
       return;
     }
 
@@ -48,7 +50,9 @@ export function createOrgContextMiddleware(deps: OrgContextMiddlewareDeps) {
     // still requires SOME orgId resolution; the policy check about "can this
     // endpoint skip org-scoping" belongs to the handler, not here.
     if (!desired) {
-      res.status(403).json({ message: 'user is not a member of any org' });
+      res.status(403).json({
+        error: { code: 'FORBIDDEN', message: 'user is not a member of any org' },
+      });
       return;
     }
 
@@ -65,7 +69,9 @@ export function createOrgContextMiddleware(deps: OrgContextMiddlewareDeps) {
         next();
         return;
       }
-      res.status(403).json({ message: 'user is not a member of any org' });
+      res.status(403).json({
+        error: { code: 'FORBIDDEN', message: 'user is not a member of any org' },
+      });
       return;
     }
 

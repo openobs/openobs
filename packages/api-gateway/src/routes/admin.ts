@@ -48,11 +48,15 @@ function requireServerAdmin(
   res: Response,
 ): boolean {
   if (!req.auth) {
-    res.status(401).json({ message: 'authentication required' });
+    res.status(401).json({
+      error: { code: 'UNAUTHORIZED', message: 'authentication required' },
+    });
     return false;
   }
   if (!req.auth.isServerAdmin) {
-    res.status(403).json({ message: 'server admin required' });
+    res.status(403).json({
+      error: { code: 'FORBIDDEN', message: 'server admin required' },
+    });
     return false;
   }
   return true;
@@ -149,29 +153,40 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
     const isAdmin = body.isAdmin === true;
 
     if (!validEmail(email)) {
-      res.status(400).json({ message: 'valid email required' });
+      res.status(400).json({
+        error: { code: 'VALIDATION', message: 'valid email required' },
+      });
       return;
     }
     if (!login) {
-      res.status(400).json({ message: 'login required' });
+      res.status(400).json({
+        error: { code: 'VALIDATION', message: 'login required' },
+      });
       return;
     }
     const minLen = passwordMinLength(env);
     if (password.length < minLen) {
-      res
-        .status(400)
-        .json({ message: `password must be at least ${minLen} characters` });
+      res.status(400).json({
+        error: {
+          code: 'VALIDATION',
+          message: `password must be at least ${minLen} characters`,
+        },
+      });
       return;
     }
 
     // Conflict checks before the quota check (so a legitimate duplicate returns
     // 409 rather than 403).
     if (await deps.users.findByEmail(email)) {
-      res.status(409).json({ message: 'email already exists' });
+      res.status(409).json({
+        error: { code: 'CONFLICT', message: 'email already exists' },
+      });
       return;
     }
     if (await deps.users.findByLogin(login)) {
-      res.status(409).json({ message: 'login already exists' });
+      res.status(409).json({
+        error: { code: 'CONFLICT', message: 'login already exists' },
+      });
       return;
     }
 
@@ -200,7 +215,9 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
           outcome: 'failure',
           metadata: { reason: 'quota_exceeded', target: 'users', orgId },
         });
-        res.status(403).json({ message: 'Quota exceeded for users' });
+        res.status(403).json({
+          error: { code: 'QUOTA_EXCEEDED', message: 'Quota exceeded for users' },
+        });
         return;
       }
     }
@@ -252,7 +269,9 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
       const patch: Record<string, string> = {};
       if (typeof body.email === 'string' && body.email.trim() !== '') {
         if (!validEmail(body.email.trim())) {
-          res.status(400).json({ message: 'invalid email' });
+          res.status(400).json({
+            error: { code: 'VALIDATION', message: 'invalid email' },
+          });
           return;
         }
         patch['email'] = body.email.trim();
@@ -264,12 +283,19 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
         patch['login'] = body.login.trim();
       }
       if (Object.keys(patch).length === 0) {
-        res.status(400).json({ message: 'no updatable fields provided' });
+        res.status(400).json({
+          error: {
+            code: 'VALIDATION',
+            message: 'no updatable fields provided',
+          },
+        });
         return;
       }
       const updated = await deps.users.update(id, patch);
       if (!updated) {
-        res.status(404).json({ message: 'user not found' });
+        res.status(404).json({
+          error: { code: 'NOT_FOUND', message: 'user not found' },
+        });
         return;
       }
       void deps.audit.log({
@@ -293,7 +319,9 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
       const id = req.params['id'] ?? '';
       const existing = await deps.users.findById(id);
       if (!existing) {
-        res.status(404).json({ message: 'user not found' });
+        res.status(404).json({
+          error: { code: 'NOT_FOUND', message: 'user not found' },
+        });
         return;
       }
       // Refuse to delete the last server admin so the install stays
@@ -303,7 +331,10 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
         const admins = all.items.filter((u) => u.isAdmin && !u.isDisabled);
         if (admins.length <= 1) {
           res.status(400).json({
-            message: 'cannot delete the last server admin',
+            error: {
+              code: 'LAST_SERVER_ADMIN',
+              message: 'cannot delete the last server admin',
+            },
           });
           return;
         }
@@ -332,14 +363,19 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
       const password = typeof body.password === 'string' ? body.password : '';
       const minLen = passwordMinLength(env);
       if (password.length < minLen) {
-        res
-          .status(400)
-          .json({ message: `password must be at least ${minLen} characters` });
+        res.status(400).json({
+          error: {
+            code: 'VALIDATION',
+            message: `password must be at least ${minLen} characters`,
+          },
+        });
         return;
       }
       const existing = await deps.users.findById(id);
       if (!existing) {
-        res.status(404).json({ message: 'user not found' });
+        res.status(404).json({
+          error: { code: 'NOT_FOUND', message: 'user not found' },
+        });
         return;
       }
       const hashed = await hashPassword(password);
@@ -366,14 +402,19 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
       const id = req.params['id'] ?? '';
       const body = (req.body ?? {}) as { isServerAdmin?: boolean };
       if (typeof body.isServerAdmin !== 'boolean') {
-        res
-          .status(400)
-          .json({ message: 'isServerAdmin boolean required' });
+        res.status(400).json({
+          error: {
+            code: 'VALIDATION',
+            message: 'isServerAdmin boolean required',
+          },
+        });
         return;
       }
       const existing = await deps.users.findById(id);
       if (!existing) {
-        res.status(404).json({ message: 'user not found' });
+        res.status(404).json({
+          error: { code: 'NOT_FOUND', message: 'user not found' },
+        });
         return;
       }
       // Prevent demoting the last server admin.
@@ -382,7 +423,10 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
         const admins = all.items.filter((u) => u.isAdmin && !u.isDisabled);
         if (admins.length <= 1) {
           res.status(400).json({
-            message: 'cannot demote the last server admin',
+            error: {
+              code: 'LAST_SERVER_ADMIN',
+              message: 'cannot demote the last server admin',
+            },
           });
           return;
         }

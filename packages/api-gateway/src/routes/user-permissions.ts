@@ -22,7 +22,9 @@ export function createUserPermissionsRouter(ac: AccessControlService): Router {
 
   router.get('/permissions', async (req: AuthenticatedRequest, res: Response) => {
     if (!req.auth) {
-      res.status(401).json({ message: 'authentication required' });
+      res.status(401).json({
+        error: { code: 'UNAUTHORIZED', message: 'authentication required' },
+      });
       return;
     }
     try {
@@ -30,7 +32,10 @@ export function createUserPermissionsRouter(ac: AccessControlService): Router {
       res.json(permissionsAsMap(perms));
     } catch (err) {
       res.status(500).json({
-        message: err instanceof Error ? err.message : 'internal error',
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: err instanceof Error ? err.message : 'internal error',
+        },
       });
     }
   });

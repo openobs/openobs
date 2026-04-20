@@ -42,7 +42,7 @@ export function createInvestigationReportRouter(
     const id = req.params['id'] ?? '';
     const report = await store.findById(id);
     if (!report) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Investigation report not found' });
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Investigation report not found' } });
       return;
     }
     res.json(report);
@@ -53,7 +53,7 @@ export function createInvestigationReportRouter(
     const id = req.params['id'] ?? '';
     const deleted = await store.delete(id);
     if (!deleted) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Investigation report not found' });
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Investigation report not found' } });
       return;
     }
     res.json({ ok: true });

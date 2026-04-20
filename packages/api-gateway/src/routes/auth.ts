@@ -119,7 +119,9 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
     const user = body.user;
     const password = body.password;
     if (!user || !password) {
-      res.status(400).json({ message: 'user and password are required' });
+      res.status(400).json({
+        error: { code: 'VALIDATION', message: 'user and password are required' },
+      });
       return;
     }
     // Service-account login guard (T6). The local-provider already rejects
@@ -143,7 +145,10 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
           metadata: { reason: 'service_account_login' },
         });
         res.status(403).json({
-          message: 'service accounts cannot log in interactively',
+          error: {
+            code: 'FORBIDDEN',
+            message: 'service accounts cannot log in interactively',
+          },
         });
         return;
       }
@@ -221,14 +226,18 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
           });
           return;
         }
-        res.status(err.statusCode).json({ message: err.message });
+        res.status(err.statusCode).json({
+          error: { code: err.kind.toUpperCase(), message: err.message },
+        });
         return;
       }
       log.error(
         { err: err instanceof Error ? err.message : err },
         'login failed',
       );
-      res.status(500).json({ message: 'internal auth error' });
+      res.status(500).json({
+        error: { code: 'INTERNAL_ERROR', message: 'internal auth error' },
+      });
     }
   });
 
@@ -238,15 +247,20 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
     try {
       const p = getOAuthProvider(deps, provider);
       if (!p) {
-        res
-          .status(404)
-          .json({ message: `provider ${provider} is not configured` });
+        res.status(404).json({
+          error: {
+            code: 'PROVIDER_NOT_CONFIGURED',
+            message: `provider ${provider} is not configured`,
+          },
+        });
         return;
       }
       const { url, state } = p.authorizeUrl();
       const moduleName = providerModule(provider);
       if (!moduleName) {
-        res.status(400).json({ message: 'invalid provider' });
+        res.status(400).json({
+          error: { code: 'INVALID_PROVIDER', message: 'invalid provider' },
+        });
         return;
       }
       res.setHeader(
@@ -259,7 +273,9 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
         { err: err instanceof Error ? err.message : err, provider },
         'oauth start failed',
       );
-      res.status(500).json({ message: 'internal auth error' });
+      res.status(500).json({
+        error: { code: 'INTERNAL_ERROR', message: 'internal auth error' },
+      });
     }
   });
 
@@ -269,12 +285,19 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
     const code = req.query['code'];
     const state = req.query['state'];
     if (typeof code !== 'string' || typeof state !== 'string') {
-      res.status(400).json({ message: 'code and state are required' });
+      res.status(400).json({
+        error: { code: 'VALIDATION', message: 'code and state are required' },
+      });
       return;
     }
     const p = getOAuthProvider(deps, provider);
     if (!p) {
-      res.status(404).json({ message: 'provider not configured' });
+      res.status(404).json({
+        error: {
+          code: 'PROVIDER_NOT_CONFIGURED',
+          message: 'provider not configured',
+        },
+      });
       return;
     }
     try {
@@ -310,14 +333,18 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
       res.redirect('/');
     } catch (err) {
       if (err instanceof AuthError) {
-        res.status(err.statusCode).json({ message: err.message });
+        res.status(err.statusCode).json({
+          error: { code: err.kind.toUpperCase(), message: err.message },
+        });
         return;
       }
       log.error(
         { err: err instanceof Error ? err.message : err, provider },
         'oauth callback failed',
       );
-      res.status(500).json({ message: 'internal auth error' });
+      res.status(500).json({
+        error: { code: 'INTERNAL_ERROR', message: 'internal auth error' },
+      });
     }
   });
 
@@ -351,12 +378,19 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
   // SAML endpoints (501 when not configured).
   router.get('/saml/metadata', async (_req: Request, res: Response) => {
     if (!deps.saml) {
-      res.status(501).json({ message: 'SAML not configured' });
+      res.status(501).json({
+        error: { code: 'SAML_NOT_CONFIGURED', message: 'SAML not configured' },
+      });
       return;
     }
     const xml = await deps.saml.metadata();
     if (!xml) {
-      res.status(501).json({ message: 'SAML toolkit unavailable' });
+      res.status(501).json({
+        error: {
+          code: 'SAML_TOOLKIT_UNAVAILABLE',
+          message: 'SAML toolkit unavailable',
+        },
+      });
       return;
     }
     res.setHeader('Content-Type', 'application/xml');
@@ -365,7 +399,9 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
 
   router.get('/saml/login', async (req: Request, res: Response) => {
     if (!deps.saml) {
-      res.status(501).json({ message: 'SAML not configured' });
+      res.status(501).json({
+        error: { code: 'SAML_NOT_CONFIGURED', message: 'SAML not configured' },
+      });
       return;
     }
     const url = await deps.saml.loginRedirectUrl(
@@ -374,7 +410,12 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
         : undefined,
     );
     if (!url) {
-      res.status(501).json({ message: 'SAML toolkit unavailable' });
+      res.status(501).json({
+        error: {
+          code: 'SAML_TOOLKIT_UNAVAILABLE',
+          message: 'SAML toolkit unavailable',
+        },
+      });
       return;
     }
     res.redirect(url);
@@ -382,7 +423,9 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
 
   router.post('/saml/acs', async (req: Request, res: Response) => {
     if (!deps.saml) {
-      res.status(501).json({ message: 'SAML not configured' });
+      res.status(501).json({
+        error: { code: 'SAML_NOT_CONFIGURED', message: 'SAML not configured' },
+      });
       return;
     }
     try {
@@ -390,7 +433,12 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
         req.body as Record<string, string | undefined>,
       );
       if (!out) {
-        res.status(501).json({ message: 'SAML toolkit unavailable' });
+        res.status(501).json({
+        error: {
+          code: 'SAML_TOOLKIT_UNAVAILABLE',
+          message: 'SAML toolkit unavailable',
+        },
+      });
         return;
       }
       const session = await deps.sessions.create(
@@ -413,23 +461,34 @@ export function createAuthRouter(deps: AuthRouterDeps): Router {
       res.redirect('/');
     } catch (err) {
       if (err instanceof AuthError) {
-        res.status(err.statusCode).json({ message: err.message });
+        res.status(err.statusCode).json({
+          error: { code: err.kind.toUpperCase(), message: err.message },
+        });
         return;
       }
       log.error(
         { err: err instanceof Error ? err.message : err },
         'saml acs failed',
       );
-      res.status(500).json({ message: 'internal auth error' });
+      res.status(500).json({
+        error: { code: 'INTERNAL_ERROR', message: 'internal auth error' },
+      });
     }
   });
 
   router.get('/saml/slo', async (_req: Request, res: Response) => {
     if (!deps.saml) {
-      res.status(501).json({ message: 'SAML not configured' });
+      res.status(501).json({
+        error: { code: 'SAML_NOT_CONFIGURED', message: 'SAML not configured' },
+      });
       return;
     }
-    res.status(501).json({ message: 'SAML SLO requires per-session context' });
+    res.status(501).json({
+      error: {
+        code: 'SAML_SLO_REQUIRES_SESSION',
+        message: 'SAML SLO requires per-session context',
+      },
+    });
   });
 
   router.post('/saml/slo/callback', (_req: Request, res: Response) => {

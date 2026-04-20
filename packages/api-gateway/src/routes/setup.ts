@@ -340,11 +340,18 @@ function createRequireSetupAccess(deps: SetupRouterDeps) {
           next();
           return;
         }
-        res.status(401).json({ message: 'authentication required' });
+        res.status(401).json({
+          error: { code: 'UNAUTHORIZED', message: 'authentication required' },
+        });
       })
       .catch((err) => {
         log.error({ err }, 'requireSetupAccess: bootstrap check failed');
-        res.status(500).json({ message: 'setup gate unavailable' });
+        res.status(500).json({
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'setup gate unavailable',
+          },
+        });
       });
   };
 }
@@ -397,7 +404,9 @@ export function createSetupRouter(deps: SetupRouterDeps): Router {
       });
     } catch (err) {
       log.error({ err }, 'setup status failed');
-      res.status(500).json({ message: 'setup status unavailable' });
+      res.status(500).json({
+        error: { code: 'INTERNAL_ERROR', message: 'setup status unavailable' },
+      });
     }
   });
 
@@ -405,7 +414,9 @@ export function createSetupRouter(deps: SetupRouterDeps): Router {
   // marker on success (T2.7), which permanently closes the setup gate.
   router.post('/admin', loginRateLimiter, async (req: Request, res: Response) => {
     if (await setupConfig.isBootstrapped()) {
-      res.status(409).json({ message: 'admin already exists' });
+      res.status(409).json({
+        error: { code: 'CONFLICT', message: 'admin already exists' },
+      });
       return;
     }
     const body = (req.body ?? {}) as {
@@ -423,21 +434,32 @@ export function createSetupRouter(deps: SetupRouterDeps): Router {
     const password = typeof body.password === 'string' ? body.password : '';
     const atIdx = email.indexOf('@');
     if (atIdx < 1 || atIdx === email.length - 1 || !email.slice(atIdx + 1).includes('.')) {
-      res.status(400).json({ message: 'valid email required' });
+      res.status(400).json({
+        error: { code: 'VALIDATION', message: 'valid email required' },
+      });
       return;
     }
     if (!name) {
-      res.status(400).json({ message: 'name required' });
+      res.status(400).json({
+        error: { code: 'VALIDATION', message: 'name required' },
+      });
       return;
     }
     if (!login) {
-      res.status(400).json({ message: 'login required' });
+      res.status(400).json({
+        error: { code: 'VALIDATION', message: 'login required' },
+      });
       return;
     }
     const env = process.env;
     const minLen = passwordMinLength(env);
     if (password.length < minLen) {
-      res.status(400).json({ message: `password must be at least ${minLen} characters` });
+      res.status(400).json({
+        error: {
+          code: 'VALIDATION',
+          message: `password must be at least ${minLen} characters`,
+        },
+      });
       return;
     }
     const orgId = deps.defaultOrgId ?? 'org_main';
@@ -508,7 +530,9 @@ export function createSetupRouter(deps: SetupRouterDeps): Router {
       });
     } catch (err) {
       log.error({ err }, 'GET /api/setup/config failed');
-      res.status(500).json({ message: 'config read failed' });
+      res.status(500).json({
+        error: { code: 'INTERNAL_ERROR', message: 'config read failed' },
+      });
     }
   });
 

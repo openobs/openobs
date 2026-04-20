@@ -29,7 +29,7 @@ async function handleChatStream(
   // req.auth is guaranteed by authMiddleware above — if it's missing, the
   // middleware already short-circuited with 401 and we would not be here.
   if (!req.auth) {
-    res.status(401).json({ message: 'authentication required' });
+    res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'authentication required' } });
     return;
   }
 
@@ -87,7 +87,7 @@ export function createChatRouter(deps: ChatServiceDeps): ExpressRouter {
     try {
       const body = req.body as { message?: string; sessionId?: string; pageContext?: { kind: string; id?: string } };
       if (typeof body.message !== 'string' || body.message.trim() === '') {
-        res.status(400).json({ code: 'INVALID_INPUT', message: 'message is required and must be a non-empty string' });
+        res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'message is required and must be a non-empty string' } });
         return;
       }
 
@@ -126,7 +126,7 @@ export function createChatRouter(deps: ChatServiceDeps): ExpressRouter {
     try {
       const sessionId = req.params['id'] ?? '';
       if (!sessionId) {
-        res.status(400).json({ code: 'INVALID_INPUT', message: 'session id is required' });
+        res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'session id is required' } });
         return;
       }
 
@@ -147,7 +147,7 @@ export function createChatRouter(deps: ChatServiceDeps): ExpressRouter {
     try {
       const sessionId = req.params['sessionId'] ?? '';
       if (!sessionId) {
-        res.status(400).json({ code: 'INVALID_INPUT', message: 'sessionId is required' });
+        res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'sessionId is required' } });
         return;
       }
 
