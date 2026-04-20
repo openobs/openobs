@@ -85,6 +85,11 @@ export async function handleDashboardCreate(
     userId: 'agent',
     datasourceIds: [],
     sessionId: ctx.sessionId,
+    // Scope the new dashboard to the caller's org; the detail route
+    // enforces workspaceId equality, so missing this field makes the
+    // redirect land on "Dashboard not found" even though the row is in
+    // the store. The non-agent POST /dashboards path already does this.
+    workspaceId: ctx.identity.orgId,
   })
 
   // Navigate to the new dashboard so the user can see panels being added
