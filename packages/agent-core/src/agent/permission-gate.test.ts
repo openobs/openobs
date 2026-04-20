@@ -34,9 +34,11 @@ const writeAgent: AgentDefinition = {
   permissionMode: 'artifact_mutation',
 };
 
+// Layer-2 test fixture. `type` just needs to be a valid AgentType — the
+// real Layer-2 enforcement keys on permissionMode, not the name.
 const readOnlyAgent: AgentDefinition = {
   ...writeAgent,
-  type: 'readonly-analyst',
+  type: 'orchestrator',
   permissionMode: 'read_only',
 };
 

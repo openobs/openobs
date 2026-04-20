@@ -3,6 +3,20 @@
 **Applies to:** Wave 7 / Tasks T10.1 – T10.9
 **Grafana reference:** N/A — Grafana has no agent layer. This is openobs-native design.
 
+> **Status update (2026-04-19):** the three-layer gate (Layer 1 allowedTools,
+> Layer 2 permissionMode, Layer 3 RBAC) is live and unchanged. However, the
+> **specialized-agents-per-page dispatch** described below (dashboard-assistant
+> / alert-advisor / incident-responder / readonly-analyst) has been removed.
+> openobs runs a **single full-capability agent** (`orchestrator`) for every
+> chat surface regardless of page context. Layer 1 still exists — the
+> orchestrator's own `allowedTools` is the ceiling — but we no longer narrow
+> it per page. The product model is Claude-Code-like: one agent, full kit,
+> RBAC does the filtering.
+>
+> References to "dashboard-assistant", "alert-advisor", etc. below describe a
+> design that was implemented and then rolled back; keep them for context but
+> don't treat them as the current shape.
+
 ## Problem
 
 Waves 1–6 built Grafana-parity RBAC on the **HTTP boundary**. Any request that

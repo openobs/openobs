@@ -1,12 +1,7 @@
 export type AgentType =
   | 'orchestrator'
   | 'alert-rule-builder'
-  | 'verification'
-  // Wave 7 specialized agents — tighter allowedTools ceilings.
-  | 'readonly-analyst'
-  | 'dashboard-assistant'
-  | 'alert-advisor'
-  | 'incident-responder';
+  | 'verification';
 
 export type AgentToolName =
   // Dashboard lifecycle

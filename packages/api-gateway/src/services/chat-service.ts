@@ -52,24 +52,24 @@ export interface ChatServiceDeps {
 }
 
 /**
- * Pick the narrowest specialized agent type given a page context.
- * Falls back to `orchestrator` when no tighter ceiling applies. Specialized
- * types enforce Layer 1 of the permission gate (AgentDef.allowedTools), so a
- * chat panel opened on a dashboard page cannot, say, create alert rules even
- * if the user would otherwise have permission — the tool isn't in the
- * agent's capability ceiling.
+ * openobs runs a single full-capability agent (`orchestrator`) for every
+ * chat, regardless of the page the user started from. Early Wave 7
+ * thinking had four specialized agents (dashboard-assistant,
+ * alert-advisor, incident-responder, readonly-analyst) with narrower
+ * `allowedTools` ceilings, but that kept biting user intent — "why is
+ * latency high" on a dashboard page would pick dashboard-assistant,
+ * which lacks `investigation.create`, so the agent narrated a bogus
+ * "I don't have permission" even when the caller was an Admin.
+ *
+ * RBAC (Layer 3) still enforces who-can-do-what; the agent ceiling
+ * (Layer 1) no longer narrows by page context. `pageContext` is kept
+ * as a prompt hint — the orchestrator is still told what the user was
+ * looking at — but it no longer shrinks the tool surface.
  */
 function pickAgentTypeFromContext(
-  pageContext?: { kind: string; id?: string } | undefined,
-): 'orchestrator' | 'dashboard-assistant' | 'alert-advisor' | 'incident-responder' | 'readonly-analyst' {
-  switch (pageContext?.kind) {
-    case 'dashboard':       return 'dashboard-assistant';
-    case 'alert':
-    case 'alerts':          return 'alert-advisor';
-    case 'investigation':
-    case 'investigations':  return 'incident-responder';
-    default:                return 'orchestrator';
-  }
+  _pageContext?: { kind: string; id?: string } | undefined,
+): 'orchestrator' {
+  return 'orchestrator';
 }
 
 // Event kinds that represent transient signalling (terminator, navigation

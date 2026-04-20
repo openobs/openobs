@@ -78,7 +78,7 @@ function makeStore(dashboards: Array<{ id: string; title: string; description: s
 function build(opts: {
   llmResponses: LLMResponse[];
   accessControl?: AccessControlStub;
-  agentType?: 'orchestrator' | 'readonly-analyst' | 'dashboard-assistant' | 'alert-advisor' | 'incident-responder' | 'alert-rule-builder';
+  agentType?: 'orchestrator' | 'alert-rule-builder';
   identity?: Identity;
   dashboards?: Array<{ id: string; title: string; description: string; status: string }>;
 }) {
@@ -204,25 +204,6 @@ describe('Scenario 4 — dashboard.list filters per-row', () => {
     // The summary emitted to the event stream is "N dashboards found" in both cases,
     // but to assert filtering we check the find/list pipeline caught 3.
     expect(toolResults[0].summary).toContain('3 dashboards found');
-  });
-});
-
-describe('Scenario 6 — readonly-analyst agent + dashboard.create', () => {
-  it('denies at Layer 1 (allowedTools)', async () => {
-    const { agent, audit } = build({
-      llmResponses: [
-        asStep('attempt', 'dashboard.create', { folderUid: 'prod', title: 'x' }),
-        asStep('explain', 'finish', {}, 'I lack that tool.'),
-      ],
-      agentType: 'readonly-analyst',
-    });
-    await agent.handleMessage('Create a dashboard.');
-    const denied = (audit.entries as Array<{ action: string; metadata?: Record<string, unknown> }>).filter(
-      (e) => e.action === 'agent.tool_denied',
-    );
-    expect(denied.length).toBe(1);
-    const meta = denied[0]!.metadata as Record<string, unknown>;
-    expect(meta.denied_by).toBe('allowedTools');
   });
 });
 

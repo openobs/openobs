@@ -206,9 +206,9 @@ export class DashboardService {
       identity,
       accessControl: this.accessControl,
       ...(this.auditWriter ? { auditWriter: this.auditWriter } : {}),
-      // Dashboard-scoped chat → dashboard-assistant ceiling (no alert / user /
-      // team management from a dashboard chat panel, even for admins).
-      agentType: 'dashboard-assistant',
+      // Single full-capability agent for every chat surface — see the
+      // pickAgentTypeFromContext comment in chat-service.ts.
+      agentType: 'orchestrator',
     });
 
     log.info({ dashboardId, message: message.slice(0, 80) }, 'starting orchestrator');
