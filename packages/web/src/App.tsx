@@ -12,7 +12,6 @@ const Investigations = lazy(() => import('./pages/Investigations.js'));
 const InvestigationDetail = lazy(() => import('./pages/InvestigationDetail.js'));
 const Evidence = lazy(() => import('./pages/Evidence.js'));
 const ActionCenter = lazy(() => import('./pages/ActionCenter.js'));
-const PostMortem = lazy(() => import('./pages/PostMortem.js'));
 const SetupWizard = lazy(() => import('./pages/SetupWizard.js'));
 const Settings = lazy(() => import('./pages/Settings.js'));
 const Login = lazy(() => import('./pages/Login.js'));
@@ -157,7 +156,6 @@ export default function App() {
                     }
                   />
                   <Route path="/admin/*" element={<Admin />} />
-                  <Route path="/incidents/:id/post-mortem" element={<PostMortem />} />
                   <Route path="/dashboards" element={<Dashboards />} />
                   <Route path="/dashboards/:id" element={<DashboardWorkspace />} />
                   <Route path="/alerts" element={<Alerts />} />

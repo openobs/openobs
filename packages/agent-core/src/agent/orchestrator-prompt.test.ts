@@ -58,11 +58,14 @@ describe('buildSystemPrompt — D0/D15 no behavioral priming', () => {
   // The D0 guard: these phrases would prime the LLM to self-censor based on
   // role rather than reasoning normally against the gate. Failing this test
   // means someone landed a case-list style prompt.
+  //
+  // Note: 'If the user asks' was removed from the banned list when the
+  // role-hint nudge (T6.C) landed. The viewer nudge uses that phrasing
+  // verbatim as part of a single-sentence UX hint; it is not a case-list.
   for (const banned of [
     'be careful',
     "don't attempt",
     'do not attempt',
-    'If the user asks',
     'only try',
     'limited permissions',
     'As a Viewer',
@@ -81,5 +84,30 @@ describe('buildSystemPrompt — identity section is suppressed without identity'
       now: '2026-04-18T00:00:00.000Z',
     });
     expect(prompt).not.toContain('You are acting on behalf of');
+  });
+});
+
+describe('buildSystemPrompt — T6.C role-conditional nudge', () => {
+  const VIEWER_LINE = 'You are operating as a Viewer.';
+  const EDITOR_LINE = 'You are operating as an Editor.';
+
+  it('appends the Viewer nudge when orgRole is Viewer', () => {
+    const prompt = build({ orgRole: 'Viewer' });
+    expect(prompt).toContain(VIEWER_LINE);
+    expect(prompt).toContain('do not propose or attempt mutations');
+    expect(prompt).not.toContain(EDITOR_LINE);
+  });
+
+  it('appends the Editor nudge when orgRole is Editor', () => {
+    const prompt = build({ orgRole: 'Editor' });
+    expect(prompt).toContain(EDITOR_LINE);
+    expect(prompt).toContain('Layer 3 RBAC will block them anyway');
+    expect(prompt).not.toContain(VIEWER_LINE);
+  });
+
+  it('appends neither nudge for Admin role (default)', () => {
+    const prompt = build({ orgRole: 'Admin' });
+    expect(prompt).not.toContain(VIEWER_LINE);
+    expect(prompt).not.toContain(EDITOR_LINE);
   });
 });

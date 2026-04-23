@@ -562,7 +562,34 @@ function getIdentitySection(
   if (escalationContact && escalationContact.trim()) {
     parts.push(`Permission escalation contact: ${escalationContact.trim()}.`)
   }
+  const roleHint = getRoleHint(orgRole)
+  if (roleHint) {
+    parts.push(roleHint)
+  }
   return parts.join('\n\n')
+}
+
+/**
+ * Role-conditional UX nudge appended after the identity block. Purely advisory
+ * — RBAC Layer 3 (permission-gate.ts) remains authoritative. Defensive:
+ * missing/unknown roles return empty string so the prompt is unchanged.
+ */
+function getRoleHint(orgRole: string | undefined): string {
+  if (!orgRole) return ''
+  const role = orgRole.toLowerCase()
+  if (role === 'viewer') {
+    return (
+      `You are operating as a Viewer. Answer questions with read-only tools; do not propose or attempt mutations. ` +
+      `If the user asks for a change, explain that they lack permission and suggest contacting an editor/admin.`
+    )
+  }
+  if (role === 'editor') {
+    return (
+      `You are operating as an Editor. You may propose and perform mutations within your assigned workspace. ` +
+      `Avoid admin-only actions (instance config, user/role management) — Layer 3 RBAC will block them anyway.`
+    )
+  }
+  return ''
 }
 
 export function buildSystemPrompt(
