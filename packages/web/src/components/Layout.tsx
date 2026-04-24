@@ -10,7 +10,11 @@ function LayoutInner() {
   const location = useLocation();
   const { events, isGenerating, sendMessage, stopGeneration, pendingNavigation, clearPendingNavigation } = useGlobalChat();
 
-  const isHome = location.pathname === '/';
+  // Hide the global ChatPanel on Home and on the top-level list pages
+  // (Dashboards / Investigations / Alerts). Detail pages keep the panel
+  // because that's where a context-specific chat is actually useful.
+  const CHAT_HIDDEN_PATHS = new Set(['/', '/dashboards', '/investigations', '/alerts']);
+  const showChat = !CHAT_HIDDEN_PATHS.has(location.pathname);
 
   // Handle agent-initiated navigation
   useEffect(() => {
@@ -26,7 +30,7 @@ function LayoutInner() {
       <main className="flex-1 overflow-y-auto bg-surface-lowest">
         <Outlet />
       </main>
-      {!isHome && (
+      {showChat && (
         <ChatPanel
           events={events}
           isGenerating={isGenerating}
