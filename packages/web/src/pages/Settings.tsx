@@ -300,10 +300,7 @@ function DataSourcesTab({ canCreate, canWrite, canDelete }: { canCreate: boolean
             </svg>
           </div>
           <p className="text-sm text-[var(--color-on-surface-variant)] mb-1">No data sources yet</p>
-          <p className="text-xs text-[var(--color-outline)] mb-4">Add Prometheus, Loki, or another source to get started</p>
-          {canCreate && (
-            <button type="button" onClick={() => setShowAddForm(true)} className={btnPrimary}>Add data source</button>
-          )}
+          <p className="text-xs text-[var(--color-outline)]">Add Prometheus, Loki, or another source to get started</p>
         </div>
       )}
 
