@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client.js';
 import ConfirmDialog from '../components/ConfirmDialog.js';
 import { relativeTime } from '../utils/time.js';
+import { useAuth } from '../contexts/AuthContext.js';
 
 // Types
 
@@ -84,6 +85,8 @@ function AlertRuleRow({
   onInvestigate,
   investigating,
   navigate,
+  canWrite,
+  canDelete,
 }: {
   rule: AlertRule;
   expanded: boolean;
@@ -93,6 +96,8 @@ function AlertRuleRow({
   onInvestigate: () => void;
   investigating: boolean;
   navigate: (path: string, opts?: { state?: unknown }) => void;
+  canWrite: boolean;
+  canDelete: boolean;
 }) {
   const stateStyle = STATE_STYLES[rule.state];
   const isDisabled = rule.state === 'disabled';
@@ -249,21 +254,25 @@ function AlertRuleRow({
 
             <div className="flex-1" />
 
-            <button
-              type="button"
-              onClick={onToggleState}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-high)] transition-colors"
-            >
-              {isDisabled ? 'Enable' : 'Disable'}
-            </button>
+            {canWrite && (
+              <button
+                type="button"
+                onClick={onToggleState}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-high)] transition-colors"
+              >
+                {isDisabled ? 'Enable' : 'Disable'}
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={onDelete}
-              className="px-2.5 py-1.5 rounded-lg text-xs text-[var(--color-outline)] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors"
-            >
-              Delete
-            </button>
+            {canDelete && (
+              <button
+                type="button"
+                onClick={onDelete}
+                className="px-2.5 py-1.5 rounded-lg text-xs text-[var(--color-outline)] hover:text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors"
+              >
+                Delete
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -273,6 +282,21 @@ function AlertRuleRow({
 
 export default function Alerts() {
   const navigate = useNavigate();
+  const { user, hasPermission } = useAuth();
+  // Backend gates alert-rule CRUD with the canonical `alert.rules:*` actions
+  // (see packages/api-gateway/src/routes/alert-rules.ts). The legacy
+  // `dashboard:write` fallback was removed once the backend rename landed.
+  const canCreateRule = !!user
+    && (user.isServerAdmin
+      || hasPermission('alert.rules:create')
+      || hasPermission('alert.rules:write'));
+  const canWriteRule = !!user
+    && (user.isServerAdmin
+      || hasPermission('alert.rules:write'));
+  const canDeleteRule = !!user
+    && (user.isServerAdmin
+      || hasPermission('alert.rules:delete')
+      || hasPermission('alert.rules:write'));
   const [rules, setRules] = useState<AlertRule[]>([]);
   const [loading, setLoading] = useState(true);
   const [stateFilter, setStateFilter] = useState<AlertRuleState | 'all'>('all');
@@ -411,13 +435,15 @@ export default function Alerts() {
               {counts.pending > 0 && <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-400/15 text-amber-400">{counts.pending} pending</span>}
               {counts.normal > 0 && <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-secondary/10 text-secondary">{counts.normal} normal</span>}
             </div>
-            <button
-              type="button"
-              onClick={() => navigate('/')}
-              className="bg-primary text-on-primary-fixed px-4 py-2 rounded-lg font-semibold text-sm transition-transform active:scale-95"
-            >
-              + Create Rule
-            </button>
+            {canCreateRule && (
+              <button
+                type="button"
+                onClick={() => navigate('/')}
+                className="bg-primary text-on-primary-fixed px-4 py-2 rounded-lg font-semibold text-sm transition-transform active:scale-95"
+              >
+                + Create Rule
+              </button>
+            )}
           </div>
         </div>
 
@@ -517,7 +543,7 @@ export default function Alerts() {
             <button
               type="button"
               onClick={() => setSearchQuery('')}
-              className="mt-2 text-xs text-[var(--color-primary)] hover:text-[#A3BCFB]"
+              className="mt-2 text-xs text-[var(--color-primary)] hover:opacity-80"
             >
               Clear search
             </button>
@@ -551,6 +577,8 @@ export default function Alerts() {
                       onInvestigate={() => void handleInvestigate(rule)}
                       investigating={investigatingId === rule.id}
                       navigate={navigate}
+                      canWrite={canWriteRule}
+                      canDelete={canDeleteRule}
                     />
                   ))}
                 </div>

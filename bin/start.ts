@@ -91,6 +91,24 @@ async function main() {
     execSync('npm install', { cwd: ROOT, stdio: 'inherit' });
   }
 
+  // Build TypeScript + web bundle if api-gateway dist is missing or stale.
+  // Startup serves compiled JS, not source — skipping this on first run means
+  // `npm start` immediately crashes with "Cannot find module dist/main.js".
+  const apiMainJs = join(ROOT, 'packages', 'api-gateway', 'dist', 'main.js');
+  if (!existsSync(apiMainJs)) {
+    log('Building workspaces (first run — this can take a minute)...');
+    execSync('npm run build', { cwd: ROOT, stdio: 'inherit' });
+  }
+
+  // Dev-mode convenience: only SESSION_COOKIE_SECURE defaults here. The
+  // crypto secrets (JWT_SECRET + SECRET_KEY) are persisted on first boot
+  // by the api-gateway's bootstrap-secrets.ts — that keeps them stable
+  // across restarts and survives this script being bypassed by direct
+  // `node dist/main.js` calls.
+  if (process.env['NODE_ENV'] !== 'production' && !process.env['SESSION_COOKIE_SECURE']) {
+    process.env['SESSION_COOKIE_SECURE'] = 'false';
+  }
+
   const apiPort = await requirePort(3000);
   const webPort = await requirePort(5173);
 

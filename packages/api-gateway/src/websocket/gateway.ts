@@ -3,25 +3,36 @@ import type { Application } from 'express';
 import { Server as SocketServer } from 'socket.io';
 import type { Namespace, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
-import { createEventBusFromEnv, EventTypes } from '@agentic-obs/common';
+import { EventTypes } from '@agentic-obs/common';
+import { createEventBusFromEnv } from '@agentic-obs/common/events';
 import type { IEventBus, EventEnvelope } from '@agentic-obs/common';
-import { createLogger } from '@agentic-obs/common';
+import { createLogger } from '@agentic-obs/common/logging';
 import { getJwtSecret } from '../auth/jwt-secret.js';
-import { roleStore } from '../middleware/rbac.js';
 
 const log = createLogger('websocket-gateway');
 
 const JWT_SECRET = getJwtSecret('websocket-gateway');
 
-const VALID_API_KEYS = new Set(
-  (process.env['API_KEYS'] ?? '').split(',').map((k) => k.trim()).filter(Boolean),
-);
+// T9 / Wave 6 — the legacy `API_KEYS` env var is no longer parsed; operators
+// convert existing env keys one-shot via `POST /api/serviceaccounts/migrate`
+// and rely on the SA token middleware going forward. Leaving the set empty
+// means handshake always falls through to JWT auth, which is the only
+// supported path now.
+const VALID_API_KEYS: ReadonlySet<string> = new Set();
 
+/**
+ * Per-socket auth identity. The handshake authenticates the connection but
+ * does NOT pre-resolve a permission set: there are no per-event RBAC checks
+ * on the socket today (events are broadcast to a namespace; clients filter
+ * client-side), so eagerly resolving permissions would be dead computation.
+ *
+ * If a future feature needs to gate a socket event, fetch the caller's
+ * permissions on demand via `AccessControlService.getUserPermissions(identity)`
+ * (same surface the HTTP `requirePermission` middleware uses).
+ */
 export interface SocketAuth {
   sub: string;
   type: 'jwt' | 'apikey';
-  roles: string[];
-  permissions: string[];
 }
 
 export interface AuthenticatedSocket extends Socket {
@@ -48,9 +59,7 @@ export function authenticateHandshake(handshake: HandshakeData): SocketAuth {
           : undefined;
 
   if (apiKey && VALID_API_KEYS.has(apiKey)) {
-    const roles = ['operator'];
-    const permissions = roleStore.resolvePermissions(roles);
-    return { sub: apiKey, type: 'apikey', roles, permissions };
+    return { sub: apiKey, type: 'apikey' };
   }
 
   // JWT - from auth.token or Authorization header
@@ -66,19 +75,7 @@ export function authenticateHandshake(handshake: HandshakeData): SocketAuth {
 
   if (token) {
     const payload = jwt.verify(token, JWT_SECRET) as jwt.JwtPayload;
-    const payloadRoles = payload['roles'];
-    const payloadRole = payload['role'];
-    let roles: string[];
-    if (Array.isArray(payloadRoles) && payloadRoles.length > 0) {
-      roles = payloadRoles.map(String);
-    } else if (typeof payloadRole === 'string' && payloadRole.length > 0) {
-      roles = [payloadRole];
-    } else {
-      roles = ['viewer'];
-    }
-
-    const permissions = roleStore.resolvePermissions(roles);
-    return { sub: payload['sub'] ?? '', type: 'jwt', roles, permissions };
+    return { sub: payload['sub'] ?? '', type: 'jwt' };
   }
 
   throw new Error('Authentication required');

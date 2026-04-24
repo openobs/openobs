@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import type { Router as ExpressRouter, Request, Response, NextFunction } from 'express';
-import { createLogger } from '@agentic-obs/common';
+import { createLogger } from '@agentic-obs/common/logging';
 import type { DashboardSseEvent } from '@agentic-obs/common';
+import { ac, ACTIONS } from '@agentic-obs/common';
 import { authMiddleware } from '../middleware/auth.js';
-import { requirePermission } from '../middleware/rbac.js';
+import type { AuthenticatedRequest } from '../middleware/auth.js';
+import { createRequirePermission } from '../middleware/require-permission.js';
 import { ChatService } from '../services/chat-service.js';
 import type { ChatServiceDeps } from '../services/chat-service.js';
 
@@ -18,13 +20,20 @@ function sendSseEvent(res: Response, event: DashboardSseEvent): void {
  * (same pattern as dashboard chat-handler.ts which works correctly).
  */
 async function handleChatStream(
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   message: string,
   sessionId: string | undefined,
   pageContext: { kind: string; id?: string } | undefined,
   deps: ChatServiceDeps,
 ): Promise<void> {
+  // req.auth is guaranteed by authMiddleware above — if it's missing, the
+  // middleware already short-circuited with 401 and we would not be here.
+  if (!req.auth) {
+    res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'authentication required' } });
+    return;
+  }
+
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
@@ -45,6 +54,7 @@ async function handleChatStream(
       message,
       sessionId,
       (event) => { if (!closed) sendSseEvent(res, event); },
+      req.auth,
       pageContext,
     );
 
@@ -70,15 +80,16 @@ async function handleChatStream(
 
 export function createChatRouter(deps: ChatServiceDeps): ExpressRouter {
   const router = Router();
+  const requirePermission = createRequirePermission(deps.accessControl);
 
   router.use(authMiddleware);
 
   // POST /chat — unified session-based chat endpoint (SSE streaming)
-  router.post('/', requirePermission('dashboard:write'), async (req: Request, res: Response, next: NextFunction) => {
+  router.post('/', requirePermission(() => ac.eval(ACTIONS.ChatUse)), async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
       const body = req.body as { message?: string; sessionId?: string; pageContext?: { kind: string; id?: string } };
       if (typeof body.message !== 'string' || body.message.trim() === '') {
-        res.status(400).json({ code: 'INVALID_INPUT', message: 'message is required and must be a non-empty string' });
+        res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'message is required and must be a non-empty string' } });
         return;
       }
 
@@ -95,7 +106,7 @@ export function createChatRouter(deps: ChatServiceDeps): ExpressRouter {
   });
 
   // GET /chat/sessions — list recent chat sessions
-  router.get('/sessions', requirePermission('dashboard:read'), async (req: Request, res: Response, next: NextFunction) => {
+  router.get('/sessions', requirePermission(() => ac.eval(ACTIONS.ChatUse)), async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!deps.chatSessionStore) {
         res.json({ sessions: [] });
@@ -113,11 +124,11 @@ export function createChatRouter(deps: ChatServiceDeps): ExpressRouter {
   // a session. The `events` array lets the web client rebuild the full chat
   // panel (agent activity blocks, tool calls, panel-added notices, etc.)
   // exactly as it looked during the live run.
-  router.get('/sessions/:id/messages', requirePermission('dashboard:read'), async (req: Request, res: Response, next: NextFunction) => {
+  router.get('/sessions/:id/messages', requirePermission(() => ac.eval(ACTIONS.ChatUse)), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const sessionId = req.params['id'] ?? '';
       if (!sessionId) {
-        res.status(400).json({ code: 'INVALID_INPUT', message: 'session id is required' });
+        res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'session id is required' } });
         return;
       }
 
@@ -134,11 +145,11 @@ export function createChatRouter(deps: ChatServiceDeps): ExpressRouter {
   });
 
   // GET /chat/:sessionId — retrieve conversation history for a session (legacy)
-  router.get('/:sessionId', requirePermission('dashboard:read'), async (req: Request, res: Response, next: NextFunction) => {
+  router.get('/:sessionId', requirePermission(() => ac.eval(ACTIONS.ChatUse)), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const sessionId = req.params['sessionId'] ?? '';
       if (!sessionId) {
-        res.status(400).json({ code: 'INVALID_INPUT', message: 'sessionId is required' });
+        res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'sessionId is required' } });
         return;
       }
 

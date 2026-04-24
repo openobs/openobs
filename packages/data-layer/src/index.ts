@@ -17,6 +17,19 @@ export * from './cache/index.js';
 // ── Repository interfaces ────────────────────────────────────────────────
 export * from './repository/index.js';
 
+// ── Auth / permissions repositories (Grafana-parity, Wave 1) ────────────
+export * from './repository/auth/index.js';
+
+// ── RBAC seed (Grafana-parity, Wave 2 / T3.1) ───────────────────────────
+// Populates `role`, `permission`, `builtin_role` with the action catalog's
+// built-in + fixed roles. Consumed by the bootstrap flow and by admin
+// `POST /api/access-control/seed`.
+export { seedRbacForOrg, type SeedRbacResult } from './seed/rbac-seed.js';
+
+// ── Test fixtures & in-memory DB helper (exported so other workspaces can
+// ── use them in integration tests).
+export * from './test-support/index.js';
+
 // ── Store implementations ────────────────────────────────────────────────
 // Re-exported selectively to avoid name conflicts with repository types.
 // For the full store API, import from '@agentic-obs/data-layer/stores'.
@@ -96,9 +109,7 @@ export {
   defaultFolderStore,
   type Folder,
 
-  // Workspace
-  WorkspaceStore,
-  defaultWorkspaceStore,
+  // Workspace: removed in T9 cutover; use OrgRepository.
 
   // Version
   VersionStore,

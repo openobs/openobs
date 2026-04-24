@@ -1,66 +1,101 @@
-import type { Request, Response, NextFunction } from 'express'
-import jwt from 'jsonwebtoken'
-import type { ApiError } from '@agentic-obs/common'
-import { createLogger } from '@agentic-obs/common'
-import { getJwtSecret } from '../auth/jwt-secret.js'
-import { roleStore } from './rbac.js'
+/**
+ * Authentication middleware.
+ *
+ * Resolves a request into `req.auth: Identity` by trying, in order:
+ *   1. Cookie session (`openobs_session`) → SessionService lookup.
+ *   2. Bearer token / x-api-key → ApiKeyRepository.
+ *
+ * On success, populates `req.auth` per docs/auth-perm-design/02-authentication.md
+ * §identity-model. On failure, returns 401 with the canonical
+ * `{ error: { code, message } }` envelope (see `error-handler.ts`).
+ *
+ * The old JWT / in-memory auth path is removed by design — Wave 6 handles
+ * any back-compat concerns; do not reintroduce shims here.
+ */
 
-const log = createLogger('auth')
+import type { NextFunction, Request, Response } from 'express';
+import { createHash } from 'node:crypto';
+import type {
+  Identity,
+  IApiKeyRepository,
+  IOrgUserRepository,
+  IUserRepository,
+} from '@agentic-obs/common';
+import { createLogger } from '@agentic-obs/common/logging';
+import type { SessionService } from '../auth/session-service.js';
+import {
+  SESSION_COOKIE_NAME,
+} from '../auth/session-service.js';
+import type { ApiKeyService } from '../services/apikey-service.js';
+
+const log = createLogger('auth-mw');
 
 export interface AuthenticatedRequest extends Request {
-  auth?: {
-    sub: string
-    type: 'jwt' | 'apikey'
-    roles?: string[]
-    permissions?: string[]
+  auth?: Identity;
+}
+
+export interface AuthMiddlewareDeps {
+  sessions: SessionService;
+  users: IUserRepository;
+  orgUsers: IOrgUserRepository;
+  apiKeys: IApiKeyRepository;
+  /**
+   * ApiKeyService path (T6.3). When provided, the bearer-token branch goes
+   * through `validateAndLookup` — which honours SA vs PAT, applies
+   * rate-limited `apikey.used` audit, and enforces `is_disabled` on the
+   * principal. When absent, the middleware falls back to the raw-repo path
+   * used by pre-T6 test harnesses.
+   */
+  apiKeyService?: ApiKeyService;
+}
+
+/** Read a cookie value by name from the raw Cookie header. */
+export function readCookie(
+  cookieHeader: string | undefined,
+  name: string,
+): string | null {
+  if (!cookieHeader) return null;
+  for (const part of cookieHeader.split(';')) {
+    const [k, ...rest] = part.trim().split('=');
+    if (k === name) return rest.join('=') || null;
   }
+  return null;
 }
 
-const JWT_SECRET = getJwtSecret('auth')
-
-const VALID_API_KEYS = new Set(
-  (process.env['API_KEYS'] ?? '').split(',').map((k) => k.trim()).filter(Boolean),
-)
-const DEV_AUTH_BYPASS_ENABLED =
-  process.env['NODE_ENV'] !== 'production' && process.env['DEV_AUTH_BYPASS'] === 'true'
-
-if (DEV_AUTH_BYPASS_ENABLED) {
-  log.warn('DEV_AUTH_BYPASS=true; unauthenticated requests will be allowed in this process')
+function bearerToken(req: Request): string | null {
+  const h = req.headers['authorization'];
+  if (typeof h === 'string' && h.startsWith('Bearer ')) {
+    return h.slice('Bearer '.length).trim();
+  }
+  const xkey = req.headers['x-api-key'];
+  if (typeof xkey === 'string' && xkey.length > 0) return xkey;
+  return null;
 }
 
-function resolveRoleInfo(
+function hashApiKey(plaintext: string): string {
+  return createHash('sha256').update(plaintext, 'utf8').digest('hex');
+}
+
+// — Module-level middleware singleton ——————————————————————————
+//
+// Several existing route files import a default `authMiddleware` function.
+// Rather than rewriting every one of them (outside T2 scope), we expose a
+// lazy wrapper that delegates to the middleware built by `createAuthMiddleware`.
+// `server.ts` registers the real implementation at boot via `setAuthMiddleware`.
+//
+// When no implementation has been registered yet, the wrapper 503s — never
+// fall through to a permissive default.
+
+type MW = (
   req: AuthenticatedRequest,
-  jwtPayload?: jwt.JwtPayload,
-): { roles: string[], permissions: string[] } {
-  let roles: string[]
-  if (jwtPayload) {
-    // JWT: read `roles` (array) or `role` (string) from token payload;
-    // fall back to `viewer` so JWTs without explicit roles get read-only access.
-    const payloadRoles = jwtPayload['roles']
-    const payloadRole = jwtPayload['role']
-    if (Array.isArray(payloadRoles) && payloadRoles.length > 0) {
-      roles = payloadRoles.map(String)
-    }
-    else if (typeof payloadRole === 'string' && payloadRole.length > 0) {
-      roles = [payloadRole]
-    }
-    else {
-      // Allow x-user-role header as a dev-time override (non-production + DEV_ROLE_OVERRIDE=true only)
-      const roleOverrideEnabled = process.env['NODE_ENV'] !== 'production' && process.env['DEV_ROLE_OVERRIDE'] === 'true'
-      const headerRole = roleOverrideEnabled ? req.headers['x-user-role'] : undefined
-      roles = [typeof headerRole === 'string' && headerRole.length > 0 ? headerRole : 'viewer']
-    }
-  }
-  else {
-    // API key: default to `operator` (service-to-service calls)
-    // x-user-role override only permitted outside production with DEV_ROLE_OVERRIDE=true
-    const roleOverrideEnabled = process.env['NODE_ENV'] !== 'production' && process.env['DEV_ROLE_OVERRIDE'] === 'true'
-    const headerRole = roleOverrideEnabled ? req.headers['x-user-role'] : undefined
-    roles = [typeof headerRole === 'string' && headerRole.length > 0 ? headerRole : 'operator']
-  }
+  res: Response,
+  next: NextFunction,
+) => Promise<void> | void;
 
-  const permissions = roleStore.resolvePermissions(roles)
-  return { roles, permissions }
+let resolvedMiddleware: MW | null = null;
+
+export function setAuthMiddleware(mw: MW): void {
+  resolvedMiddleware = mw;
 }
 
 export function authMiddleware(
@@ -68,49 +103,169 @@ export function authMiddleware(
   res: Response,
   next: NextFunction,
 ): void {
-  const authHeader = req.headers['authorization']
-  const apiKeyHeader = process.env['API_KEY_HEADER'] ?? 'x-api-key'
-  const apiKey = req.headers[apiKeyHeader]
+  if (!resolvedMiddleware) {
+    res.status(503).json({
+      error: { code: 'SERVICE_UNAVAILABLE', message: 'auth subsystem not initialised' },
+    });
+    return;
+  }
+  void resolvedMiddleware(req, res, next);
+}
 
-  // API Key auth
-  if (typeof apiKey === 'string' && apiKey.length > 0) {
-    if (VALID_API_KEYS.has(apiKey)) {
-      const { roles, permissions } = resolveRoleInfo(req)
-      req.auth = { sub: apiKey, type: 'apikey', roles, permissions }
-      next()
-      return
+export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
+  return async function authMiddleware(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    const cookieHeader = req.headers['cookie'];
+    const rawSessionToken = readCookie(cookieHeader, SESSION_COOKIE_NAME);
+
+    // 1. Cookie session.
+    if (rawSessionToken) {
+      try {
+        const row = await deps.sessions.lookupByToken(rawSessionToken);
+        if (!row) {
+          res.status(401).json({
+            error: { code: 'SESSION_EXPIRED', message: 'session expired' },
+          });
+          return;
+        }
+        const user = await deps.users.findById(row.userId);
+        if (!user || user.isDisabled) {
+          res.status(401).json({
+            error: { code: 'USER_DISABLED', message: 'user disabled' },
+          });
+          return;
+        }
+        const membership = await deps.orgUsers.findMembership(
+          user.orgId,
+          user.id,
+        );
+        req.auth = {
+          userId: user.id,
+          orgId: user.orgId,
+          orgRole: membership?.role ?? 'None',
+          isServerAdmin: user.isAdmin,
+          authenticatedBy: 'session',
+          sessionId: row.id,
+        };
+        // Best-effort markSeen — swallow errors so we never 500 on a
+        // transient write failure.
+        deps.sessions.markSeen(row.id).catch((err) => {
+          log.debug(
+            { err: err instanceof Error ? err.message : err },
+            'markSeen failed',
+          );
+        });
+        next();
+        return;
+      } catch (err) {
+        log.error(
+          { err: err instanceof Error ? err.message : err },
+          'session lookup failed',
+        );
+        res.status(500).json({
+          error: { code: 'INTERNAL_ERROR', message: 'internal auth error' },
+        });
+        return;
+      }
     }
 
-    const error: ApiError = { code: 'INVALID_API_KEY', message: 'Invalid API key' }
-    res.status(401).json(error)
-    return
-  }
+    // 2. Bearer / API-key.
+    const token = bearerToken(req);
+    if (token) {
+      try {
+        // Preferred path: T6.3 ApiKeyService — runs SA / PAT validation,
+        // checks principal.is_disabled, and emits rate-limited `apikey.used`.
+        if (deps.apiKeyService) {
+          const lookup = await deps.apiKeyService.validateAndLookup(token);
+          if (!lookup) {
+            res.status(401).json({
+              error: { code: 'INVALID_API_KEY', message: 'invalid api key' },
+            });
+            return;
+          }
+          req.auth = {
+            userId: lookup.user.id,
+            orgId: lookup.orgId,
+            orgRole: lookup.role,
+            isServerAdmin: lookup.isServerAdmin,
+            authenticatedBy: 'api_key',
+            serviceAccountId: lookup.serviceAccountId ?? undefined,
+            sessionId: undefined,
+          };
+          next();
+          return;
+        }
 
-  // JWT auth
-  if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.slice(7)
-    try {
-      const payload = jwt.verify(token, JWT_SECRET) as jwt.JwtPayload
-      const { roles, permissions } = resolveRoleInfo(req, payload)
-      req.auth = { sub: payload['sub'] ?? '', type: 'jwt', roles, permissions }
-      next()
-      return
+        // Fallback: direct-repo lookup for pre-T6 test harnesses.
+        const hashed = hashApiKey(token);
+        const row = await deps.apiKeys.findByHashedKey(hashed);
+        if (!row) {
+          res.status(401).json({
+            error: { code: 'INVALID_API_KEY', message: 'invalid api key' },
+          });
+          return;
+        }
+        if (row.expires && Date.parse(row.expires) < Date.now()) {
+          res.status(401).json({
+            error: { code: 'API_KEY_EXPIRED', message: 'api key expired' },
+          });
+          return;
+        }
+        deps.apiKeys
+          .touchLastUsed(row.id, new Date().toISOString())
+          .catch((err) => {
+            log.debug(
+              { err: err instanceof Error ? err.message : err },
+              'touchLastUsed failed',
+            );
+          });
+        const principalId = row.serviceAccountId ?? row.ownerUserId ?? '';
+        let orgRole: Identity['orgRole'] = 'None';
+        let isServerAdmin = false;
+        if (principalId) {
+          const principal = await deps.users.findById(principalId);
+          if (!principal || principal.isDisabled) {
+            res.status(401).json({
+              error: { code: 'USER_DISABLED', message: 'principal disabled' },
+            });
+            return;
+          }
+          isServerAdmin = principal.isAdmin;
+        }
+        if (principalId) {
+          const membership = await deps.orgUsers.findMembership(
+            row.orgId,
+            principalId,
+          );
+          if (membership) orgRole = membership.role;
+        }
+        req.auth = {
+          userId: principalId,
+          orgId: row.orgId,
+          orgRole,
+          isServerAdmin,
+          authenticatedBy: 'api_key',
+          serviceAccountId: row.serviceAccountId ?? undefined,
+        };
+        next();
+        return;
+      } catch (err) {
+        log.error(
+          { err: err instanceof Error ? err.message : err },
+          'api key lookup failed',
+        );
+        res.status(500).json({
+          error: { code: 'INTERNAL_ERROR', message: 'internal auth error' },
+        });
+        return;
+      }
     }
-    catch {
-      const error: ApiError = { code: 'INVALID_TOKEN', message: 'Invalid or expired token' }
-      res.status(401).json(error)
-      return
-    }
-  }
 
-  // Development bypass must be explicitly enabled to avoid accidentally exposing routes.
-  if (DEV_AUTH_BYPASS_ENABLED) {
-    const { roles, permissions } = resolveRoleInfo(req)
-    req.auth = { sub: 'anonymous-dev', type: 'apikey', roles, permissions }
-    next()
-    return
-  }
-
-  const error: ApiError = { code: 'UNAUTHORIZED', message: 'Authentication required' }
-  res.status(401).json(error)
+    res.status(401).json({
+      error: { code: 'UNAUTHORIZED', message: 'authentication required' },
+    });
+  };
 }

@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext.js';
+import { ThemeProvider } from './contexts/ThemeContext.js';
 import Layout from './components/Layout.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { apiClient } from './api/client.js';
@@ -11,7 +12,6 @@ const Investigations = lazy(() => import('./pages/Investigations.js'));
 const InvestigationDetail = lazy(() => import('./pages/InvestigationDetail.js'));
 const Evidence = lazy(() => import('./pages/Evidence.js'));
 const ActionCenter = lazy(() => import('./pages/ActionCenter.js'));
-const PostMortem = lazy(() => import('./pages/PostMortem.js'));
 const SetupWizard = lazy(() => import('./pages/SetupWizard.js'));
 const Settings = lazy(() => import('./pages/Settings.js'));
 const Login = lazy(() => import('./pages/Login.js'));
@@ -28,48 +28,105 @@ function RouteFallback() {
   );
 }
 
-// Redirect to /setup on first visit if not yet configured
+// Redirect to /setup when the instance has either no platform config OR
+// no administrator yet. Both paths lead to the Setup Wizard — Wave 6
+// added the "Create administrator" step so a first-run instance lands
+// there regardless of which half is missing.
 function SetupGuard({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    if (location.pathname === '/setup') {
+    // /login stays open unconditionally — users sign in from there.
+    if (location.pathname === '/login') {
       setChecked(true);
       return;
     }
 
-    void apiClient.get<{ configured: boolean }>('/setup/status').then((res) => {
-      if (!res.error && !res.data.configured) {
-        navigate('/setup', { replace: true });
-      } else {
-        setChecked(true);
-      }
-    });
+    void apiClient
+      .get<{ configured: boolean; hasAdmin: boolean }>('/setup/status')
+      .then((res) => {
+        if (res.error) {
+          setChecked(true);
+          return;
+        }
+        const ready = res.data.configured && res.data.hasAdmin;
+        if (!ready && location.pathname !== '/setup') {
+          // First-run: funnel every other page into the wizard.
+          navigate('/setup', { replace: true });
+        } else if (ready && location.pathname === '/setup') {
+          // Already set up: don't let the wizard be reached by browser Back
+          // (or a bookmarked /setup link) — push the user back into the app.
+          navigate('/', { replace: true });
+        } else {
+          setChecked(true);
+        }
+      });
   }, [navigate, location.pathname]);
 
-  if (!checked && location.pathname !== '/setup') return null;
+  if (!checked && location.pathname !== '/login') {
+    return null;
+  }
   return <>{children}</>;
 }
 
-// Redirects unauthenticated users to /login. In dev mode, skips auth entirely.
+// Redirects unauthenticated users to /login. Used to have a dev-mode
+// bypass (`if (import.meta.env.DEV) return children`), but that hid the
+// real login flow from every developer and masked auth-related bugs. If
+// you want a frictionless dev session, complete the setup wizard once
+// and your session cookie is persisted across `npm start` runs.
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-
-  // Dev mode: skip authentication
-  if (import.meta.env.DEV) return <>{children}</>;
   if (loading) return null;
   if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
+/**
+ * Gate a subtree on a permission predicate. Used for pages whose entire
+ * surface is write-only — hiding the nav entry alone is not enough since
+ * a URL-typer or a bookmarked link would still render the page shell. We
+ * redirect to Home rather than showing an empty page so the user isn't
+ * stuck on a broken chrome they can't use.
+ */
+function PermissionGate({
+  children,
+  allow,
+}: {
+  children: React.ReactNode;
+  allow: () => boolean;
+}) {
+  const { loading } = useAuth();
+  if (loading) return null;
+  if (!allow()) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
+function SettingsGate({ children }: { children: React.ReactNode }) {
+  const { user, hasPermission } = useAuth();
+  return (
+    <PermissionGate
+      allow={() =>
+        !!user
+        && (user.isServerAdmin
+          || hasPermission('datasources:write')
+          || hasPermission('datasources:create')
+          || hasPermission('admin:write'))
+      }
+    >
+      {children}
+    </PermissionGate>
+  );
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
-      <BrowserRouter>
-        <AuthProvider>
-          <Suspense fallback={<RouteFallback />}>
+      <ThemeProvider>
+        <BrowserRouter>
+          <AuthProvider>
+            <Suspense fallback={<RouteFallback />}>
             <SetupGuard>
               <Routes>
                 <Route path="/login" element={<Login />} />
@@ -90,9 +147,15 @@ export default function App() {
                   <Route path="/investigate/:id" element={<Navigate to="/investigations" replace />} />
                   <Route path="/evidence/:id" element={<Evidence />} />
                   <Route path="/actions" element={<ActionCenter />} />
-                  <Route path="/settings" element={<Settings />} />
-                  <Route path="/admin" element={<Admin />} />
-                  <Route path="/incidents/:id/post-mortem" element={<PostMortem />} />
+                  <Route
+                    path="/settings"
+                    element={
+                      <SettingsGate>
+                        <Settings />
+                      </SettingsGate>
+                    }
+                  />
+                  <Route path="/admin/*" element={<Admin />} />
                   <Route path="/dashboards" element={<Dashboards />} />
                   <Route path="/dashboards/:id" element={<DashboardWorkspace />} />
                   <Route path="/alerts" element={<Alerts />} />
@@ -100,10 +163,11 @@ export default function App() {
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Route>
               </Routes>
-            </SetupGuard>
-          </Suspense>
-        </AuthProvider>
-      </BrowserRouter>
+              </SetupGuard>
+            </Suspense>
+          </AuthProvider>
+        </BrowserRouter>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }

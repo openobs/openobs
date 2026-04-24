@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import type { ApiError } from '@agentic-obs/common';
+import { ac, ACTIONS } from '@agentic-obs/common';
 import { authMiddleware } from '../middleware/auth.js';
-import { requirePermission } from '../middleware/rbac.js';
+import { createRequirePermission } from '../middleware/require-permission.js';
+import type { AccessControlSurface } from '../services/accesscontrol-holder.js';
 import {
   type FeedEventType,
   type FeedSeverity,
@@ -26,15 +28,29 @@ const VALID_FEED_TYPES: FeedEventType[] = [
   'verification_complete',
 ];
 
-export function createFeedRouter(store: IGatewayFeedStore): Router {
-  const router = Router();
+export interface FeedRouterDeps {
+  store: IGatewayFeedStore;
+  /**
+   * RBAC surface. Feed items are derived from investigation outcomes
+   * (`investigation_complete`, `anomaly_detected`, etc.) so reads gate on
+   * `investigations:read` and feedback writes gate on `investigations:write`
+   * — Editor+ can tag verdicts; Viewer can only consume.
+   */
+  ac: AccessControlSurface;
+}
 
-  // All feed routes require authentication and feed:read permission
+export function createFeedRouter(deps: FeedRouterDeps): Router {
+  const store = deps.store;
+  const router = Router();
+  const requirePermission = createRequirePermission(deps.ac);
+  const requireRead = requirePermission(() => ac.eval(ACTIONS.InvestigationsRead, 'investigations:*'));
+  const requireWrite = requirePermission(() => ac.eval(ACTIONS.InvestigationsWrite, 'investigations:*'));
+
+  // All feed routes require authentication
   router.use(authMiddleware);
-  router.use(requirePermission('feed:read'));
 
   // GET /api/feed - paginated list with optional type/severity/status filters
-  router.get('/', async (req: Request, res: Response): Promise<void> => {
+  router.get('/', requireRead, async (req: Request, res: Response): Promise<void> => {
     const page = parseInt(String(req.query['page'] ?? '1'), 10);
     const limit = parseInt(String(req.query['limit'] ?? '20'), 10);
     const type = req.query['type'] as FeedEventType | undefined;
@@ -75,7 +91,7 @@ export function createFeedRouter(store: IGatewayFeedStore): Router {
   });
 
   // GET /api/feed/subscribe - SSE stream of new feed items
-  router.get('/subscribe', async (_req: Request, res: Response): Promise<void> => {
+  router.get('/subscribe', requireRead, async (_req: Request, res: Response): Promise<void> => {
     initSse(res);
 
     // Send current unread count as initial event
@@ -101,12 +117,12 @@ export function createFeedRouter(store: IGatewayFeedStore): Router {
   });
 
   // GET /stats - aggregate feedback statistics (must be before /:id to avoid shadowing)
-  router.get('/stats', async (_req: Request, res: Response): Promise<void> => {
+  router.get('/stats', requireRead, async (_req: Request, res: Response): Promise<void> => {
     res.json(await store.getStats());
   });
 
   // GET /api/feed/:id - single feed item
-  router.get('/:id', async (req: Request, res: Response): Promise<void> => {
+  router.get('/:id', requireRead, async (req: Request, res: Response): Promise<void> => {
     const item = await store.get(req.params['id'] ?? '');
     if (!item) {
       const err: ApiError = { code: 'NOT_FOUND', message: 'Feed item not found' };
@@ -117,7 +133,7 @@ export function createFeedRouter(store: IGatewayFeedStore): Router {
   });
 
   // POST /api/feed/:id/read - mark item as read
-  router.post('/:id/read', async (req: Request, res: Response): Promise<void> => {
+  router.post('/:id/read', requireWrite, async (req: Request, res: Response): Promise<void> => {
     const item = await store.markRead(req.params['id'] ?? '');
     if (!item) {
       const err: ApiError = { code: 'NOT_FOUND', message: 'Feed item not found' };
@@ -128,7 +144,7 @@ export function createFeedRouter(store: IGatewayFeedStore): Router {
   });
 
   // POST /api/feed/:id/feedback - record top-level feedback on a feed item
-  router.post('/:id/feedback', async (req: Request, res: Response): Promise<void> => {
+  router.post('/:id/feedback', requireWrite, async (req: Request, res: Response): Promise<void> => {
     const id = req.params['id'] ?? '';
     const { feedback, comment } = req.body as { feedback?: unknown; comment?: unknown };
 
@@ -167,7 +183,7 @@ export function createFeedRouter(store: IGatewayFeedStore): Router {
   });
 
   // POST /api/feed/:id/action-feedback - record per-action verdict
-  router.post('/:id/action-feedback', async (req: Request, res: Response): Promise<void> => {
+  router.post('/:id/action-feedback', requireWrite, async (req: Request, res: Response): Promise<void> => {
     const id = req.params['id'] ?? '';
     const { actionId, helpful, comment } = req.body as {
       actionId?: unknown;
@@ -208,7 +224,7 @@ export function createFeedRouter(store: IGatewayFeedStore): Router {
   });
 
   // POST /api/feed/:id/follow-up - mark item as followed-up (user navigated to investigation)
-  router.post('/:id/follow-up', async (req: Request, res: Response): Promise<void> => {
+  router.post('/:id/follow-up', requireWrite, async (req: Request, res: Response): Promise<void> => {
     const item = await store.markFollowedUp(req.params['id'] ?? '');
     if (!item) {
       const err: ApiError = { code: 'NOT_FOUND', message: 'Feed item not found' };
@@ -219,7 +235,7 @@ export function createFeedRouter(store: IGatewayFeedStore): Router {
   });
 
   // POST /api/feed/:id/hypothesis-feedback - record per-hypothesis verdict
-  router.post('/:id/hypothesis-feedback', async (req: Request, res: Response): Promise<void> => {
+  router.post('/:id/hypothesis-feedback', requireWrite, async (req: Request, res: Response): Promise<void> => {
     const id = req.params['id'] ?? '';
     const { hypothesisId, verdict, comment } = req.body as {
       hypothesisId?: unknown;

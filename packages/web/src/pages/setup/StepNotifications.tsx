@@ -31,7 +31,9 @@ export function StepNotifications({
     }
 
     if (Object.keys(notifications).length > 0) {
-      await apiClient.post('/setup/notifications', { notifications });
+      // PUT /api/system/notifications replaces the legacy POST /setup/notifications.
+      // Bootstrap-aware middleware lets the wizard reach it pre-admin.
+      await apiClient.put('/system/notifications', notifications);
     }
     setSaving(false);
     onNext();
@@ -135,7 +137,7 @@ export function StepNotifications({
               type="button"
               onClick={() => void handleNext()}
               disabled={saving}
-              className="px-6 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-40"
+              className="px-6 py-2 rounded-lg bg-primary text-on-primary-fixed text-sm font-semibold hover:opacity-90 disabled:opacity-40 transition-opacity"
             >
               {saving ? 'Saving...' : 'Continue →'}
             </button>

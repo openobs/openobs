@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.js';
+import { useTheme } from '../contexts/ThemeContext.js';
 import { OpenObsLogo } from './OpenObsLogo.js';
+import { OrgSwitcher } from './OrgSwitcher.js';
 
 /* ───── Icon components ───── */
 
@@ -48,6 +50,35 @@ function SettingsIcon({ className }: { className?: string }) {
     <svg className={className ?? 'w-5 h-5'} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  );
+}
+
+/* Admin — shield icon (distinct from dashboard permissions shield by outline) */
+function AdminIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className ?? 'w-5 h-5'} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 2l8 3v6c0 5-3.5 9.5-8 11-4.5-1.5-8-6-8-11V5l8-3z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
+    </svg>
+  );
+}
+
+/* Sun / Moon icons for theme toggle */
+
+function SunIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className ?? 'w-5 h-5'} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <circle cx="12" cy="12" r="4" strokeLinecap="round" strokeLinejoin="round" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+    </svg>
+  );
+}
+
+function MoonIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className ?? 'w-5 h-5'} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
     </svg>
   );
 }
@@ -99,12 +130,113 @@ function SidebarItem({ to, label, icon, end, expanded }: SidebarItemProps) {
   );
 }
 
+/* ───── User avatar menu ───── */
+
+interface UserMenuProps {
+  user: { name: string; email?: string; avatarUrl?: string };
+  expanded: boolean;
+  onLogout: () => void;
+}
+
+function UserMenu({ user, expanded, onLogout }: UserMenuProps) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  // Close on outside click / Escape — standard popover semantics.
+  useEffect(() => {
+    if (!open) return;
+    function onDocMouseDown(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onDocMouseDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocMouseDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative mt-2" ref={wrapRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        title={user.name}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={`flex items-center gap-2 rounded-full transition-colors hover:bg-primary/30 overflow-hidden ${
+          expanded ? 'px-2 py-1.5 rounded-lg w-full' : 'justify-center w-8 h-8'
+        } bg-primary/20 text-primary`}
+      >
+        <div className="flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold shrink-0">
+          {user.avatarUrl ? (
+            <img src={user.avatarUrl} alt="" className="w-full h-full object-cover rounded-full" />
+          ) : (
+            user.name.charAt(0).toUpperCase()
+          )}
+        </div>
+        {expanded && <span className="text-xs font-medium truncate">{user.name}</span>}
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className={`absolute z-50 ${expanded ? 'left-0 right-0' : 'left-full ml-2'} bottom-full mb-2 min-w-[12rem] rounded-lg border border-outline bg-surface-lowest shadow-lg py-1`}
+        >
+          <div className="px-3 py-2 border-b border-outline/40">
+            <div className="text-sm font-medium text-on-surface truncate">{user.name}</div>
+            {user.email && (
+              <div className="text-xs text-on-surface-variant truncate">{user.email}</div>
+            )}
+          </div>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              onLogout();
+            }}
+            className="w-full text-left px-3 py-2 text-sm text-on-surface hover:bg-surface-high/70 transition-colors"
+          >
+            Sign out
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ───── Main navigation sidebar ───── */
 
 export default function Navigation() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
+  const { theme, toggleTheme } = useTheme();
+  // T9 / Wave 6 — show /admin in nav when the current principal has any
+  // users:read / orgs:read, or is a server admin. Matches the gating used by
+  // the admin page tabs themselves so the link doesn't land on a 403.
+  const canSeeAdmin =
+    !!user
+    && (user.isServerAdmin
+      || hasPermission('users:read')
+      || hasPermission('orgs:read')
+      || hasPermission('teams:read')
+      || hasPermission('serviceaccounts:read'));
+  // Settings page hosts write-only surfaces (datasources / LLM / notifications).
+  // Viewers have no grant there, so hiding the entry matches Grafana's
+  // behaviour and avoids a "Add source" button that 403s on click.
+  const canSeeSettings =
+    !!user
+    && (user.isServerAdmin
+      || hasPermission('datasources:write')
+      || hasPermission('datasources:create')
+      || hasPermission('admin:write'));
   // Default expanded on Home page, collapsed on others
   const [expanded, setExpanded] = useState(location.pathname === '/');
 
@@ -126,7 +258,7 @@ export default function Navigation() {
 
   return (
     <nav
-      className={`flex flex-col h-full bg-surface-lowest border-r border-white/10 py-3 shrink-0 transition-all duration-200 ${
+      className={`flex flex-col h-full bg-surface-lowest border-r border-outline py-3 shrink-0 transition-all duration-200 ${
         expanded ? 'w-48 px-2' : 'w-14 items-center'
       }`}
     >
@@ -171,6 +303,14 @@ export default function Navigation() {
         )}
       </div>
 
+      {/* Org switcher — shown above nav items when sidebar is expanded.
+          Hidden automatically when the user has <= 1 org. */}
+      {expanded && (
+        <div className="mb-3">
+          <OrgSwitcher compact />
+        </div>
+      )}
+
       {/* Primary nav items */}
       <div className={`flex flex-col gap-1 flex-1 ${expanded ? '' : 'items-center'}`}>
         <SidebarItem to="/" label="Home" icon={<HomeIcon />} end expanded={expanded} />
@@ -181,27 +321,37 @@ export default function Navigation() {
 
       {/* Bottom nav items */}
       <div className={`flex flex-col gap-1 mt-auto ${expanded ? '' : 'items-center'}`}>
-        <SidebarItem to="/settings" label="Settings" icon={<SettingsIcon />} expanded={expanded} />
+        {/* Theme toggle */}
+        <button
+          type="button"
+          onClick={toggleTheme}
+          title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          className={`flex items-center gap-3 h-10 rounded-lg transition-colors text-on-surface-variant hover:text-on-surface hover:bg-surface-high/60 ${
+            expanded ? 'px-3 w-full' : 'justify-center w-10'
+          }`}
+        >
+          {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+          {expanded && (
+            <span className="text-sm font-medium truncate">
+              {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+            </span>
+          )}
+        </button>
 
-        {/* User avatar */}
+        {canSeeAdmin && (
+          <SidebarItem to="/admin" label="Admin" icon={<AdminIcon />} expanded={expanded} />
+        )}
+
+        {canSeeSettings && (
+          <SidebarItem to="/settings" label="Settings" icon={<SettingsIcon />} expanded={expanded} />
+        )}
+
+        {/* User avatar — opens a small menu. Clicking the avatar itself used
+            to sign the user out directly, which surprised everyone who
+            expected a profile menu. Now it toggles a popover that contains
+            the explicit Sign-out action. */}
         {user && (
-          <button
-            type="button"
-            onClick={() => void handleLogout()}
-            title={`${user.name} — Sign out`}
-            className={`mt-2 flex items-center gap-2 rounded-full transition-colors hover:bg-primary/30 overflow-hidden ${
-              expanded ? 'px-2 py-1.5 rounded-lg w-full' : 'justify-center w-8 h-8'
-            } bg-primary/20 text-primary`}
-          >
-            <div className="flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold shrink-0">
-              {user.avatarUrl ? (
-                <img src={user.avatarUrl} alt="" className="w-full h-full object-cover rounded-full" />
-              ) : (
-                user.name.charAt(0).toUpperCase()
-              )}
-            </div>
-            {expanded && <span className="text-xs font-medium truncate">{user.name}</span>}
-          </button>
+          <UserMenu user={user} expanded={expanded} onLogout={() => void handleLogout()} />
         )}
       </div>
     </nav>

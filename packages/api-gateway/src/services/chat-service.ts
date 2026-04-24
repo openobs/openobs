@@ -1,12 +1,14 @@
 import { randomUUID } from 'crypto';
-import { createLogger } from '@agentic-obs/common';
-import type { DashboardSseEvent } from '@agentic-obs/common';
-import { getSetupConfig } from '../routes/setup.js';
+import { createLogger } from '@agentic-obs/common/logging';
+import type { DashboardSseEvent, Identity } from '@agentic-obs/common';
 import { createLlmGateway } from '../routes/llm-factory.js';
 import { DashboardOrchestratorAgent as OrchestratorAgent, shouldCompact, compactMessages, estimateTokens } from '@agentic-obs/agent-core';
 import type { IDashboardAlertRuleStore as IAlertRuleStore, IDashboardInvestigationStore as IInvestigationStore } from '@agentic-obs/agent-core';
 import { PrometheusMetricsAdapter } from '@agentic-obs/adapters';
-import { resolvePrometheusDatasource } from './dashboard-service.js';
+import { resolvePrometheusDatasource, toAgentDatasources } from './dashboard-service.js';
+import type { AccessControlSurface } from './accesscontrol-holder.js';
+import type { AuditWriter } from '../auth/audit-writer.js';
+import type { SetupConfigService } from './setup-config-service.js';
 import type { IGatewayDashboardStore, IConversationStore } from '../repositories/types.js';
 import type { IInvestigationReportRepository, IAlertRuleRepository, IGatewayInvestigationStore, IChatSessionRepository, IChatMessageRepository, IChatSessionEventRepository } from '@agentic-obs/data-layer';
 
@@ -37,6 +39,37 @@ export interface ChatServiceDeps {
   chatSessionStore?: IChatSessionRepository;
   chatMessageStore?: IChatMessageRepository;
   chatEventStore?: IChatSessionEventRepository;
+  /** Wave 7 — RBAC surface for the agent permission gate. Required. */
+  accessControl: AccessControlSurface;
+  /** Audit-log writer. Optional but strongly recommended in production. */
+  auditWriter?: AuditWriter;
+  /** Folder backend — enables agent folder.create / folder.list tools. Optional
+   *  (in-memory deployments can omit; those tools return a clear
+   *  "not configured" observation). */
+  folderRepository?: import('@agentic-obs/common').IFolderRepository;
+  /** W2 / T2.4 — LLM + datasource config source. */
+  setupConfig: SetupConfigService;
+}
+
+/**
+ * openobs runs a single full-capability agent (`orchestrator`) for every
+ * chat, regardless of the page the user started from. Early Wave 7
+ * thinking had four specialized agents (dashboard-assistant,
+ * alert-advisor, incident-responder, readonly-analyst) with narrower
+ * `allowedTools` ceilings, but that kept biting user intent — "why is
+ * latency high" on a dashboard page would pick dashboard-assistant,
+ * which lacks `investigation.create`, so the agent narrated a bogus
+ * "I don't have permission" even when the caller was an Admin.
+ *
+ * RBAC (Layer 3) still enforces who-can-do-what; the agent ceiling
+ * (Layer 1) no longer narrows by page context. `pageContext` is kept
+ * as a prompt hint — the orchestrator is still told what the user was
+ * looking at — but it no longer shrinks the tool surface.
+ */
+function pickAgentTypeFromContext(
+  _pageContext?: { kind: string; id?: string } | undefined,
+): 'orchestrator' {
+  return 'orchestrator';
 }
 
 // Event kinds that represent transient signalling (terminator, navigation
@@ -59,12 +92,14 @@ export class ChatService {
     message: string,
     sessionId: string | undefined,
     sendEvent: (event: DashboardSseEvent) => void,
+    identity: Identity,
     pageContext?: { kind: string; id?: string; timeRange?: string },
   ): Promise<ChatSessionResult> {
-    const config = getSetupConfig();
-    if (!config.llm) {
+    const llm = await this.deps.setupConfig.getLlm();
+    if (!llm) {
       throw new Error('LLM not configured - please complete the Setup Wizard first.');
     }
+    const datasources = await this.deps.setupConfig.listDatasources();
 
     const resolvedSessionId = sessionId ?? randomUUID();
 
@@ -113,9 +148,9 @@ export class ChatService {
       );
     };
 
-    const gateway = createLlmGateway(config.llm);
-    const model = config.llm.model;
-    const prom = resolvePrometheusDatasource(config.datasources);
+    const gateway = createLlmGateway(llm);
+    const model = llm.model;
+    const prom = resolvePrometheusDatasource(datasources);
 
     const metricsAdapter = prom
       ? new PrometheusMetricsAdapter(prom.url, prom.headers)
@@ -198,11 +233,18 @@ export class ChatService {
       investigationReportStore: this.deps.investigationReportStore,
       investigationStore: this.deps.investigationStore as IInvestigationStore | undefined,
       alertRuleStore: toAlertRuleStore(this.deps.alertRuleStore),
+      ...(this.deps.folderRepository ? { folderRepository: this.deps.folderRepository } : {}),
       metricsAdapter,
-      allDatasources: config.datasources,
+      allDatasources: toAgentDatasources(datasources),
       sendEvent: wrappedSendEvent,
       timeRange,
       conversationSummary,
+      identity,
+      accessControl: this.deps.accessControl,
+      ...(this.deps.auditWriter ? { auditWriter: this.deps.auditWriter } : {}),
+      // Page-based specialized agent selection (§D-layer-1). Falls back to
+      // the full orchestrator when the page has no tight capability ceiling.
+      agentType: pickAgentTypeFromContext(pageContext),
     }, resolvedSessionId);
 
     // If the user is viewing a specific dashboard, scope the agent to it

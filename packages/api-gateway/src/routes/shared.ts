@@ -23,13 +23,13 @@ export function createSharedRouter(deps: SharedRouterDeps): Router {
       const token = req.params['token'] ?? '';
       const link = await shareRepo.findByToken(token);
       if (!link) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Share link not found or expired' });
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Share link not found or expired' } });
         return;
       }
 
       const inv = await investigationStore.findById(link.investigationId);
       if (!inv) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Investigation not found' });
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Investigation not found' } });
         return;
       }
 
@@ -63,12 +63,12 @@ export function createSharedRouter(deps: SharedRouterDeps): Router {
       const token = req.params['token'] ?? '';
       const link = await shareRepo.findByToken(token);
       if (!link) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Share link not found' });
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Share link not found' } });
         return;
       }
 
-      if (authReq.auth?.sub !== link.createdBy) {
-        res.status(403).json({ code: 'FORBIDDEN', message: 'Only the creator may revoke this share link' });
+      if (authReq.auth?.userId !== link.createdBy) {
+        res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Only the creator may revoke this share link' } });
         return;
       }
 

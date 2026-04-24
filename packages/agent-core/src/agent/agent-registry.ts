@@ -43,7 +43,8 @@ agentRegistry.register({
     // Knowledge
     'web.search',
     // Alert rules
-    'create_alert_rule', 'modify_alert_rule', 'delete_alert_rule', 'alert_rule.list',
+    'create_alert_rule', 'modify_alert_rule', 'delete_alert_rule',
+    'alert_rule.list', 'alert_rule.history',
     // Navigation
     'navigate',
   ],

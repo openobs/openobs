@@ -16,13 +16,17 @@ import type {
   IAlertRuleRepository,
   INotificationRepository,
   IVersionRepository,
-  IWorkspaceRepository,
   IInvestigationReportRepository,
   IPostMortemRepository,
   IChatSessionRepository,
   IChatMessageRepository,
   IChatSessionEventRepository,
 } from './interfaces.js';
+import type {
+  IInstanceConfigRepository,
+  IDatasourceRepository,
+  INotificationChannelRepository,
+} from '@agentic-obs/common';
 import type {
   IGatewayInvestigationStore,
   IGatewayIncidentStore,
@@ -50,12 +54,14 @@ import { SqliteFolderRepository } from './sqlite/folder.js';
 import { SqliteAlertRuleRepository } from './sqlite/alert-rule.js';
 import { SqliteNotificationRepository } from './sqlite/notification.js';
 import { SqliteVersionRepository } from './sqlite/version.js';
-import { SqliteWorkspaceRepository } from './sqlite/workspace.js';
 import { SqliteInvestigationReportRepository } from './sqlite/investigation-report.js';
 import { SqlitePostMortemRepository } from './sqlite/post-mortem.js';
 import { SqliteChatSessionRepository } from './sqlite/chat-session.js';
 import { SqliteChatMessageRepository } from './sqlite/chat-message.js';
 import { SqliteChatSessionEventRepository } from './sqlite/chat-session-event.js';
+import { InstanceConfigRepository } from './sqlite/instance-config.js';
+import { DatasourceRepository } from './sqlite/datasource.js';
+import { NotificationChannelRepository } from './sqlite/notification-channel.js';
 
 /**
  * Core repositories (shared across all backends that support them).
@@ -90,12 +96,15 @@ export interface SqliteRepositories {
   alertRules: IAlertRuleRepository;
   notifications: INotificationRepository;
   versions: IVersionRepository;
-  workspaces: IWorkspaceRepository;
   investigationReports: IInvestigationReportRepository;
   postMortems: IPostMortemRepository;
   chatSessions: IChatSessionRepository;
   chatMessages: IChatMessageRepository;
   chatSessionEvents: IChatSessionEventRepository;
+  // W2 / T2.2 — instance-scoped config (replaces setup-config.json).
+  instanceConfig: IInstanceConfigRepository;
+  datasources: IDatasourceRepository;
+  notificationChannels: INotificationChannelRepository;
 }
 
 export function createPostgresRepositories(db: DbClient): Repositories {
@@ -122,12 +131,14 @@ export function createSqliteRepositories(db: SqliteClient): SqliteRepositories {
     alertRules: new SqliteAlertRuleRepository(db),
     notifications: new SqliteNotificationRepository(db),
     versions: new SqliteVersionRepository(db),
-    workspaces: new SqliteWorkspaceRepository(db),
     investigationReports: new SqliteInvestigationReportRepository(db),
     postMortems: new SqlitePostMortemRepository(db),
     chatSessions: new SqliteChatSessionRepository(db),
     chatMessages: new SqliteChatMessageRepository(db),
     chatSessionEvents: new SqliteChatSessionEventRepository(db),
+    instanceConfig: new InstanceConfigRepository(db),
+    datasources: new DatasourceRepository(db),
+    notificationChannels: new NotificationChannelRepository(db),
   };
 }
 

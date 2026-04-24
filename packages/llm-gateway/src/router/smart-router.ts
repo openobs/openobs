@@ -5,7 +5,10 @@
 // as a fallback when the LLM classifier is unavailable or fails (it is only used
 // for cost estimation).
 
+import { createLogger } from '@agentic-obs/common/logging';
 import type { LLMProvider } from '../types.js';
+
+const log = createLogger('smart-router');
 
 // — Public types
 
@@ -107,7 +110,21 @@ Respond ONLY as JSON: { "model": "<model_id>", "reasoning": "<1 sentence>" }`;
       { model: this.classifierModel, temperature: 0, maxTokens: 256, responseFormat: 'json' },
     );
 
-    const parsed = this.parseLlmResponse(response.content);
+    let parsed: LLMRoutingResponse;
+    try {
+      parsed = this.parseLlmResponse(response.content);
+    } catch (err) {
+      // Surface the failure so operators see why routing fell back. Before
+      // this swallowed the parse error and returned `{}`, which looked like
+      // a routing success with `selectedId = undefined` — indistinguishable
+      // from "LLM actually chose nothing".
+      log.warn(
+        { err, classifierModel: this.classifierModel, rawPreview: response.content.slice(0, 200) },
+        'smart-router: classifier LLM returned non-JSON; falling back to default model',
+      );
+      return this.routeWithFallback(task);
+    }
+
     const selectedId = parsed.model;
     const reasoning = typeof parsed.reasoning === 'string' ? parsed.reasoning : `LLM selected ${selectedId}`;
 
@@ -123,11 +140,7 @@ Respond ONLY as JSON: { "model": "<model_id>", "reasoning": "<1 sentence>" }`;
 
   private parseLlmResponse(raw: string): LLMRoutingResponse {
     const trimmed = raw.trim().replace(/```json\n?/g, '').replace(/```/g, '').trim();
-    try {
-      return JSON.parse(trimmed) as LLMRoutingResponse;
-    } catch {
-      return {};
-    }
+    return JSON.parse(trimmed) as LLMRoutingResponse;
   }
 
   routeWithFallback(task: TaskDescription): ModelSelection {

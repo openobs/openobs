@@ -1,10 +1,12 @@
 import { createHmac, timingSafeEqual, randomUUID } from 'crypto';
 import { Router, raw as expressRaw } from 'express';
 import type { IEventBus } from '@agentic-obs/common';
-import { createLogger, getErrorMessage } from '@agentic-obs/common';
+import { ac, ACTIONS, getErrorMessage } from '@agentic-obs/common';
+import { createLogger } from '@agentic-obs/common/logging';
 import { authMiddleware } from '../middleware/auth.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
-import { requirePermission } from '../middleware/rbac.js';
+import { createRequirePermission } from '../middleware/require-permission.js';
+import type { AccessControlSurface } from '../services/accesscontrol-holder.js';
 import { ensureSafeUrl } from '../utils/url-validator.js';
 
 const log = createLogger('webhooks');
@@ -111,6 +113,23 @@ async function deliverWebhook(
     deliveryLog.shift();
   deliveryLog.push(delivery);
 
+  // SSRF re-check at delivery time. Subscription creation already validates
+  // `url`, but `OPENOBS_ALLOW_PRIVATE_URLS` / `NODE_ENV` can change between
+  // write and delivery (e.g. promoting a dev install to production), so the
+  // stored URL must be re-validated against the current policy before we hit
+  // the network.
+  try {
+    await ensureSafeUrl(sub.url);
+  } catch (err) {
+    delivery.status = 'failed';
+    delivery.error = err instanceof Error ? err.message : 'Invalid URL';
+    log.warn(
+      { subId: sub.id, url: sub.url, event: eventType, error: delivery.error },
+      'webhook delivery blocked by URL validation',
+    );
+    return;
+  }
+
   const body = JSON.stringify({ event: eventType, payload, deliveryId: delivery.id });
   const sig = createHmac('sha256', sub.secret).update(body).digest('hex');
 
@@ -170,8 +189,20 @@ export interface WebhookRouterHandle {
   stop(): void;
 }
 
-export function createWebhookRouter(bus?: IEventBus): Router {
-  const eventBus: Partial<IEventBus> = bus ?? {};
+export interface WebhookRouterDeps {
+  bus?: IEventBus;
+  /**
+   * RBAC surface. Webhook subscription mgmt is admin-level instance config —
+   * gated on `instance.config:write`. The legacy gate was the wildcard
+   * `*:*` (admin-only by accident); the new check is explicit.
+   */
+  ac: AccessControlSurface;
+}
+
+export function createWebhookRouter(deps: WebhookRouterDeps): Router {
+  const eventBus: Partial<IEventBus> = deps.bus ?? {};
+  const requirePermission = createRequirePermission(deps.ac);
+  const requireAdmin = requirePermission(() => ac.eval(ACTIONS.InstanceConfigWrite));
 
   // Per-instance state
   const subscriptions = new Map<string, WebhookSubscription>();
@@ -211,7 +242,7 @@ export function createWebhookRouter(bus?: IEventBus): Router {
         (s) => s.active && s.description === `inbound:${source}`,
       );
       if (!sourceSub) {
-        res.status(404).json({ code: 'NOT_FOUND', message: `No subscription registered for source "${source}"` });
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: `No subscription registered for source "${source}"` } });
         return;
       }
 
@@ -223,11 +254,11 @@ export function createWebhookRouter(bus?: IEventBus): Router {
 
       if (sourceSub.secret) {
         if (!signature) {
-          res.status(401).json({ code: 'MISSING_SIGNATURE', message: 'Webhook signature is required' });
+          res.status(401).json({ error: { code: 'MISSING_SIGNATURE', message: 'Webhook signature is required' } });
           return;
         }
         if (!verifySignature(rawBody, signature, sourceSub.secret)) {
-          res.status(401).json({ code: 'INVALID_SIGNATURE', message: 'Signature mismatch' });
+          res.status(401).json({ error: { code: 'INVALID_SIGNATURE', message: 'Signature mismatch' } });
           return;
         }
       }
@@ -265,11 +296,11 @@ export function createWebhookRouter(bus?: IEventBus): Router {
   );
 
   // Webhook subscription CRUD (authenticated + admin permission)
-  router.get('/webhook-subscriptions', authMiddleware, requirePermission('*:*'), (_req, res) => {
+  router.get('/webhook-subscriptions', authMiddleware, requireAdmin, (_req, res) => {
     res.json([...subscriptions.values()].map(maskSubscription));
   });
 
-  router.post('/webhook-subscriptions', authMiddleware, requirePermission('*:*'), async (req: AuthenticatedRequest, res) => {
+  router.post('/webhook-subscriptions', authMiddleware, requireAdmin, async (req: AuthenticatedRequest, res) => {
     const { url, events, secret, active = true, description } = req.body as {
       url?: string;
       events?: string[];
@@ -279,7 +310,7 @@ export function createWebhookRouter(bus?: IEventBus): Router {
     };
 
     if (!url || !events || !Array.isArray(events) || events.length === 0) {
-      res.status(400).json({ code: 'INVALID_INPUT', message: 'url and events[] are required' });
+      res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'url and events[] are required' } });
       return;
     }
 
@@ -287,7 +318,7 @@ export function createWebhookRouter(bus?: IEventBus): Router {
     try {
       await ensureSafeUrl(url);
     } catch (err) {
-      res.status(400).json({ code: 'INVALID_URL', message: err instanceof Error ? err.message : 'Invalid URL' });
+      res.status(400).json({ error: { code: 'INVALID_URL', message: err instanceof Error ? err.message : 'Invalid URL' } });
       return;
     }
 
@@ -307,19 +338,19 @@ export function createWebhookRouter(bus?: IEventBus): Router {
     res.status(201).json(sub);
   });
 
-  router.get('/webhook-subscriptions/:id', authMiddleware, requirePermission('*:*'), (req, res) => {
+  router.get('/webhook-subscriptions/:id', authMiddleware, requireAdmin, (req, res) => {
     const sub = subscriptions.get(req.params['id'] as string);
     if (!sub) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Subscription not found' });
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Subscription not found' } });
       return;
     }
     res.json(maskSubscription(sub));
   });
 
-  router.put('/webhook-subscriptions/:id', authMiddleware, requirePermission('*:*'), async (req, res) => {
+  router.put('/webhook-subscriptions/:id', authMiddleware, requireAdmin, async (req, res) => {
     const sub = subscriptions.get(req.params['id'] as string);
     if (!sub) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Subscription not found' });
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Subscription not found' } });
       return;
     }
 
@@ -330,7 +361,7 @@ export function createWebhookRouter(bus?: IEventBus): Router {
       try {
         await ensureSafeUrl(url);
       } catch (err) {
-        res.status(400).json({ code: 'INVALID_URL', message: err instanceof Error ? err.message : 'Invalid URL' });
+        res.status(400).json({ error: { code: 'INVALID_URL', message: err instanceof Error ? err.message : 'Invalid URL' } });
         return;
       }
     }
@@ -348,10 +379,10 @@ export function createWebhookRouter(bus?: IEventBus): Router {
     res.json(maskSubscription(updated));
   });
 
-  router.delete('/webhook-subscriptions/:id', authMiddleware, requirePermission('*:*'), (req, res) => {
+  router.delete('/webhook-subscriptions/:id', authMiddleware, requireAdmin, (req, res) => {
     const id = req.params['id'] as string;
     if (!subscriptions.has(id)) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Subscription not found' });
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Subscription not found' } });
       return;
     }
 
@@ -359,7 +390,7 @@ export function createWebhookRouter(bus?: IEventBus): Router {
     res.status(204).send();
   });
 
-  router.get('/webhook-subscriptions/:id/deliveries', authMiddleware, requirePermission('*:*'), (req, res) => {
+  router.get('/webhook-subscriptions/:id/deliveries', authMiddleware, requireAdmin, (req, res) => {
     const id = req.params['id'] as string;
     const deliveries = deliveryLog.filter((d) => d.subscriptionId === id);
     res.json(deliveries);

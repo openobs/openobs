@@ -3,8 +3,10 @@
 // evidence completeness, and daily trend data.
 
 import { Router } from 'express';
+import { ac, ACTIONS } from '@agentic-obs/common';
 import { authMiddleware } from '../middleware/auth.js';
-import { requirePermission } from '../middleware/rbac.js';
+import { createRequirePermission } from '../middleware/require-permission.js';
+import type { AccessControlSurface } from '../services/accesscontrol-holder.js';
 import type { IGatewayInvestigationStore, IGatewayFeedStore } from '@agentic-obs/data-layer';
 
 // -- Types
@@ -175,15 +177,23 @@ export async function computeQualityMetrics(
 export interface MetaRouterDeps {
   investigationStore: IGatewayInvestigationStore;
   feedStore: IGatewayFeedStore;
+  /**
+   * RBAC surface. The quality meta-dashboard reads investigation aggregates,
+   * so we gate on `investigations:read` — anyone who can see investigations
+   * can see their roll-up. The holder forwards to the real service once the
+   * auth subsystem finishes wiring.
+   */
+  ac: AccessControlSurface;
 }
 
 export function createMetaRouter(deps: MetaRouterDeps): Router {
   const invStore = deps.investigationStore;
   const feed = deps.feedStore;
+  const requirePermission = createRequirePermission(deps.ac);
 
   const router = Router();
   router.use(authMiddleware);
-  router.use(requirePermission('meta:read'));
+  router.use(requirePermission(() => ac.eval(ACTIONS.InvestigationsRead, 'investigations:*')));
 
   router.get('/quality', async (_req, res) => {
     const metrics = await computeQualityMetrics(invStore, feed);

@@ -1,7 +1,8 @@
 // Types are structurally compatible with IMetricsAdapter from @agentic-obs/agent-core.
 // We avoid importing from agent-core directly to prevent a circular package dependency.
 
-import { createLogger, getErrorMessage } from '@agentic-obs/common';
+import { getErrorMessage } from '@agentic-obs/common';
+import { createLogger } from '@agentic-obs/common/logging';
 import { checkEndpointHealth } from '../shared/health-check.js';
 
 const log = createLogger('metrics-adapter');
@@ -67,7 +68,13 @@ export class PrometheusMetricsAdapter {
     params.set('match[]', metric);
     const url = `${this.base}/api/v1/labels?${params}`;
     const res = await this.fetch(url);
-    if (!res.ok) return [];
+    if (!res.ok) {
+      // Caller contract is "empty list when labels can't be fetched". Keep
+      // that shape (changing it cascades into UI autocomplete), but log so
+      // "no labels" can be distinguished from "Prometheus unreachable".
+      log.warn({ url, status: res.status, metric, op: 'listLabels' }, 'prometheus returned non-ok; returning empty label list');
+      return [];
+    }
     const body = (await res.json()) as PrometheusApiResponse<string[]>;
     const labels = Array.isArray(body.data) ? body.data : [];
     return labels.filter((l) => l !== '__name__');
@@ -76,7 +83,10 @@ export class PrometheusMetricsAdapter {
   async listLabelValues(label: string): Promise<string[]> {
     const url = `${this.base}/api/v1/label/${encodeURIComponent(label)}/values`;
     const res = await this.fetch(url);
-    if (!res.ok) return [];
+    if (!res.ok) {
+      log.warn({ url, status: res.status, label, op: 'listLabelValues' }, 'prometheus returned non-ok; returning empty label-values list');
+      return [];
+    }
     const body = (await res.json()) as PrometheusApiResponse<string[]>;
     return Array.isArray(body.data) ? body.data : [];
   }
@@ -91,7 +101,10 @@ export class PrometheusMetricsAdapter {
 
     const url = `${this.base}/api/v1/series?${params}`;
     const res = await this.fetch(url);
-    if (!res.ok) return [];
+    if (!res.ok) {
+      log.warn({ url, status: res.status, matchers, op: 'findSeries' }, 'prometheus returned non-ok; returning empty series list');
+      return [];
+    }
     const body = (await res.json()) as PrometheusApiResponse<Array<Record<string, string>>>;
     const names = new Set<string>();
     for (const series of body.data ?? []) {

@@ -4,15 +4,29 @@ import type { Request, Response, NextFunction } from 'express'
 import { randomUUID } from 'crypto'
 import type { AuthenticatedRequest } from '../../middleware/auth.js'
 import { authMiddleware } from '../../middleware/auth.js'
-import { requirePermission } from '../../middleware/rbac.js'
+import { createRequirePermission } from '../../middleware/require-permission.js'
 import type { IGatewayDashboardStore, IConversationStore, IInvestigationReportRepository, IAlertRuleRepository, IGatewayInvestigationStore, IGatewayFeedStore } from '@agentic-obs/data-layer'
 import { handleChatMessage } from './chat-handler.js'
 import { VariableResolver } from './variable-resolver.js'
+import { ac, ACTIONS } from '@agentic-obs/common'
 import type { PanelConfig } from '@agentic-obs/common'
-import { getSetupConfig } from '../setup.js'
-import { getWorkspaceId } from '../../middleware/workspace-context.js'
+import type { SetupConfigService } from '../../services/setup-config-service.js'
+import { getOrgId } from '../../middleware/workspace-context.js'
+
+/**
+ * Resolve the current request's org id. Prefers `req.auth.orgId` populated by
+ * the auth middleware (post-T9 cutover); falls back to the header/query
+ * helper for test harnesses that bypass auth.
+ */
+function resolveOrgId(req: Request): string {
+  const authed = (req as Request & { auth?: { orgId?: string } }).auth;
+  if (authed?.orgId) return authed.orgId;
+  return getOrgId(req);
+}
 import { DashboardService, withDashboardLock } from '../../services/dashboard-service.js'
-import { createLogger } from '@agentic-obs/common'
+import type { AccessControlSurface } from '../../services/accesscontrol-holder.js'
+import type { AuditWriter } from '../../auth/audit-writer.js'
+import { createLogger } from '@agentic-obs/common/logging'
 
 const log = createLogger('dashboard-router')
 
@@ -23,6 +37,14 @@ export interface DashboardRouterDeps {
   alertRuleStore: IAlertRuleRepository
   investigationStore?: IGatewayInvestigationStore
   feedStore?: IGatewayFeedStore
+  /** Wave 7 — for the agent permission gate. Required. */
+  accessControl: AccessControlSurface
+  /** Audit writer for agent tool calls. */
+  auditWriter?: AuditWriter
+  /** Folder backend — enables agent folder.* tools. Optional. */
+  folderRepository?: import('@agentic-obs/common').IFolderRepository
+  /** W2 / T2.4 — LLM + datasource config source. */
+  setupConfig: SetupConfigService
 }
 
 export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter {
@@ -32,23 +54,28 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
   const alertRuleStore = deps.alertRuleStore
   const investigationStore = deps.investigationStore
   const feedStore = deps.feedStore
+  const accessControl = deps.accessControl
+  const auditWriter = deps.auditWriter
+  const folderRepository = deps.folderRepository
+  const setupConfig = deps.setupConfig
 
   const router = Router()
+  const requirePermission = createRequirePermission(accessControl)
 
   // All dashboard routes require authentication
   router.use(authMiddleware)
 
   // POST /dashboards
-  router.post('/', requirePermission('dashboard:create'), async (req: Request, res: Response, next: NextFunction) => {
+  router.post('/', requirePermission(() => ac.eval(ACTIONS.DashboardsCreate, 'folders:*')), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const body = req.body as { prompt?: string, title?: string, datasourceIds?: string[], useExistingMetrics?: boolean, folder?: string, stream?: boolean }
       if (!body.prompt || typeof body.prompt !== 'string' || !body.prompt.trim()) {
-        res.status(400).json({ code: 'INVALID_INPUT', message: 'prompt is required and must be a non-empty string' })
+        res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'prompt is required and must be a non-empty string' } })
         return
       }
 
-      const userId = (req as AuthenticatedRequest).auth?.sub ?? 'anonymous'
-      const workspaceId = getWorkspaceId(req)
+      const userId = (req as AuthenticatedRequest).auth?.userId ?? 'anonymous'
+      const workspaceId = resolveOrgId(req)
       const dashboard = await store.create({
         title: body.title?.trim() ?? 'Untitled Dashboard',
         description: '',
@@ -64,20 +91,33 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
 
       // Trigger generation in background via the orchestrator agent (same path as chat)
       if (!body.stream) {
-        const service = new DashboardService({ store, conversationStore, investigationReportStore, alertRuleStore, investigationStore, feedStore })
-        void withDashboardLock(dashboard.id, async () => {
-          try {
-            await service.handleChatMessage(
-              dashboard.id,
-              dashboard.prompt,
-              undefined,
-              () => {},  // no SSE sink for background generation
-            )
-          } catch (err) {
-            log.error({ err, dashboardId: dashboard.id }, 'background generation failed')
-            await store.updateStatus(dashboard.id, 'failed')
-          }
-        })
+        const callerAuth = (req as AuthenticatedRequest).auth
+        if (!callerAuth) {
+          // Should never happen — authMiddleware is registered above. Bail
+          // rather than starting the agent with an ambient identity.
+          log.warn({ dashboardId: dashboard.id }, 'background generation skipped — no req.auth')
+        } else {
+          const service = new DashboardService({
+            store, conversationStore, investigationReportStore, alertRuleStore,
+            investigationStore, feedStore, accessControl, setupConfig,
+            ...(auditWriter ? { auditWriter } : {}),
+            ...(folderRepository ? { folderRepository } : {}),
+          })
+          void withDashboardLock(dashboard.id, async () => {
+            try {
+              await service.handleChatMessage(
+                dashboard.id,
+                dashboard.prompt,
+                undefined,
+                () => {},  // no SSE sink for background generation
+                callerAuth,
+              )
+            } catch (err) {
+              log.error({ err, dashboardId: dashboard.id }, 'background generation failed')
+              await store.updateStatus(dashboard.id, 'failed')
+            }
+          })
+        }
       }
     }
     catch (err) {
@@ -86,9 +126,9 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
   })
 
   // GET /dashboards
-  router.get('/', requirePermission('dashboard:read'), async (req: Request, res: Response, next: NextFunction) => {
+  router.get('/', requirePermission(() => ac.eval(ACTIONS.DashboardsRead, 'dashboards:*')), async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const workspaceId = getWorkspaceId(req)
+      const workspaceId = resolveOrgId(req)
       let all = await store.findAll()
       // Filter by workspace
       all = all.filter((d) => (d.workspaceId ?? 'default') === workspaceId)
@@ -100,12 +140,12 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
   })
 
   // GET /dashboards/:id/export — download as JSON file
-  router.get('/:id/export', requirePermission('dashboard:read'), async (req: Request, res: Response, next: NextFunction) => {
+  router.get('/:id/export', requirePermission((req) => ac.eval(ACTIONS.DashboardsRead, `dashboards:uid:${req.params['id']}`)), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id'] ?? ''
       const dashboard = await store.findById(id)
       if (!dashboard) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Dashboard not found' } })
         return
       }
       const filename = `${dashboard.title.replace(/[^a-zA-Z0-9_-]/g, '_')}.json`
@@ -116,17 +156,17 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
   })
 
   // GET /dashboards/:id
-  router.get('/:id', requirePermission('dashboard:read'), async (req: Request, res: Response, next: NextFunction) => {
+  router.get('/:id', requirePermission((req) => ac.eval(ACTIONS.DashboardsRead, `dashboards:uid:${req.params['id']}`)), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id'] ?? ''
       const dashboard = await store.findById(id)
       if (!dashboard) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Dashboard not found' } })
         return
       }
-      const workspaceId = getWorkspaceId(req)
+      const workspaceId = resolveOrgId(req)
       if ((dashboard.workspaceId ?? 'default') !== workspaceId) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Dashboard not found' } })
         return
       }
       res.json(dashboard)
@@ -137,7 +177,7 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
   })
 
   // PUT /dashboards/:id
-  router.put('/:id', requirePermission('dashboard:write'), async (req: Request, res: Response, next: NextFunction) => {
+  router.put('/:id', requirePermission((req) => ac.eval(ACTIONS.DashboardsWrite, `dashboards:uid:${req.params['id']}`)), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id'] ?? ''
       const body = req.body as { title?: string, description?: string, folder?: string }
@@ -152,7 +192,7 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
 
       const updated = await store.update(id, patch)
       if (!updated) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Dashboard not found' } })
         return
       }
 
@@ -164,12 +204,12 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
   })
 
   // DELETE /dashboards/:id
-  router.delete('/:id', requirePermission('dashboard:write'), async (req: Request, res: Response, next: NextFunction) => {
+  router.delete('/:id', requirePermission((req) => ac.eval(ACTIONS.DashboardsDelete, `dashboards:uid:${req.params['id']}`)), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id'] ?? ''
       const deleted = await store.delete(id)
       if (!deleted) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Dashboard not found' } })
         return
       }
       // Cascade: remove associated conversation messages
@@ -182,18 +222,18 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
   })
 
   // PUT /dashboards/:id/panels
-  router.put('/:id/panels', requirePermission('dashboard:write'), async (req: Request, res: Response, next: NextFunction) => {
+  router.put('/:id/panels', requirePermission((req) => ac.eval(ACTIONS.DashboardsWrite, `dashboards:uid:${req.params['id']}`)), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id'] ?? ''
       const body = req.body as { panels?: PanelConfig[] }
       if (!Array.isArray(body.panels)) {
-        res.status(400).json({ code: 'INVALID_INPUT', message: 'panels must be an array' })
+        res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'panels must be an array' } })
         return
       }
 
       const updated = await store.updatePanels(id, body.panels)
       if (!updated) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Dashboard not found' } })
         return
       }
 
@@ -205,25 +245,25 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
   })
 
   // POST /dashboards/:id/panels
-  router.post('/:id/panels', requirePermission('dashboard:write'), async (req: Request, res: Response, next: NextFunction) => {
+  router.post('/:id/panels', requirePermission((req) => ac.eval(ACTIONS.DashboardsWrite, `dashboards:uid:${req.params['id']}`)), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id'] ?? ''
       const d = await store.findById(id)
       if (!d) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Dashboard not found' } })
         return
       }
 
       const body = req.body as Omit<PanelConfig, 'id'>
       if (!body.title || typeof body.title !== 'string') {
-        res.status(400).json({ code: 'INVALID_INPUT', message: 'title is required' })
+        res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'title is required' } })
         return
       }
 
       const panel: PanelConfig = { ...body, id: randomUUID() }
       const updated = await store.updatePanels(id, [...d.panels, panel])
       if (!updated) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Dashboard not found' } })
         return
       }
 
@@ -235,19 +275,19 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
   })
 
   // DELETE /dashboards/:id/panels/:panelId
-  router.delete('/:id/panels/:panelId', requirePermission('dashboard:write'), async (req: Request, res: Response, next: NextFunction) => {
+  router.delete('/:id/panels/:panelId', requirePermission((req) => ac.eval(ACTIONS.DashboardsWrite, `dashboards:uid:${req.params['id']}`)), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id'] ?? ''
       const panelId = req.params['panelId'] ?? ''
       const d = await store.findById(id)
       if (!d) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Dashboard not found' } })
         return
       }
 
       const panels = d.panels.filter((p) => p.id !== panelId)
       if (panels.length === d.panels.length) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Panel not found' })
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Panel not found' } })
         return
       }
 
@@ -260,16 +300,16 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
   })
 
   // POST /dashboards/:id/chat
-  router.post('/:id/chat', requirePermission('dashboard:write'), async (req: Request, res: Response, next: NextFunction) => {
+  router.post('/:id/chat', requirePermission((req) => ac.eval(ACTIONS.DashboardsWrite, `dashboards:uid:${req.params['id']}`)), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id'] ?? ''
       const body = req.body as { message?: string; timeRange?: { start?: string; end?: string; timezone?: string } }
       if (typeof body.message !== 'string' || body.message.trim() === '') {
-        res.status(400).json({ code: 'INVALID_INPUT', message: 'message is required and must be a non-empty string' })
+        res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'message is required and must be a non-empty string' } })
         return
       }
 
-      await handleChatMessage(req, res, id, body.message.trim(), body.timeRange, store, conversationStore, investigationReportStore, alertRuleStore, investigationStore, feedStore)
+      await handleChatMessage(req as AuthenticatedRequest, res, id, body.message.trim(), body.timeRange, store, conversationStore, investigationReportStore, alertRuleStore, accessControl, setupConfig, investigationStore, feedStore, auditWriter, folderRepository)
     }
     catch (err) {
       next(err)
@@ -277,20 +317,20 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
   })
 
   // POST /dashboards/:id/variables/resolve
-  router.post('/:id/variables/resolve', requirePermission('dashboard:read'), async (req: Request, res: Response, next: NextFunction) => {
+  router.post('/:id/variables/resolve', requirePermission((req) => ac.eval(ACTIONS.DashboardsRead, `dashboards:uid:${req.params['id']}`)), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id'] ?? ''
       const dashboard = await store.findById(id)
       if (!dashboard) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Dashboard not found' } })
         return
       }
 
       const body = req.body as { datasourceId?: string } | undefined
-      const config = getSetupConfig()
+      const allDs = await setupConfig.listDatasources()
       const datasourceId = body?.datasourceId
 
-      const promDs = config.datasources.find((d) =>
+      const promDs = allDs.find((d) =>
         (d.type === 'prometheus' || d.type === 'victoria-metrics')
         && (!datasourceId || d.id === datasourceId),
       )
@@ -307,7 +347,7 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
         }
       }
 
-      const resolver = new VariableResolver(prometheusUrl, headers)
+      const resolver = new VariableResolver(prometheusUrl, headers, setupConfig)
       const resolved: Record<string, string[]> = {}
       await Promise.all(
         dashboard.variables.map(async (v) => {
@@ -323,12 +363,12 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
   })
 
   // GET /dashboards/:id/chat
-  router.get('/:id/chat', requirePermission('dashboard:read'), async (req: Request, res: Response, next: NextFunction) => {
+  router.get('/:id/chat', requirePermission((req) => ac.eval(ACTIONS.DashboardsRead, `dashboards:uid:${req.params['id']}`)), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params['id'] ?? ''
       const dashboard = await store.findById(id)
       if (!dashboard) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Dashboard not found' } })
         return
       }
 

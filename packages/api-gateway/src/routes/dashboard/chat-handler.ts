@@ -1,11 +1,15 @@
-import type { Request, Response } from 'express'
-import { createLogger } from '@agentic-obs/common'
+import type { Response } from 'express'
+import { createLogger } from '@agentic-obs/common/logging'
 import type { DashboardSseEvent } from '@agentic-obs/common'
+import type { AuthenticatedRequest } from '../../middleware/auth.js'
 
 const log = createLogger('chat-handler')
 import type { IGatewayDashboardStore, IConversationStore } from '../../repositories/types.js'
 import type { IInvestigationReportRepository, IAlertRuleRepository, IGatewayInvestigationStore, IGatewayFeedStore } from '@agentic-obs/data-layer'
 import { DashboardService, withDashboardLock } from '../../services/dashboard-service.js'
+import type { AccessControlSurface } from '../../services/accesscontrol-holder.js'
+import type { AuditWriter } from '../../auth/audit-writer.js'
+import type { SetupConfigService } from '../../services/setup-config-service.js'
 
 function sendEvent(res: Response, event: DashboardSseEvent): void {
   res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)
@@ -15,7 +19,7 @@ function sendEvent(res: Response, event: DashboardSseEvent): void {
  * Thin HTTP/SSE adapter — delegates all business logic to DashboardService.
  */
 export async function handleChatMessage(
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   dashboardId: string,
   message: string,
@@ -24,12 +28,20 @@ export async function handleChatMessage(
   conversationStore: IConversationStore,
   investigationReportStore: IInvestigationReportRepository,
   alertRuleStore: IAlertRuleRepository,
+  accessControl: AccessControlSurface,
+  setupConfig: SetupConfigService,
   investigationStore?: IGatewayInvestigationStore,
   feedStore?: IGatewayFeedStore,
+  auditWriter?: AuditWriter,
+  folderRepository?: import('@agentic-obs/common').IFolderRepository,
 ): Promise<void> {
+  if (!req.auth) {
+    res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'authentication required' } })
+    return
+  }
   const dashboard = await store.findById(dashboardId)
   if (!dashboard) {
-    res.status(404).json({ code: 'NOT_FOUND', message: 'Dashboard not found' })
+    res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Dashboard not found' } })
     return
   }
 
@@ -49,12 +61,18 @@ export async function handleChatMessage(
 
   try {
     await withDashboardLock(dashboardId, async () => {
-      const service = new DashboardService({ store, conversationStore, investigationReportStore, alertRuleStore, investigationStore, feedStore })
+      const service = new DashboardService({
+        store, conversationStore, investigationReportStore, alertRuleStore,
+        investigationStore, feedStore, accessControl, setupConfig,
+        ...(auditWriter ? { auditWriter } : {}),
+        ...(folderRepository ? { folderRepository } : {}),
+      })
       const result = await service.handleChatMessage(
         dashboardId,
         message,
         timeRange,
         (event) => { if (!closed) sendEvent(res, event) },
+        req.auth!,
       )
 
       if (!closed) {

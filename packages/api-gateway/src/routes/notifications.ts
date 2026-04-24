@@ -7,34 +7,38 @@ import type {
   TimeInterval,
   AlertGroup,
 } from '@agentic-obs/common';
+import { ac, ACTIONS } from '@agentic-obs/common';
 import type { INotificationRepository, IAlertRuleRepository } from '@agentic-obs/data-layer';
 import { defaultNotificationStore, defaultAlertRuleStore } from '@agentic-obs/data-layer';
 import { authMiddleware } from '../middleware/auth.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
-import { requirePermission } from '../middleware/rbac.js';
+import { createRequirePermission } from '../middleware/require-permission.js';
+import type { AccessControlSurface } from '../services/accesscontrol-holder.js';
 import { ensureSafeUrl } from '../utils/url-validator.js';
 
 export interface NotificationsRouterDeps {
   notificationStore?: INotificationRepository;
   alertRuleStore?: IAlertRuleRepository;
-}
-
-function withPermission(permission: string) {
-  return (req: Request, res: Response, next: NextFunction): void => {
-    requirePermission(permission)(req as AuthenticatedRequest, res, next);
-  };
+  /**
+   * RBAC surface. Contact points / policies / mute timings / alert groups all
+   * gate on `alert.notifications:read` (Viewer) and `alert.notifications:write`
+   * (Editor+) — matching Grafana's stock alerting role grants. The holder
+   * forwards to the real service once the auth subsystem finishes wiring.
+   */
+  ac: AccessControlSurface;
 }
 
 function extractWebhookUrl(settings: Record<string, string> | undefined): string {
   return settings?.url ?? settings?.webhookUrl ?? '';
 }
 
-export function createNotificationsRouter(deps: NotificationsRouterDeps = {}): Router {
+export function createNotificationsRouter(deps: NotificationsRouterDeps): Router {
   const notifStore = deps.notificationStore ?? defaultNotificationStore;
   const alertStore = deps.alertRuleStore ?? defaultAlertRuleStore;
   const router = Router();
-  const requireDashboardRead = withPermission('dashboard:read');
-  const requireDashboardWrite = withPermission('dashboard:write');
+  const requirePermission = createRequirePermission(deps.ac);
+  const requireDashboardRead = requirePermission(() => ac.eval(ACTIONS.AlertNotificationsRead));
+  const requireDashboardWrite = requirePermission(() => ac.eval(ACTIONS.AlertNotificationsWrite));
 
   router.use((req: Request, res: Response, next: NextFunction) => {
     authMiddleware(req as AuthenticatedRequest, res, next);
@@ -51,7 +55,7 @@ export function createNotificationsRouter(deps: NotificationsRouterDeps = {}): R
   router.get('/contact-points/:id', requireDashboardRead, async (req: Request, res: Response) => {
     const cp = await notifStore.findContactPointById(req.params['id'] ?? '');
     if (!cp) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Contact point not found' });
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Contact point not found' } });
       return;
     }
     res.json(cp);
@@ -61,7 +65,7 @@ export function createNotificationsRouter(deps: NotificationsRouterDeps = {}): R
   router.post('/contact-points', requireDashboardWrite, async (req: Request, res: Response) => {
     const body = req.body as Partial<ContactPoint>;
     if (!body?.name) {
-      res.status(400).json({ code: 'INVALID_INPUT', message: 'name is required' });
+      res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'name is required' } });
       return;
     }
 
@@ -79,7 +83,7 @@ export function createNotificationsRouter(deps: NotificationsRouterDeps = {}): R
       req.body as Partial<Omit<ContactPoint, 'id' | 'createdAt'>>,
     );
     if (!updated) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Contact point not found' });
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Contact point not found' } });
       return;
     }
     res.json(updated);
@@ -89,7 +93,7 @@ export function createNotificationsRouter(deps: NotificationsRouterDeps = {}): R
   router.delete('/contact-points/:id', requireDashboardWrite, async (req: Request, res: Response) => {
     const deleted = await notifStore.deleteContactPoint(req.params['id'] ?? '');
     if (!deleted) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Contact point not found' });
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Contact point not found' } });
       return;
     }
     res.status(204).end();
@@ -100,7 +104,7 @@ export function createNotificationsRouter(deps: NotificationsRouterDeps = {}): R
     try {
       const cp = await notifStore.findContactPointById(req.params['id'] ?? '');
       if (!cp) {
-        res.status(404).json({ code: 'NOT_FOUND', message: 'Contact point not found' });
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Contact point not found' } });
         return;
       }
 
@@ -174,7 +178,7 @@ export function createNotificationsRouter(deps: NotificationsRouterDeps = {}): R
   router.put('/policies', requireDashboardWrite, async (req: Request, res: Response) => {
     const body = req.body as NotificationPolicyNode;
     if (!body || !body.id) {
-      res.status(400).json({ code: 'INVALID_INPUT', message: 'Valid policy tree with id is required' });
+      res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'Valid policy tree with id is required' } });
       return;
     }
 
@@ -186,7 +190,7 @@ export function createNotificationsRouter(deps: NotificationsRouterDeps = {}): R
   router.post('/policies/:parentId/children', requireDashboardWrite, async (req: Request, res: Response) => {
     const body = req.body as Partial<Omit<NotificationPolicyNode, 'id' | 'children' | 'createdAt' | 'updatedAt'>>;
     if (!body?.contactPointId) {
-      res.status(400).json({ code: 'INVALID_INPUT', message: 'contactPointId is required' });
+      res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'contactPointId is required' } });
       return;
     }
 
@@ -203,7 +207,7 @@ export function createNotificationsRouter(deps: NotificationsRouterDeps = {}): R
     } as Omit<NotificationPolicyNode, 'id' | 'children' | 'createdAt' | 'updatedAt'>);
 
     if (!newNode) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Parent policy not found' });
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Parent policy not found' } });
       return;
     }
 
@@ -217,7 +221,7 @@ export function createNotificationsRouter(deps: NotificationsRouterDeps = {}): R
       req.body as Partial<Omit<NotificationPolicyNode, 'id' | 'children' | 'createdAt'>>,
     );
     if (!updated) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Policy node not found' });
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Policy node not found' } });
       return;
     }
     res.json(updated);
@@ -227,12 +231,12 @@ export function createNotificationsRouter(deps: NotificationsRouterDeps = {}): R
   router.delete('/policies/:id', requireDashboardWrite, async (req: Request, res: Response) => {
     const id = req.params['id'] ?? '';
     if (id === 'root') {
-      res.status(400).json({ code: 'INVALID_INPUT', message: 'Cannot delete root policy' });
+      res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'Cannot delete root policy' } });
       return;
     }
     const deleted = await notifStore.deletePolicy(id);
     if (!deleted) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Policy node not found' });
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Policy node not found' } });
       return;
     }
     res.status(204).end();
@@ -249,7 +253,7 @@ export function createNotificationsRouter(deps: NotificationsRouterDeps = {}): R
   router.post('/mute-timings', requireDashboardWrite, async (req: Request, res: Response) => {
     const body = req.body as Partial<MuteTiming>;
     if (!body?.name) {
-      res.status(400).json({ code: 'INVALID_INPUT', message: 'name is required' });
+      res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'name is required' } });
       return;
     }
 
@@ -268,7 +272,7 @@ export function createNotificationsRouter(deps: NotificationsRouterDeps = {}): R
       req.body as Partial<Omit<MuteTiming, 'id' | 'createdAt'>>,
     );
     if (!updated) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Mute timing not found' });
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Mute timing not found' } });
       return;
     }
     res.json(updated);
@@ -278,7 +282,7 @@ export function createNotificationsRouter(deps: NotificationsRouterDeps = {}): R
   router.delete('/mute-timings/:id', requireDashboardWrite, async (req: Request, res: Response) => {
     const deleted = await notifStore.deleteMuteTiming(req.params['id'] ?? '');
     if (!deleted) {
-      res.status(404).json({ code: 'NOT_FOUND', message: 'Mute timing not found' });
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Mute timing not found' } });
       return;
     }
 
@@ -326,5 +330,3 @@ export function createNotificationsRouter(deps: NotificationsRouterDeps = {}): R
   return router;
 }
 
-// Backward-compatible export for existing code
-export const notificationsRouter = createNotificationsRouter();

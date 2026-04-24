@@ -16,6 +16,7 @@ export * from './conversation-store.js';
 export * from './investigation-report-store.js';
 export * from './alert-rule-provider-adapter.js';
 export * from './folder-store.js';
-export * from './workspace-store.js';
+// workspace-store removed in T9 cutover — use OrgRepository from
+// @agentic-obs/data-layer (auth repositories) instead.
 export * from './version-store.js';
 export * from './interfaces.js';

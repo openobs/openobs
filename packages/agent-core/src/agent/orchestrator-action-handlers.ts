@@ -2,10 +2,14 @@ import { randomUUID } from 'node:crypto'
 import type {
   DashboardAction,
   DashboardSseEvent,
+  Identity,
   InvestigationReportSection,
   PanelConfig,
   PanelVisualization,
+  IFolderRepository,
+  GrafanaFolder,
 } from '@agentic-obs/common'
+import { ac } from '@agentic-obs/common'
 import type { LLMGateway } from '@agentic-obs/llm-gateway'
 import type { IMetricsAdapter, IWebSearchAdapter } from '../adapters/index.js'
 import type { AgentEvent } from './agent-events.js'
@@ -18,6 +22,7 @@ import type {
 } from './types.js'
 import type { ActionExecutor } from './action-executor.js'
 import type { AlertRuleAgent } from './alert-rule-agent.js'
+import type { IAccessControlService } from './types-permissions.js'
 import { applyLayout, panelSize } from './layout-engine.js'
 
 /** Shared context passed to every action handler. */
@@ -28,11 +33,23 @@ export interface ActionContext {
   investigationReportStore: IInvestigationReportStore
   investigationStore?: IInvestigationStore
   alertRuleStore: IAlertRuleStore
+  /** Folder repository — present when the SQLite folder service is wired.
+   *  Optional so tests / in-memory setups can omit; folder.* handlers
+   *  return a clear "folder backend not configured" observation if absent. */
+  folderRepository?: IFolderRepository
   metricsAdapter?: IMetricsAdapter
   webSearchAdapter?: IWebSearchAdapter
   allDatasources?: DatasourceConfig[]
   sendEvent: (event: DashboardSseEvent) => void
   sessionId: string
+
+  /**
+   * The authenticated principal on whose behalf this handler runs (see §D1).
+   * Handlers that list rows post-filter with `accessControl.filterByPermission`;
+   * handlers that act on a specific UID rely on the pre-dispatch gate.
+   */
+  identity: Identity
+  accessControl: IAccessControlService
 
   actionExecutor: ActionExecutor
   alertRuleAgent: AlertRuleAgent
@@ -68,6 +85,11 @@ export async function handleDashboardCreate(
     userId: 'agent',
     datasourceIds: [],
     sessionId: ctx.sessionId,
+    // Scope the new dashboard to the caller's org; the detail route
+    // enforces workspaceId equality, so missing this field makes the
+    // redirect land on "Dashboard not found" even though the row is in
+    // the store. The non-agent POST /dashboards path already does this.
+    workspaceId: ctx.identity.orgId,
   })
 
   // Navigate to the new dashboard so the user can see panels being added
@@ -100,6 +122,10 @@ export async function handleInvestigationCreate(
     question,
     sessionId: ctx.sessionId,
     userId: 'agent',
+    // Same reason as dashboard.create: the GET route filters by
+    // workspaceId; missing this field makes the investigation
+    // unreachable even though the row is in the store.
+    workspaceId: ctx.identity.orgId,
   })
 
   const observationText = `Created investigation "${question.slice(0, 60)}" (id: ${investigation.id}).`
@@ -538,6 +564,10 @@ export async function handleCreateAlertRule(
       severity: generated.severity,
       labels: { ...generated.labels, ...(dashboardId ? { dashboardId } : {}) },
       createdBy: 'llm',
+      // Same reason as dashboard.create / investigation.create: the
+      // list route filters by workspaceId, so an un-scoped row is
+      // invisible even though it's in the store.
+      workspaceId: ctx.identity.orgId,
     }) as Record<string, unknown>
   }
 
@@ -854,7 +884,18 @@ export async function handleDashboardList(
   })
 
   try {
-    const all = await ctx.store.findAll()
+    const allRaw = await ctx.store.findAll()
+    // D10 — post-filter to the rows the caller can see. The pre-dispatch gate
+    // confirmed they can list SOMETHING; filterByPermission then narrows the
+    // set per-row against `dashboards:read` on that UID.
+    const all = await ctx.accessControl.filterByPermission(
+      ctx.identity,
+      allRaw,
+      (d) => ac.eval(
+        'dashboards:read',
+        `dashboards:uid:${(d as unknown as { id?: string }).id ?? ''}`,
+      ),
+    )
     const filtered = all.filter((d) => matchesFilter(d.title, filter) || matchesFilter(d.description, filter))
     if (filtered.length === 0) {
       const msg = filter
@@ -900,7 +941,15 @@ export async function handleInvestigationList(
   })
 
   try {
-    const all = await ctx.investigationStore.findAll()
+    const allRaw = await ctx.investigationStore.findAll()
+    const all = await ctx.accessControl.filterByPermission(
+      ctx.identity,
+      allRaw,
+      (inv) => ac.eval(
+        'investigations:read',
+        `investigations:uid:${inv.id ?? ''}`,
+      ),
+    )
     const filtered = all.filter((inv) => matchesFilter(inv.intent, filter))
     if (filtered.length === 0) {
       const msg = filter
@@ -947,12 +996,20 @@ export async function handleAlertRuleList(
 
   try {
     const result = await ctx.alertRuleStore.findAll()
-    const list = (Array.isArray(result) ? result : (result as { list?: unknown[] }).list ?? []) as Array<{
+    const rawList = (Array.isArray(result) ? result : (result as { list?: unknown[] }).list ?? []) as Array<{
       id: string
       name: string
       severity: string
       condition: { query: string; operator: string; threshold: number }
     }>
+    const list = await ctx.accessControl.filterByPermission(
+      ctx.identity,
+      rawList,
+      (r) => ac.eval(
+        'alert.rules:read',
+        `alert.rules:uid:${r.id ?? ''}`,
+      ),
+    )
     const filtered = list.filter((r) => matchesFilter(r.name, filter))
     if (filtered.length === 0) {
       const msg = filter
@@ -1117,6 +1174,85 @@ export async function handleNavigate(
 
 // ---------------------------------------------------------------------------
 // Web search
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Folder lifecycle (minimal — full UI flow lives in /api/folders; agent tools
+// cover the create/list cases the orchestrator needs when asked to organize
+// dashboards). Permission gate already validated access.
+// ---------------------------------------------------------------------------
+
+export async function handleFolderCreate(
+  ctx: ActionContext,
+  args: Record<string, unknown>,
+): Promise<string> {
+  if (!ctx.folderRepository) return 'Error: folder backend not configured on this deployment.'
+  const title = String(args.title ?? '').trim()
+  if (!title) return 'Error: "title" is required.'
+  const parentUid = typeof args.parentUid === 'string' && args.parentUid !== '' ? args.parentUid : null
+
+  ctx.sendEvent({ type: 'tool_call', tool: 'folder.create', args: { title, parentUid }, displayText: `Creating folder: ${title}` })
+
+  // Simple uid slug from title; fall back to random if slug collides.
+  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || `folder-${Date.now().toString(36)}`
+  let uid = slug
+  if (await ctx.folderRepository.findByUid(ctx.identity.orgId, uid)) {
+    uid = `${slug}-${Math.random().toString(36).slice(2, 6)}`
+  }
+
+  const folder = await ctx.folderRepository.create({
+    uid,
+    orgId: ctx.identity.orgId,
+    title,
+    parentUid,
+    createdBy: ctx.identity.userId,
+    updatedBy: ctx.identity.userId,
+  })
+
+  const observation = `Folder "${folder.title}" created (uid=${folder.uid})${folder.parentUid ? ` under ${folder.parentUid}` : ' at root'}.`
+  ctx.sendEvent({ type: 'tool_result', tool: 'folder.create', summary: observation, success: true })
+  ctx.emitAgentEvent(ctx.makeAgentEvent('agent.tool_completed', { tool: 'folder.create', folderUid: folder.uid }))
+  return observation
+}
+
+export async function handleFolderList(
+  ctx: ActionContext,
+  args: Record<string, unknown>,
+): Promise<string> {
+  if (!ctx.folderRepository) return 'Error: folder backend not configured on this deployment.'
+  const parentUid = typeof args.parentUid === 'string' ? args.parentUid : null
+  const limit = Math.min(Number(args.limit ?? 50), 200)
+
+  ctx.sendEvent({ type: 'tool_call', tool: 'folder.list', args: { parentUid, limit }, displayText: 'Listing folders' })
+
+  const page = await ctx.folderRepository.list({
+    orgId: ctx.identity.orgId,
+    parentUid,
+    limit,
+  })
+
+  // Per-row filter: only return folders the identity can read (see §D12).
+  const visible = await ctx.accessControl.filterByPermission(
+    ctx.identity,
+    page.items,
+    (f: GrafanaFolder) => ac.eval('folders:read', `folders:uid:${f.uid}`),
+  )
+
+  if (visible.length === 0) {
+    const msg = 'No folders visible to you' + (parentUid ? ` under ${parentUid}.` : '.')
+    ctx.sendEvent({ type: 'tool_result', tool: 'folder.list', summary: msg, success: true })
+    return msg
+  }
+  const rows = visible
+    .slice(0, 20)
+    .map((f) => `- ${f.title} (uid=${f.uid})${f.parentUid ? `, parent=${f.parentUid}` : ''}`)
+    .join('\n')
+  const footer = visible.length > 20 ? `\n... and ${visible.length - 20} more folders` : ''
+  const summary = `${visible.length} folders:\n${rows}${footer}`
+  ctx.sendEvent({ type: 'tool_result', tool: 'folder.list', summary: `${visible.length} folders`, success: true })
+  return summary
+}
+
 // ---------------------------------------------------------------------------
 
 export async function handleWebSearch(ctx: ActionContext, args: Record<string, unknown>): Promise<string> {

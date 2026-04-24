@@ -1,4 +1,7 @@
+import { createLogger } from '@agentic-obs/common/logging';
 import type { LLMProvider, LLMOptions, LLMResponse, CompletionMessage, ModelInfo } from '../types.js';
+
+const log = createLogger('anthropic-provider');
 
 const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_API_VERSION = '2023-06-01';
@@ -119,15 +122,27 @@ export class AnthropicProvider implements LLMProvider {
   }
 
   async listModels(): Promise<ModelInfo[]> {
-    const response = await fetch(`${this.baseUrl}/v1/models`, {
-      headers: { 'x-api-key': this.apiKey, 'anthropic-version': this.apiVersion },
-    });
-    if (!response.ok) return [];
-    const data = (await response.json()) as { data: Array<{ id: string; display_name?: string }> };
-    return data.data.map((m) => ({
-      id: m.id,
-      name: m.display_name ?? m.id,
-      provider: 'anthropic',
-    }));
+    try {
+      const response = await fetch(`${this.baseUrl}/v1/models`, {
+        headers: { 'x-api-key': this.apiKey, 'anthropic-version': this.apiVersion },
+      });
+      if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        log.warn(
+          { provider: 'anthropic', status: response.status, body: body.slice(0, 200), baseUrl: this.baseUrl },
+          'listModels failed',
+        );
+        return [];
+      }
+      const data = (await response.json()) as { data: Array<{ id: string; display_name?: string }> };
+      return data.data.map((m) => ({
+        id: m.id,
+        name: m.display_name ?? m.id,
+        provider: 'anthropic',
+      }));
+    } catch (err) {
+      log.warn({ err, provider: 'anthropic', baseUrl: this.baseUrl }, 'listModels failed');
+      return [];
+    }
   }
 }

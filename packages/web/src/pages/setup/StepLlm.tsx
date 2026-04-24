@@ -20,6 +20,7 @@ export function StepLlm({
   const [remoteModels, setRemoteModels] = useState<ModelInfo[]>([]);
   const [fetchingModels, setFetchingModels] = useState(false);
   const [modelsFetched, setModelsFetched] = useState(false);
+  const [modelsWarning, setModelsWarning] = useState<string | null>(null);
 
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const provider = LLM_PROVIDERS.find((p) => p.value === config.provider) ?? LLM_PROVIDERS[0]!;
@@ -33,52 +34,73 @@ export function StepLlm({
     setFetchingModels(true);
     setRemoteModels([]);
     setModelsFetched(false);
-    const res = await apiClient.post<{ models: ModelInfo[] }>('/setup/llm/models', {
-      provider: config.provider,
-      apiKey: config.apiKey || undefined,
-      baseUrl: config.baseUrl || undefined,
-    });
-    setFetchingModels(false);
-    setModelsFetched(true);
-    if (res.data?.models && res.data.models.length > 0) {
-      setRemoteModels(res.data.models);
-      // Auto-select first model if current selection not in list
-      const ids = res.data.models.map((m) => m.id);
-      if (!ids.includes(config.model)) {
-        onChange({ model: res.data.models[0]!.id });
+    setModelsWarning(null);
+    try {
+      const res = await apiClient.post<{ models: ModelInfo[]; warning?: string }>(
+        '/setup/llm/models',
+        {
+          provider: config.provider,
+          apiKey: config.apiKey || undefined,
+          baseUrl: config.baseUrl || undefined,
+        },
+      );
+      if (res.data?.models && res.data.models.length > 0) {
+        setRemoteModels(res.data.models);
+        // Auto-select first model if current selection not in list
+        const ids = res.data.models.map((m) => m.id);
+        if (!ids.includes(config.model)) {
+          onChange({ model: res.data.models[0]!.id });
+        }
       }
+      if (res.data?.warning) setModelsWarning(res.data.warning);
+      if (res.error) setModelsWarning(res.error.message ?? 'Failed to fetch models');
+    } catch (err) {
+      // Network / client-side failures still need to clear the loading state.
+      setModelsWarning(err instanceof Error ? err.message : 'Failed to fetch models');
+    } finally {
+      setFetchingModels(false);
+      setModelsFetched(true);
     }
   };
 
   const handleTest = async () => {
     setTesting(true);
     setTestResult(null);
-    const res = await apiClient.post<{ ok: boolean; message: string }>('/setup/llm/test', {
-      provider: config.provider,
-      apiKey: config.apiKey || undefined,
-      model: config.model,
-      baseUrl: config.baseUrl || undefined,
-      region: config.region || undefined,
-      authType: config.authType || undefined,
-    });
-    setTesting(false);
-    if (res.error) {
-      setTestResult({ ok: false, message: res.error.message });
-    } else {
-      setTestResult(res.data);
-    }
-  };
-
-  const handleNext = async () => {
-    await apiClient.post('/setup/llm', {
-      config: {
+    try {
+      const res = await apiClient.post<{ ok: boolean; message: string }>('/setup/llm/test', {
         provider: config.provider,
         apiKey: config.apiKey || undefined,
         model: config.model,
         baseUrl: config.baseUrl || undefined,
         region: config.region || undefined,
         authType: config.authType || undefined,
-      },
+      });
+      if (res.error) {
+        setTestResult({ ok: false, message: res.error.message });
+      } else {
+        setTestResult(res.data);
+      }
+    } catch (err) {
+      setTestResult({
+        ok: false,
+        message: err instanceof Error ? err.message : 'Connection failed',
+      });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handleNext = async () => {
+    // PUT /api/system/llm is the authed save endpoint. The bootstrap-aware
+    // middleware on the server lets the wizard reach it without auth until
+    // the first admin is created.
+    await apiClient.put('/system/llm', {
+      provider: config.provider,
+      apiKey: config.apiKey || undefined,
+      model: config.model,
+      baseUrl: config.baseUrl || undefined,
+      region: config.region || undefined,
+      authType: config.authType || undefined,
     });
     onNext();
   };
@@ -114,6 +136,7 @@ export function StepLlm({
                   setTestResult(null);
                   setRemoteModels([]);
                   setModelsFetched(false);
+                  setModelsWarning(null);
                 }}
                 className={`text-left px-4 py-3 rounded-lg border-2 text-sm font-medium transition-colors ${
                   config.provider === p.value
@@ -179,11 +202,11 @@ export function StepLlm({
 
         <div>
           <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">Default Model</label>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-stretch min-w-0">
             <select
               value={config.model}
               onChange={(e) => onChange({ model: e.target.value })}
-              className="flex-1 px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
+              className="flex-1 min-w-0 w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)] truncate"
             >
               {availableModels.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -203,12 +226,12 @@ export function StepLlm({
             )}
           </div>
           {modelsFetched && remoteModels.length === 0 && (
-            <p className="text-xs text-amber-400 mt-1">
-              Could not fetch models. Check your API key / URL and try again.
+            <p className="text-xs text-tertiary mt-1">
+              {modelsWarning ?? 'Could not fetch models. Check your API key / URL and try again.'}
             </p>
           )}
           {remoteModels.length > 0 && (
-            <p className="text-xs text-emerald-400 mt-1">
+            <p className="text-xs text-secondary mt-1">
               Found {remoteModels.length} models from provider
             </p>
           )}
@@ -224,7 +247,7 @@ export function StepLlm({
             {testing ? 'Testing...' : 'Test Connection'}
           </button>
           {testResult && (
-            <span className={`text-sm font-medium ${testResult.ok ? 'text-emerald-400' : 'text-red-400'}`}>
+            <span className={`text-sm font-medium ${testResult.ok ? 'text-secondary' : 'text-error'}`}>
               {testResult.ok ? '✓ ' : '✗ '}
               {testResult.message}
             </span>
@@ -239,7 +262,7 @@ export function StepLlm({
             type="button"
             onClick={() => void handleNext()}
             disabled={!canProceed}
-            className="px-5 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-40"
+            className="px-5 py-2 rounded-lg bg-primary text-on-primary-fixed text-sm font-semibold hover:opacity-90 disabled:opacity-40 transition-opacity"
           >
             Continue
           </button>

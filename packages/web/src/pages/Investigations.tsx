@@ -4,6 +4,7 @@ import { apiClient } from '../api/client.js';
 import ConfirmDialog from '../components/ConfirmDialog.js';
 import { relativeTime } from '../utils/time.js';
 import { getInvestigationStatusStyle } from '../constants/status-styles.js';
+import { useAuth } from '../contexts/AuthContext.js';
 
 // Types — matches the summary returned by GET /investigations
 
@@ -27,6 +28,18 @@ function isActive(status: string) {
 
 export default function Investigations() {
   const navigate = useNavigate();
+  const { user, hasPermission } = useAuth();
+  // Backend gates via canonical `investigations:*` actions
+  // (packages/api-gateway/src/routes/investigation/router.ts). The legacy
+  // singular `investigation:*` fallback was removed once the backend rename
+  // landed.
+  const canCreateInvestigation = !!user
+    && (user.isServerAdmin
+      || hasPermission('investigations:create'));
+  const canDeleteInvestigation = !!user
+    && (user.isServerAdmin
+      || hasPermission('investigations:delete')
+      || hasPermission('investigations:write'));
   const [investigations, setInvestigations] = useState<InvestigationSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -96,13 +109,15 @@ export default function Investigations() {
               Diagnose and troubleshoot production issues with AI-driven analysis.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => navigate('/')}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary-fixed transition-transform active:scale-95"
-          >
-            + New Investigation
-          </button>
+          {canCreateInvestigation && (
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary-fixed transition-transform active:scale-95"
+            >
+              + New Investigation
+            </button>
+          )}
         </div>
 
         <div className="mb-6">
@@ -146,13 +161,15 @@ export default function Investigations() {
             </div>
             <p className="mb-1 text-sm text-on-surface-variant">No investigations yet</p>
             <p className="mb-4 text-xs text-[var(--color-outline)]">Start an investigation to diagnose production issues with AI</p>
-            <button
-              type="button"
-              onClick={() => navigate('/')}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary-fixed"
-            >
-              + New Investigation
-            </button>
+            {canCreateInvestigation && (
+              <button
+                type="button"
+                onClick={() => navigate('/')}
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary-fixed"
+              >
+                + New Investigation
+              </button>
+            )}
           </div>
         )}
 
@@ -210,17 +227,19 @@ export default function Investigations() {
                       </div>
                     </div>
                   </button>
-                  <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center">
-                    <button
-                      type="button"
-                      onClick={() => setDeletingId(inv.id)}
-                      className="pointer-events-auto rounded-lg p-1.5 text-[var(--color-outline)] opacity-0 transition-all hover:bg-red-400/10 hover:text-red-400 group-hover:opacity-100"
-                    >
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </div>
+                  {canDeleteInvestigation && (
+                    <div className="pointer-events-none absolute inset-y-0 right-4 flex items-center">
+                      <button
+                        type="button"
+                        onClick={() => setDeletingId(inv.id)}
+                        className="pointer-events-auto rounded-lg p-1.5 text-[var(--color-outline)] opacity-0 transition-all hover:bg-error/10 hover:text-error group-hover:opacity-100"
+                      >
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
