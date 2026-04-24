@@ -11,14 +11,15 @@ function LayoutInner() {
   const { events, isGenerating, sendMessage, stopGeneration, pendingNavigation, clearPendingNavigation } = useGlobalChat();
 
   // Hide the global ChatPanel on Home, the top-level list pages
-  // (Dashboards / Investigations / Alerts), and Settings. Detail pages
-  // keep the panel because that's where a context-specific chat is
-  // actually useful.
+  // (Dashboards / Investigations / Alerts), and configuration surfaces
+  // (Settings, Admin). Detail pages keep the panel because that's
+  // where a context-specific chat is actually useful.
   const pathname = location.pathname;
   const chatHiddenExact = new Set(['/', '/dashboards', '/investigations', '/alerts']);
+  const chatHiddenPrefix = ['/settings', '/admin'];
   const showChat =
     !chatHiddenExact.has(pathname)
-    && !(pathname === '/settings' || pathname.startsWith('/settings/'));
+    && !chatHiddenPrefix.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
   // Handle agent-initiated navigation
   useEffect(() => {
