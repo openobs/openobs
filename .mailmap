@@ -1,0 +1,10 @@
+# Consolidate Claude co-author trailers into the primary author entry.
+#
+# GitHub's contributor graph and `git shortlog` count commit_email,
+# so mapping the Claude noreply address to the human committer cleans
+# the graph without rewriting any commit messages. Individual commit
+# pages still show the `Co-Authored-By:` trailer in the body — that's
+# commit-message text, which mailmap does not touch.
+#
+# Format: <canonical name + email> <commit email to rewrite>
+shiqi wang <shiqi308@gmail.com> <noreply@anthropic.com>
