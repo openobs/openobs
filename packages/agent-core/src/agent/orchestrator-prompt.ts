@@ -304,9 +304,10 @@ All mutation tools require "dashboardId" — create one first with dashboard.cre
 - delete_alert_rule(ruleId) — Delete alert rule (irreversible).
 
 ## Terminal Actions
-- reply(text) — Conversational reply, no tools needed.
-- finish(text) — Summarize outcome after tool actions. Be specific.
-- ask_user(question) — Clarifying question. Use VERY sparingly.`
+Put the final answer in the top-level \`message\` field and leave \`args\` empty. See Response Format below.
+- \`reply\` — Conversational answer, no tool actions taken this turn.
+- \`finish\` — Summarize what your tool calls above actually accomplished. Be specific.
+- \`ask_user\` — Clarifying question. Use VERY sparingly.`
 }
 
 function getQueryKnowledgeSection(): string {
@@ -393,8 +394,13 @@ function getHistorySection(history: DashboardMessage[]): string {
 
 function getDatasourceSection(allDatasources: DatasourceConfig[]): string {
   if (allDatasources.length === 0) return ''
+  // Expose `sourceId` explicitly — the name field (e.g. "demo") looks like
+  // an id to the model and leads to a two-step recovery where the first
+  // tool call fails with "unknown datasource 'demo'" before the model calls
+  // datasources.list to get the real UUID. Putting id front-and-center
+  // saves those two steps.
   return `\n# Datasources\n${allDatasources.map((d) =>
-    `- ${d.name} (${d.type}${d.environment ? `, ${d.environment}` : ''}${d.isDefault ? ', DEFAULT' : ''})`).join('\n')}`
+    `- sourceId="${d.id}" name="${d.name}" type=${d.type}${d.environment ? ` env=${d.environment}` : ''}${d.isDefault ? ' DEFAULT' : ''}`).join('\n')}`
 }
 
 function getAlertRulesSection(

@@ -288,9 +288,16 @@ export class ReActLoop {
 
       // --- Terminal actions: exit the loop immediately ---
       if (TERMINAL_ACTIONS.has(action)) {
+        // The prompt documents "put the answer in top-level `message`, leave
+        // args empty" — that lands in `chatReply`. But models routinely drift
+        // to args.text / args.message / args.content. Accept any of them so
+        // a harmless format variation doesn't drop the whole reply. Order:
+        // top-level message → args.text → args.message → args.content.
+        const pickString = (v: unknown): string | undefined =>
+          typeof v === 'string' && v.trim() ? v : undefined
         const text = action === 'ask_user'
-          ? (chatReply ?? (typeof step.args.question === 'string' ? step.args.question : ''))
-          : (chatReply ?? (typeof step.args.text === 'string' ? step.args.text : ''))
+          ? (chatReply ?? pickString(step.args.question) ?? pickString(step.args.text) ?? pickString(step.args.message) ?? '')
+          : (chatReply ?? pickString(step.args.text) ?? pickString(step.args.message) ?? pickString(step.args.content) ?? '')
         if (text) {
           this.deps.sendEvent({ type: 'reply', content: text })
         }
