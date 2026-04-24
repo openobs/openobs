@@ -47,7 +47,7 @@ function getDoingTasksSection(): string {
 - 8-15 panels for a focused dashboard. Don't use template variables unless the user asks for drill-down.
 
 ## Executing Actions with Care
-- Read-only tools (prometheus.*, web.search) are always safe. Use them freely.
+- Read-only tools (datasources.list, metrics.*, logs.*, changes.list_recent, web.search) are always safe. Use them freely.
 - Before removing panels, verify the panel IDs from Dashboard State. Before creating alerts, check current metric values to ensure the threshold makes sense.
 - NEVER silently drop errors. If a tool fails, report it to the user.`
 }
@@ -60,17 +60,18 @@ Each example shows one representative scenario. The model should generalize thes
 ## Creating a Dashboard (metrics exist)
 <example>
 User: "Create a dashboard for HTTP monitoring"
-  1. web.search({ query: "http service monitoring dashboard best practices RED method" })
-  2. prometheus.metric_names({ filter: "http" }) → found prometheus_http_requests_total, etc.
-  3. prometheus.metadata({ metrics: ["prometheus_http_requests_total", ...] }) → counter, histogram
-  4. dashboard.create({ title: "HTTP Service Monitoring" }) → dashboardId: "abc-123"
-  5. prometheus.validate({ expr: "sum(rate(...))" }) → Valid (repeat for each query)
-  6. dashboard.add_panels({ dashboardId: "abc-123", panels: [
+  1. datasources.list({ signalType: "metrics" }) → id: prom-prod (prometheus, metrics) — default
+  2. web.search({ query: "http service monitoring dashboard best practices RED method" })
+  3. metrics.metric_names({ sourceId: "prom-prod", match: "http" }) → found prometheus_http_requests_total, etc.
+  4. metrics.metadata({ sourceId: "prom-prod", metric: "prometheus_http_requests_total" }) → counter
+  5. dashboard.create({ title: "HTTP Service Monitoring" }) → dashboardId: "abc-123"
+  6. metrics.validate({ sourceId: "prom-prod", query: "sum(rate(...))" }) → Valid (repeat for each query)
+  7. dashboard.add_panels({ dashboardId: "abc-123", panels: [
        { title: "Request Rate", visualization: "stat", queries: [{ refId: "A", expr: "sum(rate(prometheus_http_requests_total[5m]))", instant: true }], unit: "reqps" },
        { title: "Error Rate", visualization: "gauge", queries: [{ refId: "A", expr: "sum(rate(prometheus_http_requests_total{code=~\\"5..\\"}[5m])) / sum(rate(prometheus_http_requests_total[5m]))", instant: true }], unit: "percentunit" },
        { title: "Latency p95", visualization: "time_series", queries: [{ refId: "A", expr: "histogram_quantile(0.95, sum(rate(prometheus_http_request_duration_seconds_bucket[5m])) by (le))" }], unit: "seconds" }
      ] })
-  7. finish("Created HTTP Monitoring dashboard with 3 panels: request rate, error rate, p95 latency.")
+  8. finish("Created HTTP Monitoring dashboard with 3 panels: request rate, error rate, p95 latency.")
 </example>
 
 ## Creating a Dashboard (metrics don't exist yet — pre-deployment)
@@ -90,15 +91,16 @@ User: "Create a monitoring dashboard for our new Redis deployment"
 ## Explaining / Analyzing Panel Data
 <example>
 User: "Analyze the request rate by handler data"
-  1. prometheus.query({ expr: "topk(5, sum(rate(prometheus_http_requests_total[5m])) by (handler))" })
+  1. datasources.list({ signalType: "metrics" }) → id: prom-prod (prometheus, metrics) — default
+  2. metrics.query({ sourceId: "prom-prod", query: "topk(5, sum(rate(prometheus_http_requests_total[5m])) by (handler))" })
      → /api/v1/query: 2.3, /api/v1/label: 1.1, /metrics: 0.8, ...
-  2. reply("**Top 5 handlers by traffic:** /api/v1/query — 2.3 req/s (32%), /api/v1/label — 1.1 req/s (15%), /metrics — 0.8 req/s (11%). Traffic is stable, no anomalies.")
+  3. reply("**Top 5 handlers by traffic:** /api/v1/query — 2.3 req/s (32%), /api/v1/label — 1.1 req/s (15%), /metrics — 0.8 req/s (11%). Traffic is stable, no anomalies.")
 </example>
 
 ## Modifying Panels
 <example>
 User: "Change the latency panel to show p99 instead of p95"
-  1. prometheus.validate({ expr: "histogram_quantile(0.99, ...)" }) → Valid
+  1. metrics.validate({ sourceId: "prom-prod", query: "histogram_quantile(0.99, ...)" }) → Valid
   2. dashboard.modify_panel({ dashboardId: "...", panelId: "panel-id-from-context", title: "Latency p99", queries: [{ refId: "A", expr: "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))" }] })
   3. finish("Changed latency panel from p95 to p99.")
 </example>
@@ -106,7 +108,7 @@ User: "Change the latency panel to show p99 instead of p95"
 ## Creating an Alert Rule
 <example>
 User: "Alert me when error rate goes above 5%"
-  1. prometheus.query({ expr: "sum(rate(http_errors_total[5m])) / sum(rate(http_requests_total[5m]))" }) → 0.023 (2.3%, so 5% threshold is reasonable)
+  1. metrics.query({ sourceId: "prom-prod", query: "sum(rate(http_errors_total[5m])) / sum(rate(http_requests_total[5m]))" }) → 0.023 (2.3%, so 5% threshold is reasonable)
   2. create_alert_rule({ prompt: "Alert when HTTP error rate exceeds 5% for 5 minutes" })
   3. finish("Created alert rule 'High Error Rate' — fires when error rate > 5%. Current rate is 2.3%.")
 </example>
@@ -139,11 +141,13 @@ IMPORTANT: You MUST call investigation.complete at the end. Without it, all sect
 
 <example>
 User: "Why is p99 latency so high?"
-  1. investigation.create({ question: "Why is p99 latency high?" }) → inv-789
-  2. prometheus.query(p99) → 99ms; prometheus.query(p50) → 50ms
-  3. prometheus.range_query(request rate) → stable 0.19 req/s
-  4. prometheus.query(error rate) → 0 errors
-  5. prometheus.query(p99 by handler) → /api/v1/query_range=120ms, others <50ms
+  1. datasources.list({ signalType: "metrics" }) → id: prom-prod (prometheus, metrics) — default
+  2. investigation.create({ question: "Why is p99 latency high?" }) → inv-789
+  3. metrics.query({ sourceId: "prom-prod", query: p99 }) → 99ms; metrics.query({ sourceId: "prom-prod", query: p50 }) → 50ms
+  4. metrics.range_query({ sourceId: "prom-prod", query: request rate, duration_minutes: 60, step: "60s" }) → stable 0.19 req/s
+  5. metrics.query({ sourceId: "prom-prod", query: error rate }) → 0 errors
+  6. metrics.query({ sourceId: "prom-prod", query: p99 by handler }) → /api/v1/query_range=120ms, others <50ms
+  7. changes.list_recent({ service: "prometheus", window_minutes: 120 }) → no deploys in window
   — Now write the report with all evidence gathered —
   6. investigation.add_section({ type: "text", content: "## Initial Assessment\n\nThe p99 latency is currently at 99ms while the median (p50) sits at 50ms, representing a 2x gap. This is a significant tail latency issue — the slowest 1% of requests take nearly twice as long as the typical request. Looking at the historical trend, this gap has been consistent over the past hour rather than appearing as a sudden spike, which suggests a structural cause rather than a transient event." })
   7. investigation.add_section({ type: "evidence", content: "The chart below shows both p99 and p50 latency. Note the consistent ~2x gap between them.", panel: { title: "p99 vs p50 Latency Over Time", queries: [...], unit: "seconds" } })
@@ -262,7 +266,7 @@ N items each compare against the SAME known ceiling):
   for "biggest item wins" comparisons; \`bar_gauge\` is for "how full?"
 
 ## Viz Selection Decision Tree
-**ALWAYS call \`prometheus.metadata({metrics: [name]})\` first** to learn the
+**ALWAYS call \`metrics.metadata({ sourceId, metric })\` first** to learn the
 metric type before picking a visualization. Then apply the rules below.
 
 **counter** (suffix \`_total\` or \`_count\`):
@@ -349,18 +353,33 @@ into the time series for context.`
 
 function getToolsSection(hasMetrics: boolean): string {
   const metricsTools = hasMetrics ? `
-## Metrics Tools (read-only)
-- prometheus.metric_names(filter?) — Search metric names by keyword. ALWAYS pass a filter (e.g., { filter: "http" }). Returns matching names. Without filter: returns all if <500, otherwise asks you to filter.
-- prometheus.series(patterns) — Find series matching selectors. E.g., { patterns: ['{__name__=~"http.*"}'] }.
-- prometheus.metadata(metrics?) — Get metric type and help text. ESSENTIAL for writing correct queries.
-- prometheus.labels(metric) — List label names for a metric.
-- prometheus.label_values(label) — List all values for a label.
-- prometheus.query(expr) — Instant query. Returns current values (up to 20 series).
-- prometheus.range_query(expr, step?, duration_minutes?) — Range query. Default: last 60 min.
-- prometheus.validate(expr) — Test if a query is valid. ALWAYS validate before adding panels (unless metrics don't exist yet).
+## Metrics Tools (read-only, source-agnostic)
+All metrics tools require a \`sourceId\` — resolve it with \`datasources.list({ signalType: "metrics" })\` first.
+- metrics.metric_names({ sourceId, match? }) — Search metric names by keyword. ALWAYS pass a \`match\` (e.g. { match: "http" }). Without filter: returns all if <500, otherwise asks you to filter.
+- metrics.series({ sourceId, match }) — Find series matching selectors. E.g. { match: ['{__name__=~"http.*"}'] }.
+- metrics.metadata({ sourceId, metric? }) — Get metric type and help text. ESSENTIAL for writing correct queries.
+- metrics.labels({ sourceId, metric? }) — List label names for a metric (omit metric for the full set).
+- metrics.label_values({ sourceId, label, match? }) — List all values for a label.
+- metrics.query({ sourceId, query }) — Instant query. Returns current values (up to 20 series).
+- metrics.range_query({ sourceId, query, start?, end?, step? }) — Range query. Default: last 60 min at 60s step.
+- metrics.validate({ sourceId, query }) — Test if a query is valid. ALWAYS validate before adding panels (unless metrics don't exist yet).
+
+## Logs Tools (read-only, source-agnostic)
+All logs tools require a \`sourceId\` — resolve it with \`datasources.list({ signalType: "logs" })\` first. The \`query\` string is backend-native (LogQL for Loki, ES DSL for Elasticsearch, etc.).
+- logs.query({ sourceId, query, start, end, limit? }) — Run a logs query over an explicit ISO-8601 window. Returns \`[timestamp] {labels} message\` lines, truncated to keep observations compact.
+- logs.labels({ sourceId }) — List available log labels.
+- logs.label_values({ sourceId, label }) — List values for a log label.
+
+## Changes Tool (read-only)
+- changes.list_recent({ sourceId?, service?, window_minutes? }) — Recent deploys, config rollouts, feature-flag flips, and incidents. If \`sourceId\` is omitted, the first registered change-event datasource is used. Defaults: window_minutes=60, all services. Use early in investigations to correlate anomalies with known changes.
 ` : ''
 
   return `# Available Tools
+
+**Datasource discovery**: before querying metrics/logs/changes, call \`datasources.list\` to see what's configured. Every query tool requires a \`sourceId\`. Never guess — if the user's intent is ambiguous between multiple sources, ask which one.
+
+## Datasource Discovery (always allowed, no permissions required)
+- datasources.list({ signalType? }) — List every configured datasource with its \`id\`, backend \`type\`, and signal kind. \`signalType\` is one of \`"metrics" | "logs" | "changes"\`; omit to see all. **Call this first** before any metrics/logs/changes query.
 ${metricsTools}
 ## Dashboard Tools
 All mutation tools require "dashboardId" — create one first with dashboard.create if needed.
@@ -398,7 +417,7 @@ All mutation tools require "dashboardId" — create one first with dashboard.cre
 function getQueryKnowledgeSection(): string {
   return `# Query Knowledge
 
-## Metric Types — check with prometheus.metadata before writing queries
+## Metric Types — check with metrics.metadata before writing queries
 - **counter** (_total, _count): Always rate() or increase(). Never raw values.
 - **gauge** (_bytes, _ratio, no suffix): Use directly or avg_over_time().
 - **histogram** (_bucket, _sum, _count): histogram_quantile() for percentiles. Never avg() for latency.
