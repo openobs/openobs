@@ -230,8 +230,12 @@ export default function StatViz({
       className={`relative flex h-full w-full flex-col ${align} ${justify} overflow-hidden px-3 py-2`}
       style={{
         ...(backgroundColor ? { backgroundColor } : null),
-        // Enable container queries so the number can scale with panel width.
-        containerType: 'inline-size',
+        // Enable container queries on BOTH axes so the number can scale with
+        // the smaller of width and height. `inline-size` only exposes cqw —
+        // a wide-but-short panel (e.g. 600×100) would size off width and
+        // overflow vertically. `size` exposes cqh too, then clamp picks
+        // min(20cqw, 50cqh) to stay inside both axes.
+        containerType: 'size',
       }}
     >
       {sparkGeom && (
@@ -279,12 +283,12 @@ export default function StatViz({
         <div
           className="font-[Manrope] font-bold tabular-nums leading-none tracking-tight"
           style={{
-            // clamp keeps the number readable on tiny panels and stops it
-            // from blowing out wide ones; 20cqw means ~20% of the container's
-            // inline size — a bit punchier than Grafana's stock sizing so the
-            // number dominates the tile rather than competing with the
-            // sparkline strip.
-            fontSize: 'clamp(2.25rem, 20cqw, 6rem)',
+            // Size to the SMALLER of 20% inline-size or 50% block-size so
+            // wide-but-short panels don't overflow vertically. The clamp
+            // floors at 2.25rem (small panels stay readable) and caps at
+            // 6rem (huge panels don't get cartoonish). Punchier than
+            // Grafana's stock so the number dominates the tile.
+            fontSize: 'clamp(2.25rem, min(20cqw, 50cqh), 6rem)',
             color: textColor,
           }}
         >
