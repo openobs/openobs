@@ -235,6 +235,7 @@ User: "What's the difference between rate() and irate()?"
 - **Don't pick these by mistake**: \`stat\` for a time-evolving counter without rate() → giant growing number; \`bar\` for time-evolving data → bars are snapshots; \`pie\` for time-series → pie is proportional shares at an instant.
 - **Series cap**: if a \`time_series\` panel would have >30 series, wrap the query in \`topk(10, ...)\` or split by another label.
 - **Annotations**: for \`time_series\` / \`heatmap\` panels covering an alerting metric, fetch \`alert_rule.history(...)\` once and pass the returned JSON as \`panel.annotations\`. Skip annotations when no related alert rule exists.
+- **Legend names**: every query in a multi-query panel MUST set \`legendFormat\` to a meaningful label (e.g. \`"p50"\`, \`"p95"\`, \`"errors {{handler}}"\`). Without it the legend shows the raw \`refId\` (\`A\`, \`B\`, \`C\`...) and users can't tell which line is which. \`{{label}}\` template syntax expands to the matching Prometheus label value at render time. Single-query panels can omit \`legendFormat\` — the panel title is enough context.
 
 The frontend auto-adapts legend layout, y-scale (log when >3 orders of magnitude), point markers, stat coloring at 100%, and bar/pie truncation. You don't need to set these unless overriding the default.
 
