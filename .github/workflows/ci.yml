@@ -62,6 +62,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Workspace packages (e.g. @agentic-obs/common) have "exports" pointing
+      # at ./dist/*.js, so vitest's resolver needs the compiled output to exist
+      # before tests run. Without this build step, every test that imports a
+      # workspace package fails with "Failed to resolve entry for package".
+      - run: npm run build
       # vitest needs a coverage provider; install ad-hoc to avoid touching package-lock
       - run: npm install --no-save @vitest/coverage-v8@^3.2.0
       - run: npx vitest run --coverage --coverage.reporter=lcov --coverage.reporter=text
