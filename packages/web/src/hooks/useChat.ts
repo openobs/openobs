@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { apiClient } from '../api/client.js';
 import type { ChatMessage, ChatEvent } from './useDashboardChat.js';
 
@@ -360,17 +360,32 @@ export function useChat(): UseChatResult {
     };
   }, []);
 
-  return {
-    messages,
-    events,
-    isGenerating,
-    sendMessage,
-    stopGeneration,
-    pendingNavigation,
-    clearPendingNavigation,
-    setPageContext,
-    currentSessionId,
-    startNewSession,
-    loadSession,
-  };
+  return useMemo(
+    () => ({
+      messages,
+      events,
+      isGenerating,
+      sendMessage,
+      stopGeneration,
+      pendingNavigation,
+      clearPendingNavigation,
+      setPageContext,
+      currentSessionId,
+      startNewSession,
+      loadSession,
+    }),
+    [
+      messages,
+      events,
+      isGenerating,
+      sendMessage,
+      stopGeneration,
+      pendingNavigation,
+      clearPendingNavigation,
+      setPageContext,
+      currentSessionId,
+      startNewSession,
+      loadSession,
+    ],
+  );
 }

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client.js';
 import type { PanelConfig } from '../components/DashboardPanelCard.js';
@@ -385,16 +385,30 @@ export function useDashboardChat(
     };
   }, []);
 
-  return {
-    messages,
-    events,
-    isGenerating,
-    sendMessage,
-    stopGeneration,
-    panels,
-    variables,
-    setPanels,
-    setVariables,
-    investigationReport,
-  };
+  return useMemo(
+    () => ({
+      messages,
+      events,
+      isGenerating,
+      sendMessage,
+      stopGeneration,
+      panels,
+      variables,
+      setPanels,
+      setVariables,
+      investigationReport,
+    }),
+    [
+      messages,
+      events,
+      isGenerating,
+      sendMessage,
+      stopGeneration,
+      panels,
+      variables,
+      setPanels,
+      setVariables,
+      investigationReport,
+    ],
+  );
 }

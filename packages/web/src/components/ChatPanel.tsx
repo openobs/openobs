@@ -52,32 +52,33 @@ export default function ChatPanel({ events, isGenerating, onSendMessage, onStop 
     setUnread(0);
   };
 
-  const handleDragStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    dragRef.current = { startX: e.clientX, startWidth: chatWidth };
+  const chatWidthRef = useRef(chatWidth);
+  useEffect(() => {
+    chatWidthRef.current = chatWidth;
   }, [chatWidth]);
 
-  const handleDragMove = (e: MouseEvent) => {
-    if (!dragRef.current) return;
-    const delta = dragRef.current.startX - e.clientX;
-    const newWidth = Math.min(700, Math.max(280, dragRef.current.startWidth + delta));
-    setChatWidth(newWidth);
-  };
-
-  const handleDragEnd = () => {
-    dragRef.current = null;
-    document.removeEventListener('mousemove', handleDragMove);
-    document.removeEventListener('mouseup', handleDragEnd);
-  };
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    dragRef.current = { startX: e.clientX, startWidth: chatWidthRef.current };
+  }, []);
 
   useEffect(() => {
+    const handleDragMove = (e: MouseEvent) => {
+      if (!dragRef.current) return;
+      const delta = dragRef.current.startX - e.clientX;
+      const newWidth = Math.min(700, Math.max(280, dragRef.current.startWidth + delta));
+      setChatWidth(newWidth);
+    };
+    const handleDragEnd = () => {
+      dragRef.current = null;
+    };
     document.addEventListener('mousemove', handleDragMove);
     document.addEventListener('mouseup', handleDragEnd);
     return () => {
       document.removeEventListener('mousemove', handleDragMove);
       document.removeEventListener('mouseup', handleDragEnd);
     };
-  }, [chatWidth]);
+  }, []);
 
   const handleSend = useCallback(() => {
     const trimmed = input.trim();
