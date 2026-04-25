@@ -9,6 +9,7 @@ import type {
   ToolCall,
   ToolDefinition,
 } from '../types.js';
+import { getCapabilities } from './capabilities.js';
 
 const log = createLogger('openai-provider');
 
@@ -223,6 +224,11 @@ export class OpenAIProvider implements LLMProvider {
 
     const toolChoice = translateToolChoice(options.toolChoice);
     if (toolChoice !== undefined) body.tool_choice = toolChoice;
+
+    // Reasoning effort — only on o1/o3/o4 and gpt-5.x; silently dropped otherwise
+    if (options.thinking && getCapabilities('openai', options.model ?? '').supportsThinking) {
+      body.reasoning_effort = options.thinking.effort;
+    }
 
     const response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',

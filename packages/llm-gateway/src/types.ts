@@ -34,6 +34,13 @@ export interface LLMOptions {
   responseFormat?: 'text';
   tools?: ToolDefinition[];
   toolChoice?: 'auto' | 'any' | { type: 'tool'; name: string };
+  /**
+   * Extended thinking / reasoning. `effort` is a portable enum that each
+   * provider maps to its native shape (Anthropic budget_tokens, OpenAI
+   * reasoning_effort, Gemini thinkingBudget). Silently ignored when the
+   * provider/model doesn't support thinking — capability is the gatekeeper.
+   */
+  thinking?: { effort: 'low' | 'medium' | 'high' };
 }
 
 export interface LLMUsage {
@@ -47,6 +54,12 @@ export interface LLMResponse {
   content: string;
   /** Tool calls emitted this turn. Empty array if the model didn't invoke any tool. */
   toolCalls: ToolCall[];
+  /**
+   * Extended-thinking / reasoning blocks the model emitted before producing
+   * its response. Empty when thinking wasn't enabled or the provider doesn't
+   * surface its reasoning. UI can render these in a collapsed widget.
+   */
+  thinkingBlocks?: string[];
   usage: LLMUsage;
   model: string;
   latencyMs: number;

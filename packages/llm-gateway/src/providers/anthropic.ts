@@ -7,6 +7,7 @@ import type {
   ModelInfo,
   ToolCall,
 } from '../types.js';
+import { effortToBudgetTokens, getCapabilities } from './capabilities.js';
 
 const log = createLogger('anthropic-provider');
 
@@ -36,7 +37,16 @@ interface AnthropicToolUseBlock {
   input: Record<string, unknown>;
 }
 
-type AnthropicContentBlock = AnthropicTextBlock | AnthropicToolUseBlock | { type: string };
+interface AnthropicThinkingBlock {
+  type: 'thinking';
+  thinking: string;
+}
+
+type AnthropicContentBlock =
+  | AnthropicTextBlock
+  | AnthropicToolUseBlock
+  | AnthropicThinkingBlock
+  | { type: string };
 
 interface AnthropicResponseBody {
   content: AnthropicContentBlock[];
@@ -74,6 +84,10 @@ function isToolUseBlock(block: AnthropicContentBlock): block is AnthropicToolUse
     typeof (block as AnthropicToolUseBlock).id === 'string' &&
     typeof (block as AnthropicToolUseBlock).name === 'string'
   );
+}
+
+function isThinkingBlock(block: AnthropicContentBlock): block is AnthropicThinkingBlock {
+  return block.type === 'thinking' && typeof (block as AnthropicThinkingBlock).thinking === 'string';
 }
 
 export class AnthropicProvider implements LLMProvider {
@@ -123,6 +137,19 @@ export class AnthropicProvider implements LLMProvider {
       }
     }
 
+    // Extended thinking — only attach when the model supports it. Anthropic
+    // requires temperature=1 when thinking is enabled, so we override here.
+    if (options.thinking && getCapabilities('anthropic', options.model ?? '').supportsThinking) {
+      const budget = effortToBudgetTokens(options.thinking.effort);
+      requestBody.thinking = { type: 'enabled', budget_tokens: budget };
+      requestBody.temperature = 1;
+      // budget_tokens must be < max_tokens; bump max_tokens if needed
+      const currentMax = (requestBody.max_tokens as number) ?? DEFAULT_MAX_TOKENS;
+      if (currentMax <= budget) {
+        requestBody.max_tokens = budget + DEFAULT_MAX_TOKENS;
+      }
+    }
+
     const response = await fetch(`${this.baseUrl}/v1/messages`, {
       method: 'POST',
       headers: {
@@ -153,6 +180,7 @@ export class AnthropicProvider implements LLMProvider {
 
     const textPieces: string[] = [];
     const toolCalls: ToolCall[] = [];
+    const thinkingBlocks: string[] = [];
     for (const block of blocks) {
       if (isTextBlock(block)) {
         textPieces.push(block.text);
@@ -162,12 +190,15 @@ export class AnthropicProvider implements LLMProvider {
           name: block.name,
           input: block.input ?? {},
         });
+      } else if (isThinkingBlock(block)) {
+        thinkingBlocks.push(block.thinking);
       }
     }
 
     return {
       content: textPieces.join('\n'),
       toolCalls,
+      thinkingBlocks: thinkingBlocks.length > 0 ? thinkingBlocks : undefined,
       usage,
       model: data.model,
       latencyMs,

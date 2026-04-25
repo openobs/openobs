@@ -34,6 +34,19 @@ const OBSERVATION_KEEP_RECENT = 6
 /** Truncate individual observation text to this many characters. */
 const OBSERVATION_MAX_CHARS = 2000
 
+/**
+ * Default effort for extended thinking. Medium gives Claude/o1/Gemini-2.5
+ * enough room to deliberate before acting without ballooning latency.
+ * Override at runtime with OPENOBS_THINKING_EFFORT=low|medium|high|off.
+ */
+function thinkingEffort(): 'low' | 'medium' | 'high' {
+  const raw = (process.env.OPENOBS_THINKING_EFFORT ?? 'medium').toLowerCase()
+  if (raw === 'low' || raw === 'medium' || raw === 'high') return raw
+  // 'off' or unrecognized → low (cheapest); we never fully disable so models
+  // that support thinking still get a small budget by default.
+  return 'low'
+}
+
 export interface ReActStep {
   thought: string
   /** Brief conversational reply shown to user before executing the action */
@@ -241,10 +254,17 @@ export class ReActLoop {
           temperature: 0,
           tools,
           toolChoice: 'auto',
+          thinking: { effort: thinkingEffort() },
         })
 
         toolCalls = resp.toolCalls
         preToolProse = resp.content?.trim() ? resp.content.trim() : undefined
+
+        if (resp.thinkingBlocks && resp.thinkingBlocks.length > 0) {
+          for (const tb of resp.thinkingBlocks) {
+            this.deps.sendEvent({ type: 'thinking', content: tb })
+          }
+        }
 
         log.info(
           {
@@ -252,6 +272,7 @@ export class ReActLoop {
             toolCallCount: toolCalls.length,
             toolNames: toolCalls.map((tc) => tc.name),
             contentHead: resp.content.slice(0, 200),
+            thinkingBlockCount: resp.thinkingBlocks?.length ?? 0,
           },
           'ReAct: gateway response',
         )

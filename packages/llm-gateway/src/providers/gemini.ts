@@ -9,6 +9,7 @@ import type {
   ToolCall,
   ToolDefinition,
 } from '../types.js';
+import { effortToBudgetTokens, getCapabilities } from './capabilities.js';
 
 const log = createLogger('gemini-provider');
 
@@ -21,6 +22,8 @@ export interface GeminiConfig {
 
 interface GeminiTextPart {
   text: string;
+  /** When true, this text is the model's reasoning summary, not the final answer. */
+  thought?: boolean;
 }
 
 interface GeminiFunctionCallPart {
@@ -156,10 +159,19 @@ export class GeminiProvider implements LLMProvider {
       };
     }
 
-    body['generationConfig'] = {
+    const generationConfig: Record<string, unknown> = {
       temperature: options.temperature,
       maxOutputTokens: options.maxTokens,
     };
+
+    // Thinking — only on gemini-2.5+ and 3.x; older models 400 on the field
+    if (options.thinking && getCapabilities('gemini', model).supportsThinking) {
+      generationConfig['thinkingConfig'] = {
+        thinkingBudget: effortToBudgetTokens(options.thinking.effort),
+      };
+    }
+
+    body['generationConfig'] = generationConfig;
 
     if (options.tools && options.tools.length > 0) {
       const functionDeclarations: GeminiFunctionDeclaration[] = options.tools.map((t) => ({
@@ -212,7 +224,10 @@ export class GeminiProvider implements LLMProvider {
     const parts: GeminiResponsePart[] = firstCandidate?.content?.parts ?? [];
 
     // Text parts: concat across all `{text: "..."}` fragments.
+    // Gemini 2.5+ returns the model's reasoning as text parts with `thought: true`
+    // — those go to thinkingBlocks rather than the user-facing content.
     const textPieces: string[] = [];
+    const thinkingBlocks: string[] = [];
     // Function-call parts: synthesize an id since Gemini doesn't return one.
     // Format `gemini_call_<index>` keeps it deterministic and distinct per turn.
     // The id is provider-internal — when we send it back as a tool_result we
@@ -221,7 +236,12 @@ export class GeminiProvider implements LLMProvider {
     let callIndex = 0;
     for (const part of parts) {
       if (typeof (part as GeminiTextPart).text === 'string') {
-        textPieces.push((part as GeminiTextPart).text);
+        const tp = part as GeminiTextPart;
+        if (tp.thought === true) {
+          thinkingBlocks.push(tp.text);
+        } else {
+          textPieces.push(tp.text);
+        }
       } else if (
         (part as GeminiFunctionCallPart).functionCall &&
         typeof (part as GeminiFunctionCallPart).functionCall.name === 'string'
@@ -241,6 +261,7 @@ export class GeminiProvider implements LLMProvider {
     return {
       content: textPieces.join(''),
       toolCalls,
+      thinkingBlocks: thinkingBlocks.length > 0 ? thinkingBlocks : undefined,
       usage: {
         promptTokens: usage.promptTokenCount ?? 0,
         completionTokens: usage.candidatesTokenCount ?? 0,
