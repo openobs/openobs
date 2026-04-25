@@ -1,0 +1,41 @@
+name: PR Agent (auto code review)
+
+# Runs Codium AI's open-source PR-Agent on every PR.
+# - Auto-posts a code review on PR open / reopen / synchronize
+# - Replies to in-PR slash commands like `/review`, `/describe`, `/improve`,
+#   `/ask <question>`. See https://github.com/Codium-ai/pr-agent for the full
+#   command list.
+#
+# Cost: zero infra. Inference uses your LLM API key (any of OPENAI_KEY,
+# ANTHROPIC_API_KEY, etc. — see the env block below).
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  pr_agent:
+    # Skip on draft PRs unless explicitly invoked via comment
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: PR Agent
+        uses: Codium-ai/pr-agent@main
+        env:
+          # Pick ONE of these — set the matching repo secret at:
+          # https://github.com/openobs/openobs/settings/secrets/actions
+          OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+          # Optional: pick which model to use. Defaults to gpt-4o.
+          # CONFIG.MODEL: "gpt-4o-mini"      # cheap default
+          # CONFIG.MODEL: "claude-sonnet-4-6"  # if using ANTHROPIC_API_KEY
+
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
