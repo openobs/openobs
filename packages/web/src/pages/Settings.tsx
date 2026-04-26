@@ -371,7 +371,7 @@ function EditFormWrapper({ initial, onSave, onCancel, onDelete, readOnly = false
 // ─── LLM Tab ───
 
 function LlmTab({ canWrite }: { canWrite: boolean }) {
-  const [config, setConfig] = useState<LlmConfig>({ provider: 'anthropic', apiKey: '', model: 'claude-sonnet-4-5', baseUrl: '', region: '', authType: 'api-key' });
+  const [config, setConfig] = useState<LlmConfig>({ provider: 'anthropic', apiKey: '', model: '', baseUrl: '', region: '', authType: 'api-key', apiKeyHelper: '', apiFormat: 'anthropic' });
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
@@ -390,20 +390,30 @@ function LlmTab({ canWrite }: { canWrite: boolean }) {
           baseUrl: res.data.llm!.baseUrl ?? '',
           region: res.data.llm!.region ?? '',
           authType: res.data.llm!.authType ?? prev.authType,
+          apiKeyHelper: res.data.llm!.apiKeyHelper ?? '',
+          apiFormat: res.data.llm!.apiFormat ?? prev.apiFormat,
         }));
       }
     });
   }, []);
 
   const provider = LLM_PROVIDERS.find((p) => p.value === config.provider) ?? LLM_PROVIDERS[0]!;
-  const availableModels = remoteModels.length > 0
-    ? remoteModels.map((m) => ({ id: m.id, label: m.description ? `${m.name} (${m.description})` : m.name }))
-    : provider.fallbackModels.map((m) => ({ id: m, label: m }));
+  // Only fetched models are selectable — no manual entry, no fallback list.
+  const availableModels = remoteModels.map((m) => ({
+    id: m.id,
+    label: m.description ? `${m.name} (${m.description})` : m.name,
+  }));
 
   const handleFetchModels = async () => {
     setFetchingModels(true); setRemoteModels([]); setModelsFetched(false);
     try {
-      const res = await apiClient.post<{ models: ModelInfo[] }>('/setup/llm/models', { provider: config.provider, apiKey: config.apiKey || undefined, baseUrl: config.baseUrl || undefined });
+      const res = await apiClient.post<{ models: ModelInfo[] }>('/setup/llm/models', {
+        provider: config.provider,
+        apiKey: config.apiKey || undefined,
+        baseUrl: config.baseUrl || undefined,
+        apiKeyHelper: config.apiKeyHelper || undefined,
+        apiFormat: config.provider === 'corporate-gateway' ? config.apiFormat : undefined,
+      });
       if (res.data?.models?.length) {
         setRemoteModels(res.data.models);
         if (!res.data.models.map((m) => m.id).includes(config.model)) setConfig((prev) => ({ ...prev, model: res.data!.models[0]!.id }));
@@ -423,6 +433,8 @@ function LlmTab({ canWrite }: { canWrite: boolean }) {
       baseUrl: config.baseUrl || undefined,
       region: config.region || undefined,
       authType: config.authType || undefined,
+      apiKeyHelper: config.apiKeyHelper || undefined,
+      apiFormat: config.provider === 'corporate-gateway' ? config.apiFormat : undefined,
     });
     setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 2000);
   };
@@ -437,6 +449,8 @@ function LlmTab({ canWrite }: { canWrite: boolean }) {
         baseUrl: config.baseUrl,
         region: config.region,
         authType: config.authType,
+        apiKeyHelper: config.apiKeyHelper || undefined,
+        apiFormat: config.provider === 'corporate-gateway' ? config.apiFormat : undefined,
       });
       setTestResult(res.error ? { ok: false, message: res.error.message } : res.data);
     } catch (err) {
@@ -452,26 +466,61 @@ function LlmTab({ canWrite }: { canWrite: boolean }) {
         <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">Provider</label>
         <select value={config.provider} onChange={(e) => {
           const p = e.target.value as LlmProvider;
-          const pm = LLM_PROVIDERS.find((x) => x.value === p);
           setConfig((prev) => ({
             ...prev,
             provider: p,
-            model: pm?.fallbackModels[0] ?? '',
+            // No default model — user must Fetch + pick.
+            model: '',
             apiKey: '',
             baseUrl: '',
             region: '',
             authType: p === 'corporate-gateway' ? 'bearer' : 'api-key',
+            apiKeyHelper: '',
+            apiFormat: 'anthropic',
           }));
           setTestResult(null); setRemoteModels([]); setModelsFetched(false);
         }} className={selectCls}>{LLM_PROVIDERS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}</select>
       </div>
 
-      {provider.needsKey && (
+      {config.provider === 'corporate-gateway' && (
         <div>
-          <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">API Key</label>
-          <input type="password" value={config.apiKey} onChange={(e) => { setConfig((prev) => ({ ...prev, apiKey: e.target.value })); setTestResult(null); }} placeholder="sk-..." className={inputCls} />
+          <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">Upstream API format</label>
+          <select
+            value={config.apiFormat}
+            onChange={(e) => {
+              setConfig((prev) => ({ ...prev, apiFormat: e.target.value as LlmConfig['apiFormat'] }));
+              setRemoteModels([]); setModelsFetched(false); setTestResult(null);
+            }}
+            className={selectCls}
+          >
+            <option value="anthropic">Anthropic Messages API</option>
+            <option value="openai">OpenAI Chat Completions API</option>
+            <option value="gemini">Google Gemini generateContent</option>
+            <option value="anthropic-bedrock">Anthropic on Bedrock (/model/&#123;id&#125;/invoke)</option>
+          </select>
         </div>
       )}
+
+      {provider.needsKey && (
+        <div>
+          <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">API Key (optional if helper or upstream auth is used)</label>
+          <input type="password" value={config.apiKey} onChange={(e) => { setConfig((prev) => ({ ...prev, apiKey: e.target.value })); setTestResult(null); }} placeholder="sk-... (leave blank for helper / unauth gateway)" className={inputCls} />
+        </div>
+      )}
+
+      <div>
+        <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">API key helper (optional)</label>
+        <input
+          type="text"
+          value={config.apiKeyHelper}
+          onChange={(e) => { setConfig((prev) => ({ ...prev, apiKeyHelper: e.target.value })); setTestResult(null); }}
+          placeholder='e.g. aws-vault exec my-profile -- printenv ANTHROPIC_API_KEY'
+          className={inputCls + ' font-mono'}
+        />
+        <p className="text-xs text-[var(--color-on-surface-variant)] mt-1">
+          Shell command whose stdout is the API key. Wins over the static key when set; cached for 5 minutes per command.
+        </p>
+      </div>
 
       {provider.needsUrl && (
         <div>

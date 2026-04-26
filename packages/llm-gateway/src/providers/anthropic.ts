@@ -9,21 +9,38 @@ import type {
 } from '../types.js';
 import { ProviderError, classifyProviderHttpError } from '../types.js';
 import { effortToBudgetTokens, getCapabilities } from './capabilities.js';
+import { buildApiKeyResolver } from '../api-key-helper.js';
 
 const log = createLogger('anthropic-provider');
 
 const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_API_VERSION = '2023-06-01';
 
+/**
+ * Endpoint flavor — controls the URL template and (for Bedrock) the body
+ * shape. 'native' = api.anthropic.com style; 'bedrock' = AWS Bedrock proxy
+ * shape (POST /model/{model}/invoke + anthropic_version body field).
+ */
+export type AnthropicEndpointFlavor = 'native' | 'bedrock';
+
 export interface AnthropicConfig {
+  /** Static API key. Empty / null is allowed — useful for corp gateways
+   *  that authenticate via a network boundary instead of a header. When
+   *  empty, no `x-api-key` header is sent. */
   apiKey: string;
+  /** Shell command that prints a fresh API key on stdout. Wins over apiKey
+   *  when set; the gateway invokes it (with a 5-min TTL cache) before each
+   *  request. Resulting empty string also skips the auth header. */
+  apiKeyHelper?: string;
   baseUrl?: string;
   apiType?: 'api-key' | 'bearer';
-  /** Sends x-api-key (default: 'apiKey') sends Authorization: Bearer. */
   apiVersion?: string;
-  /** Anthropic API version header. Defaults to DEFAULT_API_VERSION. */
   cacheControl?: boolean;
-  /** If true, sends cache-control headers to enable prompt caching. */
+  /** 'native' (default) → POST /v1/messages; 'bedrock' → POST
+   *  /model/{model}/invoke with `anthropic_version: bedrock-2023-05-31` in
+   *  the body. Used when an Anthropic-shape gateway sits in front of
+   *  Bedrock. */
+  endpointFlavor?: AnthropicEndpointFlavor;
 }
 
 interface AnthropicTextBlock {
@@ -93,16 +110,21 @@ function isThinkingBlock(block: AnthropicContentBlock): block is AnthropicThinki
 
 export class AnthropicProvider implements LLMProvider {
   readonly name = 'anthropic';
-  private readonly apiKey: string;
+  private readonly resolveKey: () => Promise<string>;
   private readonly baseUrl: string;
   private readonly cacheControl: boolean;
   private readonly apiVersion: string;
+  private readonly endpointFlavor: AnthropicEndpointFlavor;
 
   constructor(private readonly config: AnthropicConfig) {
-    this.apiKey = config.apiKey;
+    this.resolveKey = buildApiKeyResolver({
+      staticKey: config.apiKey,
+      helperCommand: config.apiKeyHelper ?? null,
+    });
     this.baseUrl = config.baseUrl || 'https://api.anthropic.com';
     this.cacheControl = config.cacheControl ?? false;
     this.apiVersion = config.apiVersion ?? DEFAULT_API_VERSION;
+    this.endpointFlavor = config.endpointFlavor ?? 'native';
   }
 
   async complete(messages: CompletionMessage[], options: LLMOptions): Promise<LLMResponse> {
@@ -151,17 +173,38 @@ export class AnthropicProvider implements LLMProvider {
       }
     }
 
+    // Bedrock gates Anthropic models behind /model/{id}/invoke and requires
+    // `anthropic_version` in the body (instead of the header). The `model`
+    // travels in the URL path, not the body.
+    let url: string;
+    if (this.endpointFlavor === 'bedrock') {
+      const modelId = encodeURIComponent(String(options.model ?? ''));
+      url = `${this.baseUrl}/model/${modelId}/invoke`;
+      requestBody.anthropic_version = 'bedrock-2023-05-31';
+      delete requestBody.model;
+    } else {
+      url = `${this.baseUrl}/v1/messages`;
+    }
+
+    // Resolve the API key per-call so apiKeyHelper rotations land without
+    // restarting the process. Empty result → don't send the header at all
+    // (some corp gateways authenticate at the network boundary).
+    const apiKey = await this.resolveKey();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'anthropic-version': this.apiVersion,
+    };
+    if (apiKey) {
+      headers['x-api-key'] = apiKey;
+    }
+
     const fetchInit: RequestInit = {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': this.apiKey,
-        'anthropic-version': this.apiVersion,
-      },
+      headers,
       body: JSON.stringify(requestBody),
     };
     if (options.signal) fetchInit.signal = options.signal;
-    const response = await fetch(`${this.baseUrl}/v1/messages`, fetchInit);
+    const response = await fetch(url, fetchInit);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -211,9 +254,10 @@ export class AnthropicProvider implements LLMProvider {
   async listModels(): Promise<ModelInfo[]> {
     let response: Response;
     try {
-      response = await fetch(`${this.baseUrl}/v1/models`, {
-        headers: { 'x-api-key': this.apiKey, 'anthropic-version': this.apiVersion },
-      });
+      const apiKey = await this.resolveKey();
+      const headers: Record<string, string> = { 'anthropic-version': this.apiVersion };
+      if (apiKey) headers['x-api-key'] = apiKey;
+      response = await fetch(`${this.baseUrl}/v1/models`, { headers });
     } catch (err) {
       const kind = classifyProviderHttpError({ cause: err });
       log.warn({ err, provider: 'anthropic', baseUrl: this.baseUrl, kind }, 'listModels transport failure');

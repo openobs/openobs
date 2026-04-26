@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { createDbClient, type DbClient } from '../../db/client.js';
-import { applyPostgresInstanceMigrations } from './migrate.js';
+import { applyPostgresSchema } from './schema-applier.js';
 import { PostgresNotificationChannelRepository } from './notification-channel.js';
 
 const PG_URL = process.env['POSTGRES_TEST_URL'];
@@ -21,7 +21,7 @@ describeIfPg('PostgresNotificationChannelRepository', () => {
     process.env['SECRET_KEY'] =
       prevSecret ?? 'test-secret-key-for-instance-config-repositories-xxxxxxxx';
     db = createDbClient({ url: PG_URL! });
-    await applyPostgresInstanceMigrations(db);
+    await applyPostgresSchema(db);
   });
 
   afterAll(() => {

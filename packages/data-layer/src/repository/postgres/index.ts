@@ -11,4 +11,4 @@ export { PostgresShareRepository } from './share.js';
 export { PostgresInstanceConfigRepository } from './instance-config.js';
 export { PostgresDatasourceRepository } from './datasource.js';
 export { PostgresNotificationChannelRepository } from './notification-channel.js';
-export { applyPostgresInstanceMigrations } from './migrate.js';
+export { applyPostgresSchema } from './schema-applier.js';

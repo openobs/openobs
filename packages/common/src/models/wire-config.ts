@@ -26,7 +26,7 @@
  * Node-only types.
  */
 
-import type { LlmProvider, LlmAuthType } from './instance-config.js';
+import type { LlmProvider, LlmAuthType, LlmApiFormat } from './instance-config.js';
 
 // -- LLM wire format ----------------------------------------------------
 
@@ -44,6 +44,13 @@ export interface LlmConfigWire {
   baseUrl?: string;
   region?: string;
   authType?: LlmAuthType;
+  /** Shell command that prints a fresh API key on stdout. Optional. */
+  apiKeyHelper?: string;
+  /**
+   * For `corporate-gateway` only: which wire format the gateway's upstream
+   * speaks. Required when provider is `corporate-gateway`.
+   */
+  apiFormat?: LlmApiFormat;
 }
 
 // -- Notification channel wire format ----------------------------------
