@@ -227,12 +227,11 @@ export async function handleInvestigationComplete(
     { investigationId },
     `Completing investigation`,
     async () => {
-      if (!ctx.investigationStore?.findAll) {
+      if (!ctx.investigationStore?.findById) {
         return 'Error: investigation store is not available.';
       }
 
-      const investigations = await ctx.investigationStore.findAll();
-      const investigation = investigations.find((inv) => inv.id === investigationId);
+      const investigation = await ctx.investigationStore.findById(investigationId);
       if (!investigation) {
         return `Error: investigation "${investigationId}" was not found.`;
       }

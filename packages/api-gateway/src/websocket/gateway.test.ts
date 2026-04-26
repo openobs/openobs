@@ -117,12 +117,32 @@ describe('createWebSocketGateway event bridge', () => {
     expect(feedTo).not.toHaveBeenCalled();
     await gateway.close();
   });
+
+  it('sends finding events only to the finding room', async () => {
+    const bus = new TestEventBus();
+    const { gateway } = createWebSocketGateway(express(), bus);
+    const feed = gateway.io.of('/feed');
+    const namespaceEmit = vi.spyOn(feed, 'emit');
+    const roomEmit = vi.fn();
+    vi.spyOn(feed, 'to').mockReturnValue({ emit: roomEmit } as never);
+
+    await bus.publish(
+      EventTypes.FINDING_UPDATED,
+      event(EventTypes.FINDING_UPDATED, { findingId: 'finding_1', investigationId: 'inv_1' }),
+    );
+
+    expect(feed.to).toHaveBeenCalledWith('finding:finding_1');
+    expect(roomEmit).toHaveBeenCalledWith(
+      EventTypes.FINDING_UPDATED,
+      expect.objectContaining({ payload: { findingId: 'finding_1', investigationId: 'inv_1' } }),
+    );
+    expect(namespaceEmit).not.toHaveBeenCalled();
+    await gateway.close();
+  });
 });
 
 describe('authenticateHandshake', () => {
-  it('rejects legacy API key handshakes', () => {
-    process.env['API_KEYS'] = 'legacy:super-secret';
-
+  it('rejects API key handshakes because legacy API_KEYS is no longer supported', () => {
     expect(() =>
       authenticateHandshake({
         auth: { apiKey: 'super-secret' },

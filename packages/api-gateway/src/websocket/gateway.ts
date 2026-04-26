@@ -301,6 +301,11 @@ export function createWebSocketGateway(
     return authorizeInvestigation(identity, item.investigationId);
   }
 
+  async function authorizeFinding(identity: Identity, investigationId: string): Promise<boolean> {
+    if (!investigationId) return false;
+    return authorizeInvestigation(identity, investigationId);
+  }
+
   async function joinIfAuthorized(
     socket: Socket,
     room: string,
@@ -381,8 +386,24 @@ export function createWebSocketGateway(
       const id = itemId.trim();
       void joinIfAuthorized(socket, `feed:${id}`, (identity) => authorizeFeedItem(identity, id));
     });
+    socket.on('join_finding', (payload: { findingId?: unknown; investigationId?: unknown }) => {
+      const findingId = typeof payload?.findingId === 'string' ? payload.findingId.trim() : '';
+      const investigationId = typeof payload?.investigationId === 'string' ? payload.investigationId.trim() : '';
+      if (!findingId || !investigationId) {
+        emitJoinDenied(socket, 'finding:');
+        return;
+      }
+      void joinIfAuthorized(
+        socket,
+        `finding:${findingId}`,
+        (identity) => authorizeFinding(identity, investigationId),
+      );
+    });
     socket.on('leave', (itemId: string) => {
       void socket.leave(`feed:${itemId}`);
+    });
+    socket.on('leave_finding', (findingId: string) => {
+      void socket.leave(`finding:${findingId}`);
     });
   });
 

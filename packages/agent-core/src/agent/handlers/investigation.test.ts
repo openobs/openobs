@@ -27,6 +27,7 @@ function investigationStore(workspaceId = 'test-org') {
   };
   return {
     create: vi.fn(),
+    findById: vi.fn(async (id: string) => (id === investigation.id ? investigation : null)),
     findAll: vi.fn(async () => [investigation]),
     updateStatus: vi.fn(),
     updatePlan: vi.fn(),
@@ -37,7 +38,6 @@ function investigationStore(workspaceId = 'test-org') {
 describe('investigation handlers', () => {
   it('does not save or navigate when completing an unknown investigation', async () => {
     const store = investigationStore();
-    vi.mocked(store.findAll).mockResolvedValue([]);
     const reportStore = { save: vi.fn() };
     const ctx = makeFakeActionContext({
       investigationStore: store,
@@ -50,6 +50,8 @@ describe('investigation handlers', () => {
     });
 
     expect(result).toContain('was not found');
+    expect(store.findById).toHaveBeenCalledWith('inv_missing');
+    expect(store.findAll).not.toHaveBeenCalled();
     expect(reportStore.save).not.toHaveBeenCalled();
     expect(store.updateStatus).not.toHaveBeenCalled();
     expect(ctx.setNavigateTo).not.toHaveBeenCalled();

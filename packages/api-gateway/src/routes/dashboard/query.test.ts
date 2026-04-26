@@ -108,4 +108,18 @@ describe('query proxy permissions', () => {
     expect(res.body.error.code).toBe('NO_DATASOURCE');
     expect(seen).toEqual([]);
   });
+
+  it('does not treat datasources without org ownership as shared', async () => {
+    const seen: string[] = [];
+    const res = await request(appWith({
+      datasources: [{ ...baseDatasource, orgId: undefined as unknown as string }],
+      seenEvaluators: seen,
+    }))
+      .post('/api/query/instant')
+      .send({ datasourceId: 'prom-main', query: 'up' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('NO_DATASOURCE');
+    expect(seen).toEqual([]);
+  });
 });

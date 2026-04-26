@@ -29,7 +29,7 @@ async function resolvePrometheusDatasource(
   const isPrometheus = (d: InstanceDatasource) =>
     d.type === 'prometheus' || d.type === 'victoria-metrics'
   const belongsToOrg = (d: InstanceDatasource) =>
-    d.orgId === null || d.orgId === undefined || d.orgId === orgId
+    d.orgId === orgId
 
   if (datasourceId) {
     const ds = await setupConfig.getDatasource(datasourceId)
