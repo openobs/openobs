@@ -27,6 +27,8 @@ export type AgentToolName =
   | 'logs.query' | 'logs.labels' | 'logs.label_values'
   // Recent change events (deploys, config rollouts, incidents)
   | 'changes.list_recent'
+  // Kubernetes / Ops integrations
+  | 'ops.run_command'
   // Datasource discovery (always-allowed, no RBAC)
   | 'datasources.list'
   // Knowledge & utility

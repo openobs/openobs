@@ -1,0 +1,294 @@
+import type { Identity } from '@agentic-obs/common';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawn } from 'node:child_process';
+import type {
+  IApprovalRequestRepository,
+  IOpsConnectorRepository,
+  OpsConnector,
+} from '@agentic-obs/data-layer';
+
+export type OpsCommandDecision = 'read' | 'approval_required' | 'denied';
+
+export interface OpsCommandRunnerServiceDeps {
+  connectors: IOpsConnectorRepository;
+  approvals: IApprovalRequestRepository;
+}
+
+interface AgentOpsConnectorConfig {
+  id: string;
+  name: string;
+  environment?: string;
+  namespaces?: string[];
+  capabilities?: string[];
+}
+
+export class OpsCommandRunnerService {
+  constructor(private readonly deps: OpsCommandRunnerServiceDeps, private readonly orgId: string) {}
+
+  async listConnectors(): Promise<AgentOpsConnectorConfig[]> {
+    const connectors = await this.deps.connectors.listByOrg(this.orgId, { masked: true });
+    return connectors.map((connector) => ({
+      id: connector.id,
+      name: connector.name,
+      environment: connector.environment ?? undefined,
+      namespaces: connector.allowedNamespaces,
+      capabilities: connector.capabilities,
+    }));
+  }
+
+  async runCommand(params: {
+    connectorId: string;
+    command: string;
+    intent: string;
+    identity: Identity;
+    sessionId: string;
+  }): Promise<{ observation: string; decision: OpsCommandDecision; approvalId?: string }> {
+    const connector = await this.deps.connectors.findByIdInOrg(this.orgId, params.connectorId);
+    if (!connector) {
+      return {
+        decision: 'denied',
+        observation: `Ops connector "${params.connectorId}" is not configured for this org.`,
+      };
+    }
+
+    const policy = classifyOpsCommand(params.command);
+    if (policy.decision === 'denied') {
+      return {
+        decision: 'denied',
+        observation: `Denied by Ops command policy: ${policy.reason}.`,
+      };
+    }
+
+    if (!connector.secret && !connector.secretRef) {
+      return {
+        decision: 'denied',
+        observation: `Ops connector "${connector.id}" is not connected: no credential secret or secretRef is configured.`,
+      };
+    }
+
+    if (policy.decision === 'approval_required' || params.intent === 'propose') {
+      const approval = await this.deps.approvals.submit({
+        action: {
+          type: 'ops.run_command',
+          targetService: connector.name,
+          params: {
+            connectorId: connector.id,
+            command: params.command.trim(),
+            intent: 'execute_approved',
+            policyReason: policy.reason,
+            sessionId: params.sessionId,
+          },
+        },
+        context: {
+          requestedBy: params.identity.userId,
+          reason: `Run Kubernetes/Ops command on connector "${connector.name}": ${params.command.trim()}`,
+        },
+      });
+      return {
+        decision: 'approval_required',
+        approvalId: approval.id,
+        observation: `Command requires approval. Existing approvals workflow created request ${approval.id}. Do not execute until it is approved.`,
+      };
+    }
+
+    if (params.intent === 'execute_approved') {
+      return {
+        decision: 'approval_required',
+        observation:
+          'Approved Ops command execution is not wired to a kubectl runner yet. Use the existing approval record as the control point; do not execute this command directly.',
+      };
+    }
+
+    return this.runReadCommand(connector, params.command);
+  }
+
+  private async runReadCommand(
+    connector: OpsConnector,
+    command: string,
+  ): Promise<{ observation: string; decision: OpsCommandDecision }> {
+    if (!connector.secret) {
+      return {
+        decision: 'denied',
+        observation:
+          `Read command is allowed by policy for connector "${connector.name}", but this server cannot resolve secretRef credentials yet.`,
+      };
+    }
+    if (!looksLikeKubeconfig(connector.secret)) {
+      return {
+        decision: 'denied',
+        observation:
+          'Read command was not executed because only kubeconfig credentials are supported for live kubectl execution in this build.',
+      };
+    }
+
+    const namespaceError = validateNamespacePolicy(command, connector.allowedNamespaces);
+    if (namespaceError) {
+      return { decision: 'denied', observation: namespaceError };
+    }
+
+    const tempDir = await mkdtemp(join(tmpdir(), 'openobs-kube-'));
+    const kubeconfigPath = join(tempDir, 'config');
+    try {
+      await writeFile(kubeconfigPath, connector.secret, { encoding: 'utf8', mode: 0o600 });
+      const args = tokenizeKubectlCommand(command).slice(1);
+      const result = await runKubectl(args, kubeconfigPath);
+      return {
+        decision: 'read',
+        observation: formatKubectlObservation(command, result),
+      };
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  }
+}
+
+export function classifyOpsCommand(command: string): { decision: OpsCommandDecision; reason: string } {
+  const normalized = command.trim().replace(/\s+/g, ' ');
+  const lower = normalized.toLowerCase();
+
+  if (!lower.startsWith('kubectl ')) {
+    return { decision: 'denied', reason: 'only kubectl commands are supported for Kubernetes connectors' };
+  }
+
+  const deniedPatterns = [
+    /^kubectl\s+exec\b/,
+    /^kubectl\s+cp\b/,
+    /^kubectl\s+port-forward\b/,
+    /^kubectl\s+proxy\b/,
+    /^kubectl\s+edit\b/,
+    /^kubectl\s+(get|describe)\s+secrets?\b/,
+    /^kubectl\s+delete\s+secrets?\b/,
+  ];
+  if (deniedPatterns.some((pattern) => pattern.test(lower))) {
+    return { decision: 'denied', reason: 'command can expose secrets or open an interactive/network tunnel' };
+  }
+
+  const readPatterns = [
+    /^kubectl\s+get\b/,
+    /^kubectl\s+describe\b/,
+    /^kubectl\s+logs\b/,
+    /^kubectl\s+top\b/,
+    /^kubectl\s+rollout\s+(status|history)\b/,
+    /^kubectl\s+events\b/,
+    /^kubectl\s+api-(resources|versions)\b/,
+    /^kubectl\s+version\b/,
+    /^kubectl\s+config\s+current-context\b/,
+  ];
+  if (readPatterns.some((pattern) => pattern.test(lower))) {
+    return { decision: 'read', reason: 'read-only inspection command' };
+  }
+
+  const mutatingPatterns = [
+    /^kubectl\s+(apply|patch|scale|create|delete|replace|set|annotate|label)\b/,
+    /^kubectl\s+rollout\s+(restart|undo|pause|resume)\b/,
+    /^kubectl\s+(cordon|uncordon|drain|taint)\b/,
+  ];
+  if (mutatingPatterns.some((pattern) => pattern.test(lower))) {
+    return { decision: 'approval_required', reason: 'mutating cluster command' };
+  }
+
+  return { decision: 'approval_required', reason: 'unclassified kubectl command must be reviewed' };
+}
+
+function looksLikeKubeconfig(secret: string): boolean {
+  return /\bapiVersion\s*:/.test(secret) && /\bkind\s*:\s*Config\b/.test(secret);
+}
+
+function validateNamespacePolicy(command: string, allowedNamespaces: string[]): string | null {
+  if (allowedNamespaces.length === 0) return null;
+  const args = tokenizeKubectlCommand(command);
+  const namespace = findNamespaceArg(args);
+  if (!namespace) {
+    return `Command was not executed: connector is restricted to namespaces ${allowedNamespaces.join(', ')}, so the command must include --namespace or -n.`;
+  }
+  if (!allowedNamespaces.includes(namespace)) {
+    return `Command was not executed: namespace "${namespace}" is outside this connector's allowed namespaces (${allowedNamespaces.join(', ')}).`;
+  }
+  return null;
+}
+
+function findNamespaceArg(args: string[]): string | null {
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+    if (arg === '-n' || arg === '--namespace') return args[i + 1] ?? null;
+    if (arg?.startsWith('--namespace=')) return arg.slice('--namespace='.length);
+  }
+  return null;
+}
+
+function tokenizeKubectlCommand(command: string): string[] {
+  const tokens: string[] = [];
+  let current = '';
+  let quote: '"' | "'" | null = null;
+  for (let i = 0; i < command.length; i += 1) {
+    const ch = command[i]!;
+    if (quote) {
+      if (ch === quote) quote = null;
+      else current += ch;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    if (/\s/.test(ch)) {
+      if (current) {
+        tokens.push(current);
+        current = '';
+      }
+      continue;
+    }
+    current += ch;
+  }
+  if (current) tokens.push(current);
+  return tokens;
+}
+
+function runKubectl(
+  args: string[],
+  kubeconfigPath: string,
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  return new Promise((resolve) => {
+    const child = spawn('kubectl', ['--kubeconfig', kubeconfigPath, ...args], {
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    const timeout = setTimeout(() => {
+      child.kill();
+      stderr += '\nkubectl command timed out after 15s';
+    }, 15_000);
+    child.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString('utf8'); });
+    child.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf8'); });
+    child.on('error', (err) => {
+      clearTimeout(timeout);
+      resolve({ exitCode: 127, stdout, stderr: err.message });
+    });
+    child.on('close', (code) => {
+      clearTimeout(timeout);
+      resolve({ exitCode: code ?? 1, stdout, stderr });
+    });
+  });
+}
+
+function formatKubectlObservation(
+  command: string,
+  result: { exitCode: number; stdout: string; stderr: string },
+): string {
+  const stdout = truncate(result.stdout.trim(), 12_000);
+  const stderr = truncate(result.stderr.trim(), 4_000);
+  if (result.exitCode === 0) {
+    return stdout
+      ? `kubectl read command succeeded: ${command}\n\n${stdout}`
+      : `kubectl read command succeeded: ${command}\n\n(no output)`;
+  }
+  return `kubectl read command failed with exit code ${result.exitCode}: ${command}\n\n${stderr || stdout || 'no output'}`;
+}
+
+function truncate(value: string, max: number): string {
+  if (value.length <= max) return value;
+  return `${value.slice(0, max)}\n... truncated ...`;
+}

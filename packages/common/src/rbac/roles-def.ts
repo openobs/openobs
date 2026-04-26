@@ -177,6 +177,9 @@ const ADMIN_ONLY_PERMISSIONS: BuiltinPermission[] = [
   { action: ACTIONS.ApprovalsOverride, scope: 'approvals:*' },
   { action: ACTIONS.AgentsConfigRead, scope: '' },
   { action: ACTIONS.AgentsConfigWrite, scope: '' },
+  { action: ACTIONS.OpsConnectorsRead, scope: 'ops.connectors:*' },
+  { action: ACTIONS.OpsConnectorsWrite, scope: 'ops.connectors:*' },
+  { action: ACTIONS.OpsCommandsRun, scope: 'ops.connectors:*' },
   { action: ACTIONS.InstanceConfigRead, scope: '' },
   { action: ACTIONS.InstanceConfigWrite, scope: '' },
 ];

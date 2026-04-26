@@ -683,6 +683,36 @@ const AGENTS_CONFIG_WRITER = def(
   ],
 );
 
+const OPS_CONNECTORS_READER = def(
+  'fixed:ops.connectors:reader',
+  'Ops connectors reader',
+  'Read configured Ops/Kubernetes connectors.',
+  'Ops',
+  [{ action: ACTIONS.OpsConnectorsRead, scope: 'ops.connectors:*' }],
+);
+
+const OPS_CONNECTORS_WRITER = def(
+  'fixed:ops.connectors:writer',
+  'Ops connectors writer',
+  'Create and update Ops/Kubernetes connectors.',
+  'Ops',
+  [
+    { action: ACTIONS.OpsConnectorsRead, scope: 'ops.connectors:*' },
+    { action: ACTIONS.OpsConnectorsWrite, scope: 'ops.connectors:*' },
+  ],
+);
+
+const OPS_COMMANDS_RUNNER = def(
+  'fixed:ops.commands:runner',
+  'Ops command runner',
+  'Run policy-gated Ops/Kubernetes commands through configured connectors.',
+  'Ops',
+  [
+    { action: ACTIONS.OpsConnectorsRead, scope: 'ops.connectors:*' },
+    { action: ACTIONS.OpsCommandsRun, scope: 'ops.connectors:*' },
+  ],
+);
+
 // -- Final catalog --------------------------------------------------------
 
 export const FIXED_ROLE_DEFINITIONS: readonly FixedRoleDefinition[] =
@@ -744,6 +774,9 @@ export const FIXED_ROLE_DEFINITIONS: readonly FixedRoleDefinition[] =
     APPROVALS_OVERRIDER,
     AGENTS_CONFIG_READER,
     AGENTS_CONFIG_WRITER,
+    OPS_CONNECTORS_READER,
+    OPS_CONNECTORS_WRITER,
+    OPS_COMMANDS_RUNNER,
   ]);
 
 /**

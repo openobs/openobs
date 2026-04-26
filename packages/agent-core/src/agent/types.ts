@@ -92,3 +92,24 @@ export interface DatasourceConfig {
   label?: string
   isDefault?: boolean
 }
+
+export type OpsCommandIntent = 'read' | 'propose' | 'execute_approved' | string
+
+export interface OpsConnectorConfig {
+  id: string
+  name: string
+  environment?: string
+  namespaces?: string[]
+  capabilities?: string[]
+}
+
+export interface OpsCommandRunner {
+  listConnectors?(): OpsConnectorConfig[] | Promise<OpsConnectorConfig[]>
+  runCommand(params: {
+    connectorId: string
+    command: string
+    intent: OpsCommandIntent
+    identity: import('@agentic-obs/common').Identity
+    sessionId: string
+  }): unknown | Promise<unknown>
+}

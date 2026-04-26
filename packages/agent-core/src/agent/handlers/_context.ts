@@ -22,6 +22,8 @@ import type {
   IInvestigationStore,
   IAlertRuleStore,
   DatasourceConfig,
+  OpsCommandRunner,
+  OpsConnectorConfig,
 } from '../types.js';
 import type { ActionExecutor } from '../action-executor.js';
 import type { AlertRuleAgent } from '../alert-rule-agent.js';
@@ -48,6 +50,8 @@ export interface ActionContext {
   adapters: AdapterRegistry;
   webSearchAdapter?: IWebSearchAdapter;
   allDatasources?: DatasourceConfig[];
+  opsCommandRunner?: OpsCommandRunner;
+  opsConnectors?: OpsConnectorConfig[];
   sendEvent: (event: DashboardSseEvent) => void;
   sessionId: string;
 

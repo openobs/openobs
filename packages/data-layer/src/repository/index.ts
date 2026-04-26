@@ -41,6 +41,17 @@ export type {
   SharePermission,
 } from './types.js';
 
+export type {
+  IOpsConnectorRepository,
+  NewOpsConnector,
+  OpsConnector,
+  OpsConnectorConfig,
+  OpsConnectorPatch,
+  OpsConnectorReadOptions,
+  OpsConnectorStatus,
+  OpsConnectorType,
+} from './types/ops-connector.js';
+
 export * from './postgres/index.js';
 export * from './sqlite/index.js';
 export * from './event-wrappers/index.js';

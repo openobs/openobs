@@ -40,6 +40,7 @@ import {
   handleNavigate,
   handleFolderCreate,
   handleFolderList,
+  handleOpsRunCommand,
 } from './orchestrator-action-handlers.js';
 import type { ToolAuditReporter } from './orchestrator-audit-reporter.js';
 
@@ -186,6 +187,8 @@ async function dispatchAction(
     case 'logs.label_values': return handleLogsLabelValues(ctx, args);
     // Recent change events
     case 'changes.list_recent': return handleChangesListRecent(ctx, args);
+    // Kubernetes / Ops integrations
+    case 'ops.run_command': return handleOpsRunCommand(ctx, args);
     // Web search
     case 'web.search': return handleWebSearch(ctx, args);
     // 'finish' is handled as a terminal action in ReActLoop

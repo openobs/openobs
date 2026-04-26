@@ -39,6 +39,7 @@ export const SCOPE_KINDS = [
   'approvals',
   'chat',
   'agents.config',
+  'ops.connectors',
 ] as const;
 
 export type ScopeKind = (typeof SCOPE_KINDS)[number];

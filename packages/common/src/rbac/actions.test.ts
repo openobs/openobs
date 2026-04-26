@@ -39,6 +39,8 @@ describe('rbac/actions catalog', () => {
       'approvals:read',
       'chat:use',
       'agents.config:read',
+      'ops.connectors:read',
+      'ops.commands:run',
     ];
     for (const a of categories) {
       expect(ALL_ACTIONS).toContain(a as RbacAction);
@@ -54,5 +56,6 @@ describe('rbac/actions catalog', () => {
     expect(ACTIONS.DashboardsRead).toBe('dashboards:read');
     expect(ACTIONS.AlertRulesCreate).toBe('alert.rules:create');
     expect(ACTIONS.ApprovalsOverride).toBe('approvals:override');
+    expect(ACTIONS.OpsCommandsRun).toBe('ops.commands:run');
   });
 });

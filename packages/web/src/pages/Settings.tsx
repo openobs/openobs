@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { apiClient } from '../api/client.js';
+import { buildOpsConnectorInput, opsApi, type OpsCapability, type OpsConnector } from '../api/ops-api.js';
 import ConfirmDialog from '../components/ConfirmDialog.js';
 import { datasourceUrlPlaceholder, llmBaseUrlPlaceholder } from '../constants/placeholders.js';
 import { DATASOURCE_TYPES, datasourceInfo } from '../constants/datasource-types.js';
@@ -42,7 +43,7 @@ interface DsFormState {
 
 interface TestResult { ok: boolean; message: string; version?: string; }
 
-type SettingsTab = 'datasources' | 'llm' | 'notifications' | 'danger';
+type SettingsTab = 'datasources' | 'ops' | 'llm' | 'notifications' | 'danger';
 
 // ─── Constants ───
 
@@ -60,6 +61,10 @@ const TABS: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
   {
     id: 'datasources', label: 'Data Sources',
     icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><ellipse cx="12" cy="6" rx="8" ry="3" /><path d="M4 6v6c0 1.657 3.582 3 8 3s8-1.343 8-3V6" /><path d="M4 12v6c0 1.657 3.582 3 8 3s8-1.343 8-3v-6" /></svg>,
+  },
+  {
+    id: 'ops', label: 'Ops Integrations',
+    icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M7 7v10a2 2 0 002 2h6a2 2 0 002-2V7M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2M9 12h6M9 15h4" /></svg>,
   },
   {
     id: 'llm', label: 'LLM Provider',
@@ -368,6 +373,242 @@ function EditFormWrapper({ initial, onSave, onCancel, onDelete, readOnly = false
   return <DatasourceForm value={form} onChange={setForm} onSave={() => void handleSave()} onCancel={onCancel} onDelete={onDelete} saving={saving} isNew={false} readOnly={readOnly} />;
 }
 
+// ─── Ops Integrations Tab ───
+
+const OPS_CAPABILITIES: { id: OpsCapability; label: string }[] = [
+  { id: 'read', label: 'Read' },
+  { id: 'propose', label: 'Propose' },
+  { id: 'execute_approved', label: 'Execute approved' },
+];
+
+function OpsIntegrationsTab({ canWrite }: { canWrite: boolean }) {
+  const [connectors, setConnectors] = useState<OpsConnector[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [testingId, setTestingId] = useState<string | null>(null);
+  const [testMessages, setTestMessages] = useState<Record<string, string>>({});
+  const [form, setForm] = useState({
+    name: '',
+    environment: 'prod',
+    apiServer: '',
+    clusterName: '',
+    context: '',
+    namespaces: '',
+    kubeconfig: '',
+    token: '',
+    capabilities: { read: true, propose: true, execute_approved: false } as Record<OpsCapability, boolean>,
+  });
+
+  const loadConnectors = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      setConnectors(await opsApi.listConnectors());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load Ops connectors');
+      setConnectors([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void loadConnectors(); }, [loadConnectors]);
+
+  const updateForm = (patch: Partial<typeof form>) => setForm((prev) => ({ ...prev, ...patch }));
+
+  const handleCreate = async () => {
+    setSaving(true); setError(null);
+    try {
+      const connector = await opsApi.createConnector(buildOpsConnectorInput(form));
+      setConnectors((prev) => [...prev, connector]);
+      setShowForm(false);
+      setForm({
+        name: '',
+        environment: 'prod',
+        apiServer: '',
+        clusterName: '',
+        context: '',
+        namespaces: '',
+        kubeconfig: '',
+        token: '',
+        capabilities: { read: true, propose: true, execute_approved: false },
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create Ops connector');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTest = async (id: string) => {
+    setTestingId(id); setError(null);
+    try {
+      const result = await opsApi.testConnector(id);
+      setTestMessages((prev) => ({ ...prev, [id]: result.message }));
+      await loadConnectors();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to test Ops connector');
+    } finally {
+      setTestingId(null);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    setError(null);
+    try {
+      await opsApi.deleteConnector(id);
+      setConnectors((prev) => prev.filter((connector) => connector.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete Ops connector');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-16">
+        <span className="inline-block w-6 h-6 border-2 border-[var(--color-outline-variant)] border-t-[var(--color-primary)] rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm text-[var(--color-on-surface-variant)]">
+            {connectors.length > 0
+              ? `${connectors.length} connector${connectors.length === 1 ? '' : 's'} configured`
+              : 'Not connected'}
+          </p>
+          <p className="text-xs text-[var(--color-outline)] mt-0.5">
+            Cluster tools stay unavailable until a connector is configured.
+          </p>
+        </div>
+        {!showForm && canWrite && (
+          <button type="button" onClick={() => setShowForm(true)} className={btnPrimary}>
+            Connect
+          </button>
+        )}
+      </div>
+
+      {error && (
+        <div className="rounded-lg border border-[#EF4444]/25 bg-[#EF4444]/10 px-3 py-2 text-sm text-[#EF4444]">
+          {error}
+        </div>
+      )}
+
+      {showForm && canWrite && (
+        <div className="space-y-3 p-4 bg-[var(--color-surface-highest)] rounded-xl border border-[var(--color-outline-variant)]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Name">
+              <input type="text" value={form.name} onChange={(e) => updateForm({ name: e.target.value })} placeholder="Production Kubernetes" className={inputCls} />
+            </Field>
+            <Field label="Environment">
+              <input type="text" value={form.environment} onChange={(e) => updateForm({ environment: e.target.value })} placeholder="prod" className={inputCls} />
+            </Field>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Field label="API Server">
+              <input type="url" value={form.apiServer} onChange={(e) => updateForm({ apiServer: e.target.value })} placeholder="https://kubernetes.example.com" className={inputCls} />
+            </Field>
+            <Field label="Cluster">
+              <input type="text" value={form.clusterName} onChange={(e) => updateForm({ clusterName: e.target.value })} placeholder="prod-east" className={inputCls} />
+            </Field>
+            <Field label="Context">
+              <input type="text" value={form.context} onChange={(e) => updateForm({ context: e.target.value })} placeholder="prod-admin" className={inputCls} />
+            </Field>
+          </div>
+          <Field label="Namespaces" hint="Comma or newline separated. Leave blank to require explicit command namespaces.">
+            <textarea value={form.namespaces} onChange={(e) => updateForm({ namespaces: e.target.value })} rows={2} placeholder="default, api, payments" className={inputCls + ' resize-y'} />
+          </Field>
+          <Field label="Kubeconfig">
+            <textarea value={form.kubeconfig} onChange={(e) => updateForm({ kubeconfig: e.target.value })} rows={5} placeholder="Paste kubeconfig" className={inputCls + ' resize-y font-mono text-xs'} />
+          </Field>
+          <Field label="Token">
+            <input type="password" value={form.token} onChange={(e) => updateForm({ token: e.target.value })} placeholder="Service account token" className={inputCls} />
+          </Field>
+          <div>
+            <label className="block text-xs font-medium text-[var(--color-on-surface)] mb-2">Capabilities</label>
+            <div className="flex flex-wrap gap-3">
+              {OPS_CAPABILITIES.map((capability) => (
+                <label key={capability.id} className="flex items-center gap-2 text-sm text-[var(--color-on-surface-variant)]">
+                  <input
+                    type="checkbox"
+                    checked={form.capabilities[capability.id]}
+                    onChange={(e) => updateForm({ capabilities: { ...form.capabilities, [capability.id]: e.target.checked } })}
+                    className="w-3.5 h-3.5 rounded accent-[var(--color-primary)]"
+                  />
+                  {capability.label}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--color-outline-variant)]/30">
+            <button type="button" onClick={() => setShowForm(false)} className="px-2.5 py-1.5 rounded-lg text-xs text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-high)] transition-colors">Cancel</button>
+            <button type="button" onClick={() => void handleCreate()} disabled={saving || !form.name.trim() || (!form.apiServer.trim() && !form.clusterName.trim() && !form.context.trim())} className={btnPrimary + ' !py-1.5 !px-3 !text-xs'}>
+              {saving ? 'Connecting...' : 'Save connector'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {connectors.length === 0 && !showForm && (
+        <div className="flex flex-col items-center py-16 text-center">
+          <div className="w-12 h-12 rounded-xl bg-[var(--color-surface-high)] flex items-center justify-center mb-3">
+            <svg className="w-6 h-6 text-[var(--color-outline)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M7 7v10a2 2 0 002 2h6a2 2 0 002-2V7M9 12h6M9 15h4" />
+            </svg>
+          </div>
+          <p className="text-sm text-[var(--color-on-surface-variant)] mb-1">No Ops integrations connected</p>
+          <p className="text-xs text-[var(--color-outline)]">Kubernetes cluster tools will show not connected until a connector is added.</p>
+        </div>
+      )}
+
+      {connectors.map((connector) => (
+        <div key={connector.id} className="rounded-xl border border-[var(--color-outline-variant)] px-4 py-3">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-lg bg-[var(--color-primary)]/10 text-[var(--color-primary)] flex items-center justify-center shrink-0">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M7 7v10a2 2 0 002 2h6a2 2 0 002-2V7M9 12h6M9 15h4" /></svg>
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-medium text-[var(--color-on-surface)]">{connector.name}</span>
+                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${connector.status === 'connected' ? 'bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/20' : 'bg-[var(--color-on-surface-variant)]/10 text-[var(--color-on-surface-variant)] border-[var(--color-outline-variant)]'}`}>
+                  {connector.status === 'connected' ? 'Connected' : 'Not connected'}
+                </span>
+                {connector.environment && <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${ENV_STYLES[connector.environment] ?? ENV_STYLES.custom}`}>{connector.environment}</span>}
+              </div>
+              <p className="mt-1 text-xs text-[var(--color-outline)] font-mono">{connector.id}</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {(connector.allowedNamespaces ?? []).map((namespace) => (
+                  <span key={namespace} className="px-1.5 py-0.5 rounded bg-[var(--color-surface-high)] text-[10px] text-[var(--color-on-surface-variant)]">{namespace}</span>
+                ))}
+                {(connector.capabilities ?? []).map((capability) => (
+                  <span key={capability} className="px-1.5 py-0.5 rounded bg-[var(--color-primary)]/10 text-[var(--color-primary)] text-[10px]">{capability}</span>
+                ))}
+              </div>
+              {testMessages[connector.id] && (
+                <p className="mt-2 text-xs text-[var(--color-on-surface-variant)]">{testMessages[connector.id]}</p>
+              )}
+              {canWrite && (
+                <div className="mt-3 flex items-center gap-2">
+                  <button type="button" onClick={() => void handleTest(connector.id)} disabled={testingId === connector.id} className={btnSecondary + ' !py-1.5 !px-3 !text-xs'}>
+                    {testingId === connector.id ? 'Testing...' : 'Test'}
+                  </button>
+                  <button type="button" onClick={() => void handleDelete(connector.id)} className="px-3 py-1.5 rounded-lg text-xs text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors">
+                    Delete
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── LLM Tab ───
 
 function LlmTab({ canWrite }: { canWrite: boolean }) {
@@ -659,6 +900,11 @@ export default function Settings() {
   // ADMIN_ONLY_PERMISSIONS in roles-def.ts). Matches the backend enforcement
   // in routes/system.ts + routes/setup.ts reset endpoint.
   const canAdminWrite = !!user && (user.isServerAdmin || hasPermission('instance.config:write'));
+  const canOpsWrite = !!user && (
+    user.isServerAdmin ||
+    hasPermission('ops.connectors:write') ||
+    hasPermission('instance.config:write')
+  );
 
   return (
     <div className="h-full flex">
@@ -692,6 +938,7 @@ export default function Settings() {
           </h2>
           <p className="text-sm text-[var(--color-on-surface-variant)] mb-6">
             {tab === 'datasources' && 'Connect to Prometheus, Loki, Elasticsearch and other data sources.'}
+            {tab === 'ops' && 'Connect Kubernetes and operational command integrations.'}
             {tab === 'llm' && 'Configure the AI model used for investigations and analysis.'}
             {tab === 'notifications' && 'Set up alert delivery channels.'}
             {tab === 'danger' && 'Irreversible actions for your OpenObs instance.'}
@@ -700,6 +947,7 @@ export default function Settings() {
           {tab === 'datasources' && (
             <DataSourcesTab canCreate={canCreateDs} canWrite={canWriteDs} canDelete={canDeleteDs} />
           )}
+          {tab === 'ops' && <OpsIntegrationsTab canWrite={canOpsWrite} />}
           {tab === 'llm' && <LlmTab canWrite={canAdminWrite} />}
           {tab === 'notifications' && <NotificationsTab canWrite={canAdminWrite} />}
           {tab === 'danger' && <DangerTab canReset={canAdminWrite} />}

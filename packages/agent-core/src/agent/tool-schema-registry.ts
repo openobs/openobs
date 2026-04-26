@@ -212,6 +212,28 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
   },
 
   // -------------------------------------------------------------------------
+  // Kubernetes / Ops integrations. Requires an operator-configured connector.
+  // -------------------------------------------------------------------------
+  'ops.run_command': {
+    name: 'ops.run_command',
+    description:
+      'Run a Kubernetes/Ops command through a configured connector. Only use when the user asks to inspect or operate on cluster state and a connectorId is known. Read commands may run with intent="read"; write/mutating commands must use intent="propose" unless the user is executing an approved proposal.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        connectorId: { type: 'string', description: 'Ops connector id configured in Settings' },
+        command: { type: 'string', description: 'The exact kubectl/ops command to run or propose' },
+        intent: {
+          type: 'string',
+          enum: ['read', 'propose', 'execute_approved'],
+          description: 'read runs safe inspection commands; propose returns an approval/proposal for write commands; execute_approved is only for an already approved command.',
+        },
+      },
+      required: ['connectorId', 'command', 'intent'],
+    },
+  },
+
+  // -------------------------------------------------------------------------
   // Dashboard lifecycle + mutation primitives
   // -------------------------------------------------------------------------
   'dashboard.create': {

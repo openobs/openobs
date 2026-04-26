@@ -48,6 +48,9 @@ export type {
   IInvestigationStore,
   IAlertRuleStore,
   DatasourceConfig,
+  OpsCommandIntent,
+  OpsConnectorConfig,
+  OpsCommandRunner,
 } from './types.js'
 
 // Context compaction

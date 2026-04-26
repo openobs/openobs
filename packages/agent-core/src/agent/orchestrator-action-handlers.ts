@@ -45,4 +45,5 @@ export {
   handleNavigate,
   handleFolderCreate,
   handleFolderList,
+  handleOpsRunCommand,
 } from './handlers/index.js';

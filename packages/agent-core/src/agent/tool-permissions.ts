@@ -20,7 +20,7 @@
  */
 
 import type { Evaluator } from '@agentic-obs/common';
-import { ac } from '@agentic-obs/common';
+import { ACTIONS, ac } from '@agentic-obs/common';
 import type { ActionContext } from './orchestrator-action-handlers.js';
 import type { ToolPermissionBuilder } from './types-permissions.js';
 
@@ -176,6 +176,16 @@ export const TOOL_PERMS: Record<string, ToolPermissionBuilder> = {
   // deploy / incident history while diagnosing anomalies.
   'changes.list_recent': () =>
     ac.eval('investigations:read', 'investigations:*'),
+
+  // -- Kubernetes / Ops integrations --------------------------------------
+  'ops.run_command': (args: Record<string, unknown>) =>
+    ac.any(
+      ac.eval(
+        ACTIONS.OpsCommandsRun,
+        `ops.connectors:id:${String(args.connectorId ?? '*')}`,
+      ),
+      ac.eval(ACTIONS.InstanceConfigWrite),
+    ),
 
   // -- Web / knowledge ------------------------------------------------------
   'web.search': () => ac.eval('chat:use'),

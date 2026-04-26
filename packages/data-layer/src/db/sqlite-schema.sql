@@ -737,3 +737,29 @@ CREATE TABLE IF NOT EXISTS mute_timings (
   created_at     TEXT NOT NULL,
   updated_at     TEXT NOT NULL
 );
+
+-- ============================================================================
+-- Ops connectors (Kubernetes etc.)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS ops_connectors (
+  id                      TEXT PRIMARY KEY,
+  org_id                  TEXT NOT NULL,
+  type                    TEXT NOT NULL CHECK (type = 'kubernetes'),
+  name                    TEXT NOT NULL,
+  environment             TEXT NULL,
+  config_json             TEXT NOT NULL,
+  secret_ref              TEXT NULL,
+  encrypted_secret        TEXT NULL,
+  allowed_namespaces_json TEXT NOT NULL DEFAULT '[]',
+  capabilities_json       TEXT NOT NULL DEFAULT '[]',
+  status                  TEXT NOT NULL DEFAULT 'unknown',
+  last_checked_at         TEXT NULL,
+  created_at              TEXT NOT NULL,
+  updated_at              TEXT NOT NULL,
+  FOREIGN KEY (org_id) REFERENCES org(id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_ops_connectors_org_name ON ops_connectors(org_id, name);
+CREATE INDEX        IF NOT EXISTS ix_ops_connectors_org_id   ON ops_connectors(org_id);
+CREATE INDEX        IF NOT EXISTS ix_ops_connectors_org_type ON ops_connectors(org_id, type);
