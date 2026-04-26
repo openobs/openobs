@@ -307,26 +307,28 @@ export function createSetupRouter(deps: SetupRouterDeps): Router {
       return;
     }
     let models;
-    let errorMessage: string | undefined;
     try {
-      ({ models, errorMessage } = await llmService.fetchModels(cfg));
+      ({ models } = await llmService.fetchModels(cfg));
     } catch (err) {
-      if (err instanceof SetupLlmServiceError && err.kind === 'invalid_url') {
-        res.status(400).json({
-          error: { code: 'INVALID_URL', message: err.message },
+      if (err instanceof SetupLlmServiceError) {
+        const status =
+          err.kind === 'invalid_url' || err.kind === 'unsupported_provider'
+            ? 400
+            : 502;
+        res.status(status).json({
+          error: {
+            code:
+              err.kind === 'invalid_url'
+                ? 'INVALID_URL'
+                : err.kind === 'unsupported_provider'
+                  ? 'UNSUPPORTED_PROVIDER'
+                  : 'PROVIDER_FETCH_FAILED',
+            message: err.message,
+          },
         });
         return;
       }
       throw err;
-    }
-    if (models.length === 0) {
-      res.json({
-        models,
-        warning: errorMessage
-          ? `Could not fetch models — ${errorMessage}. Check your API key / URL, or continue with the default list.`
-          : `Could not fetch models from ${cfg.provider}. Check your API key / URL, or continue with the default list.`,
-      });
-      return;
     }
     res.json({ models });
   });

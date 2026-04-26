@@ -25,10 +25,46 @@ export interface BootstrapAwareDeps {
   setupConfig: SetupConfigService;
   authMiddleware: RequestHandler;
   /**
+   * Optional pre-bootstrap allowlist. When provided, unauthenticated
+   * pre-bootstrap requests must match one of these method/path rules before
+   * the downstream route and permission gates are allowed to run.
+   */
+  preBootstrapAllowlist?: PreBootstrapAllowRule[];
+  /**
    * Additional middlewares to run in order AFTER auth succeeds,
    * post-bootstrap only. Typical usage: org-context + permission gate.
    */
   postAuthChain?: RequestHandler[];
+}
+
+export interface PreBootstrapAllowRule {
+  method: string;
+  path: string | RegExp;
+}
+
+function normalizedRequestPath(req: Request): string {
+  const path = req.baseUrl ? `${req.baseUrl}${req.path}` : req.path;
+  return path.replace(/\/+$/, '') || '/';
+}
+
+function normalizedRulePath(path: string): string {
+  return path.replace(/\/+$/, '') || '/';
+}
+
+function isPreBootstrapAllowed(
+  req: Request,
+  allowlist: readonly PreBootstrapAllowRule[] | undefined,
+): boolean {
+  if (!allowlist) return true;
+  const method = req.method.toUpperCase();
+  const path = normalizedRequestPath(req);
+  return allowlist.some((rule) => {
+    if (rule.method.toUpperCase() !== method) return false;
+    if (typeof rule.path === 'string') {
+      return normalizedRulePath(rule.path) === path;
+    }
+    return rule.path.test(path);
+  });
 }
 
 /**
@@ -38,13 +74,25 @@ export interface BootstrapAwareDeps {
  * permission check, etc.).
  */
 export function bootstrapAware(deps: BootstrapAwareDeps): RequestHandler {
-  const { setupConfig, authMiddleware, postAuthChain = [] } = deps;
+  const {
+    setupConfig,
+    authMiddleware,
+    preBootstrapAllowlist,
+    postAuthChain = [],
+  } = deps;
   return function bootstrapAwareMw(req: Request, res: Response, next: NextFunction): void {
     void setupConfig
       .isBootstrapped()
       .then((bootstrapped) => {
         res.locals['isBootstrapped'] = bootstrapped;
         if (!bootstrapped) {
+          if (!isPreBootstrapAllowed(req, preBootstrapAllowlist)) {
+            res.status(401).json({
+              error: { code: 'UNAUTHORIZED', message: 'authentication required' },
+            });
+            return;
+          }
+          res.locals['allowBootstrapUnauthenticated'] = true;
           next();
           return;
         }

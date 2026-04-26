@@ -40,10 +40,12 @@ import {
   type OrgRole,
   type User,
 } from '@agentic-obs/common';
+import { createLogger } from '@agentic-obs/common/logging';
 import type { AuditWriter } from '../auth/audit-writer.js';
 
 export const TOKEN_PREFIX_SA = 'openobs_sa_';
 export const TOKEN_PREFIX_PAT = 'openobs_pat_';
+const log = createLogger('apikey-service');
 
 /**
  * @deprecated Kept only so existing `instanceof` checks (e.g. in
@@ -195,7 +197,10 @@ export class ApiKeyService {
       orgId,
       serviceAccountId,
     );
-    const role = membership?.role ?? 'Viewer';
+    if (!membership) {
+      throw new ForbiddenError('service account has no membership in this organization');
+    }
+    const role = membership.role;
 
     const { plaintext, hashed } = generateSAToken();
     const expires = this.computeExpiry(input.secondsToLive);
@@ -264,7 +269,10 @@ export class ApiKeyService {
     });
 
     const membership = await this.deps.orgUsers.findMembership(orgId, userId);
-    const role = input.role ?? membership?.role ?? 'Viewer';
+    if (!membership) {
+      throw new ForbiddenError('user has no membership in this organization');
+    }
+    const role = input.role ?? membership.role;
 
     const { plaintext, hashed } = generatePATToken();
     const expires = this.computeExpiry(input.secondsToLive);
@@ -388,7 +396,17 @@ export class ApiKeyService {
     // Touch last-used + rate-limited audit; both fire-and-forget.
     void this.deps.apiKeys
       .touchLastUsed(row.id, new Date().toISOString())
-      .catch(() => undefined);
+      .catch((err) => {
+        log.warn(
+          {
+            err: err instanceof Error ? err.message : err,
+            errClass: err instanceof Error ? err.constructor.name : typeof err,
+            keyId: row.id,
+            metric: 'apikey.touchLastUsed.failed',
+          },
+          'touchLastUsed failed for API key',
+        );
+      });
     this.maybeAuditUsed(row);
 
     return {
@@ -516,7 +534,10 @@ export class ApiKeyService {
       orgId,
       serviceAccountId,
     );
-    const role = membership?.role ?? 'Viewer';
+    if (!membership) {
+      throw new ForbiddenError('service account has no membership in this organization');
+    }
+    const role = membership.role;
     return this.deps.apiKeys.create({
       orgId,
       name: legacyName,

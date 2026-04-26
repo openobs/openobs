@@ -79,11 +79,7 @@ function constantTimeEqual(a: string, b: string): boolean {
   // already a fail — short-circuit but in a way that still does fixed-length
   // work for the equal-length case.
   if (a.length !== b.length) return false;
-  try {
-    return timingSafeEqual(Buffer.from(a), Buffer.from(b));
-  } catch {
-    return false;
-  }
+  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
 }
 
 export interface CsrfMiddlewareOptions {

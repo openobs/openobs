@@ -100,6 +100,13 @@ export function mountDomainRoutes(deps: MountDomainRoutesDeps): void {
   const bootstrapAwareAuthOnly = bootstrapAware({
     setupConfig,
     authMiddleware,
+    preBootstrapAllowlist: [
+      { method: 'POST', path: '/api/datasources' },
+      { method: 'POST', path: '/api/datasources/test' },
+      { method: 'PUT', path: /^\/api\/datasources\/[^/]+$/ },
+      { method: 'PUT', path: '/api/system/llm' },
+      { method: 'PUT', path: '/api/system/notifications' },
+    ],
     postAuthChain: [
       userRateLimiter,
       createOrgContextMiddleware({ orgUsers: authRepos.orgUsers }),

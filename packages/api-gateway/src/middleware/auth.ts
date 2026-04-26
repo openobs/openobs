@@ -231,9 +231,14 @@ export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
         deps.apiKeys
           .touchLastUsed(row.id, new Date().toISOString())
           .catch((err) => {
-            log.debug(
-              { err: err instanceof Error ? err.message : err },
-              'touchLastUsed failed',
+            log.warn(
+              {
+                err: err instanceof Error ? err.message : err,
+                errClass: err instanceof Error ? err.constructor.name : typeof err,
+                keyId: row.id,
+                metric: 'apikey.touchLastUsed.failed',
+              },
+              'touchLastUsed failed for API key',
             );
           });
         const principalId = row.serviceAccountId ?? row.ownerUserId ?? '';

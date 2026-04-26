@@ -4,46 +4,68 @@ import { createLogger } from '@agentic-obs/common/logging'
 
 const log = createLogger('cors')
 
-const isProd = process.env['NODE_ENV'] === 'production'
-const rawOrigins = process.env['CORS_ORIGINS']
+function parseOrigins(rawOrigins: string | undefined): string[] {
+  return (rawOrigins ?? '').split(',').map((o) => o.trim()).filter(Boolean)
+}
 
-let corsOrigin: CorsOptions['origin']
-let credentials: boolean
-
-if (isProd) {
-  // Production: require explicit CORS_ORIGINS, reject wildcard
-  const origins = (rawOrigins ?? '').split(',').map((o) => o.trim()).filter(Boolean)
-  if (origins.length === 0 || origins.includes('*')) {
-    throw new Error(
-      '[cors] FATAL: CORS_ORIGINS must not be "*" or empty in production. ' +
-      'Set CORS_ORIGINS to a comma-separated list of allowed origins.',
-    )
+function isLocalDevOrigin(origin: string): boolean {
+  try {
+    const url = new URL(origin)
+    return ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+  } catch {
+    return false
   }
-  corsOrigin = origins
-  credentials = true
-} else if (rawOrigins) {
-  // Non-production with explicit CORS_ORIGINS
-  const origins = rawOrigins.split(',').map((o) => o.trim()).filter(Boolean)
-  if (origins.includes('*')) {
-    log.warn('CORS is open to all origins ("*"). Restrict CORS_ORIGINS before deploying to production.')
-    corsOrigin = true
-    credentials = false
-  } else {
+}
+
+export function createCorsOptions(env: NodeJS.ProcessEnv = process.env): CorsOptions {
+  const isProd = env['NODE_ENV'] === 'production'
+  const rawOrigins = env['CORS_ORIGINS']
+
+  let corsOrigin: CorsOptions['origin']
+  let credentials: boolean
+
+  if (isProd) {
+    // Production: require explicit CORS_ORIGINS, reject wildcard.
+    const origins = parseOrigins(rawOrigins)
+    if (origins.length === 0 || origins.includes('*')) {
+      throw new Error(
+        '[cors] FATAL: CORS_ORIGINS must not be "*" or empty in production. ' +
+        'Set CORS_ORIGINS to a comma-separated list of allowed origins.',
+      )
+    }
     corsOrigin = origins
     credentials = true
+  } else if (rawOrigins) {
+    // Non-production with explicit CORS_ORIGINS.
+    const origins = parseOrigins(rawOrigins)
+    if (origins.includes('*')) {
+      log.warn('CORS is open to all origins ("*"). Restrict CORS_ORIGINS before deploying to production.')
+      corsOrigin = true
+      credentials = false
+    } else {
+      corsOrigin = origins
+      credentials = true
+    }
+  } else {
+    // Non-production default: allow credentialed browser calls only from
+    // local development origins. Non-browser requests with no Origin header
+    // still pass through.
+    corsOrigin = (origin, cb) => {
+      if (!origin || isLocalDevOrigin(origin)) {
+        cb(null, true)
+        return
+      }
+      cb(null, false)
+    }
+    credentials = true
   }
-} else {
-  // Non-production default: reflect the request origin so dev setups
-  // (localhost, 127.0.0.1, LAN IP, any port) work without friction.
-  corsOrigin = true
-  credentials = true
+
+  return {
+    origin: corsOrigin,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'Accept', 'X-CSRF-Token', 'X-Openobs-Org-Id', 'Last-Event-ID'],
+    credentials,
+  }
 }
 
-const corsOptions: CorsOptions = {
-  origin: corsOrigin,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'Accept', 'X-CSRF-Token', 'X-Openobs-Org-Id', 'Last-Event-ID'],
-  credentials,
-}
-
-export const cors = corsLib(corsOptions)
+export const cors = corsLib(createCorsOptions())
