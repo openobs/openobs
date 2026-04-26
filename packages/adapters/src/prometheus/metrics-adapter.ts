@@ -1,31 +1,19 @@
-// Types are structurally compatible with IMetricsAdapter from @agentic-obs/agent-core.
-// We avoid importing from agent-core directly to prevent a circular package dependency.
+// Concrete Prometheus implementation of the canonical IMetricsAdapter.
 
 import { getErrorMessage } from '@agentic-obs/common';
 import { createLogger } from '@agentic-obs/common/logging';
 import { checkEndpointHealth } from '../shared/health-check.js';
 import { AdapterError, classifyAdapterHttpError } from '../adapter.js';
+import type {
+  IMetricsAdapter,
+  MetricSample,
+  MetricMetadata,
+  RangeResult,
+} from '../interfaces.js';
 
 const log = createLogger('metrics-adapter');
 
 const ADAPTER_NAME = 'prometheus';
-
-interface MetricSample {
-  labels: Record<string, string>;
-  value: number;
-  timestamp: number;
-}
-
-interface MetricMetadata {
-  type: string;
-  help: string;
-  unit: string;
-}
-
-interface RangeResult {
-  metric: Record<string, string>;
-  values: Array<[number, string]>;
-}
 
 interface PrometheusMetadataEntry {
   type: string;
@@ -49,7 +37,7 @@ interface PrometheusMatrixResult {
   values: Array<[number, string]>;
 }
 
-export class PrometheusMetricsAdapter {
+export class PrometheusMetricsAdapter implements IMetricsAdapter {
   constructor(
     private baseUrl: string,
     private headers: Record<string, string> = {},

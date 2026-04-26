@@ -1,29 +1,15 @@
-// Types are structurally compatible with ILogsAdapter from @agentic-obs/agent-core.
-// We avoid importing from agent-core directly to prevent a circular package dependency.
+// Concrete Loki implementation of the canonical ILogsAdapter.
 
 import { getErrorMessage } from '@agentic-obs/common';
 import { createLogger } from '@agentic-obs/common/logging';
+import type {
+  ILogsAdapter,
+  LogEntry,
+  LogsQueryInput,
+  LogsQueryResult,
+} from '../interfaces.js';
 
 const log = createLogger('loki-logs-adapter');
-
-export interface LogEntry {
-  timestamp: string; // ISO-8601
-  message: string;
-  labels: Record<string, string>;
-}
-
-export interface LogsQueryInput {
-  query: string; // LogQL
-  start: Date;
-  end: Date;
-  limit?: number; // default 100
-}
-
-export interface LogsQueryResult {
-  entries: LogEntry[];
-  partial: boolean;
-  warnings?: string[];
-}
 
 interface LokiStream {
   stream: Record<string, string>;
@@ -47,7 +33,7 @@ interface LokiListResponse {
 
 const DEFAULT_LIMIT = 100;
 
-export class LokiLogsAdapter {
+export class LokiLogsAdapter implements ILogsAdapter {
   constructor(
     private baseUrl: string,
     private headers: Record<string, string> = {},
