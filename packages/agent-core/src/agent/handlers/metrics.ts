@@ -18,9 +18,14 @@ export async function handleMetricsQuery(ctx: ActionContext, args: Record<string
   const expr = String(args.query ?? args.expr ?? '');
   if (!expr) return 'Error: "query" is required.';
 
-  ctx.sendEvent({ type: 'tool_call', tool: 'metrics.query', args: { sourceId, query: expr }, displayText: `Querying ${sourceId}: ${expr.slice(0, 80)}` });
+  // Optional `time` anchor — when the user is viewing a panel with a non-default
+  // time range, the orchestrator passes the window-end here so the instant
+  // query reflects what the panel showed instead of "now".
+  const timeArg = typeof args.time === 'string' && args.time ? args.time : undefined;
+  const time = timeArg ? new Date(timeArg) : undefined;
+  ctx.sendEvent({ type: 'tool_call', tool: 'metrics.query', args: { sourceId, query: expr, ...(timeArg ? { time: timeArg } : {}) }, displayText: `Querying ${sourceId}: ${expr.slice(0, 80)}` });
   try {
-    const results = await adapter.instantQuery(expr);
+    const results = await adapter.instantQuery(expr, time);
     const summary = results.length === 0
       ? 'Query returned no data.'
       : results.slice(0, 20).map((s) => {

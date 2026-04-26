@@ -72,6 +72,15 @@ interface OpenAIResponseBody {
       role: 'assistant';
       content: string | null;
       tool_calls?: OpenAIToolCall[];
+      // Reasoning summary fields. Different providers expose this under
+      // different keys when wrapped through OpenAI-compatible endpoints:
+      //   - DeepSeek R1, Qwen-Thinking: `reasoning_content`
+      //   - OpenRouter (transparent reasoning), some Gemini wrappers: `reasoning`
+      // Either may be a string OR an array of {text} blocks. We collect
+      // both and surface them as `thinkingBlocks` so the chat UI can render
+      // the model's chain-of-thought instead of an empty bubble.
+      reasoning_content?: string | Array<{ text?: string }>;
+      reasoning?: string | Array<{ text?: string }>;
     };
     finish_reason?: string;
   }>;
@@ -177,6 +186,30 @@ function translateMessages(messages: CompletionMessage[]): OpenAIMessage[] {
   return out;
 }
 
+/**
+ * Pull reasoning summaries out of a chat-completion message. Handles two
+ * common shapes that show up via OpenAI-compatible endpoints:
+ *   - DeepSeek R1 / Qwen-Thinking → `reasoning_content` (string)
+ *   - OpenRouter (transparent reasoning), some Gemini wrappers → `reasoning`
+ *     (string or array of {text} blocks)
+ * Returns an array suitable for `LLMResponse.thinkingBlocks`.
+ */
+function extractReasoning(message: OpenAIResponseBody['choices'][number]['message']): string[] {
+  const out: string[] = [];
+  for (const raw of [message.reasoning_content, message.reasoning]) {
+    if (!raw) continue;
+    if (typeof raw === 'string') {
+      if (raw.trim()) out.push(raw);
+    } else if (Array.isArray(raw)) {
+      for (const block of raw) {
+        const text = block?.text;
+        if (typeof text === 'string' && text.trim()) out.push(text);
+      }
+    }
+  }
+  return out;
+}
+
 function parseToolCalls(raw: OpenAIToolCall[] | undefined): ToolCall[] {
   if (!raw || raw.length === 0) return [];
   return raw.map((tc) => {
@@ -273,10 +306,12 @@ export class OpenAIProvider implements LLMProvider {
 
     const firstChoice = data.choices[0]!;
     const message = firstChoice.message;
+    const thinkingBlocks = extractReasoning(message);
 
     return {
       content: message.content ?? '',
       toolCalls: parseToolCalls(message.tool_calls),
+      thinkingBlocks: thinkingBlocks.length > 0 ? thinkingBlocks : undefined,
       usage: {
         promptTokens: data.usage.prompt_tokens,
         completionTokens: data.usage.completion_tokens,
@@ -314,13 +349,26 @@ export class OpenAIProvider implements LLMProvider {
       );
     }
     const data = (await response.json()) as { data: Array<{ id: string; owned_by?: string }> };
-    return data.data
-      .filter((m) => m.id.startsWith('gpt'))
+    const isOpenRouter = (() => {
+      try {
+        return new URL(this.baseUrl).hostname.endsWith('openrouter.ai');
+      } catch {
+        // If the base URL isn't parseable, fall back to the previous behavior.
+        return false;
+      }
+    })();
+
+    const models = data.data
+      // OpenRouter model IDs are namespaced (e.g. `openai/gpt-4o`, `anthropic/claude-...`);
+      // filtering to `gpt*` would incorrectly drop the entire list.
+      .filter((m) => (isOpenRouter ? true : m.id.startsWith('gpt')))
       .sort((a, b) => a.id.localeCompare(b.id))
       .map((m) => ({
         id: m.id,
         name: m.id,
         provider: 'openai',
       }));
+
+    return models;
   }
 }

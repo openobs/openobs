@@ -218,7 +218,13 @@ export class OrchestratorAgent {
       throw new Error(`Dashboard ${dashboardId} not found`)
     }
 
-    const conversationKey = dashboardId ?? this.sessionId
+    // Conversation history is keyed on the chat session, not the dashboard.
+    // The chat-service writes every user/assistant turn into chat_messages
+    // by sessionId; the legacy dashboard_messages table is no longer the
+    // source of truth. Reading by dashboardId here would return an empty
+    // (or stale) history and the model would lose all context for follow-up
+    // turns inside an open dashboard.
+    const conversationKey = this.sessionId
     const history = await this.deps.conversationStore.getMessages(conversationKey)
 
     // Fetch existing alert rules so LLM can reference them for modify/delete.

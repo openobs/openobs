@@ -24,11 +24,17 @@ export interface IDashboardAgentStore {
   updateVariables(id: string, variables: DashboardVariable[]): unknown
 }
 
+/**
+ * Conversation history surface consumed by the orchestrator. Always keyed on
+ * the chat sessionId — the legacy dashboardId-keyed shape was removed when
+ * dashboard_messages went away. Implementations are free to no-op writes if
+ * the host (e.g. chat-service) persists messages itself.
+ */
 export interface IConversationStore {
-  addMessage(dashboardId: string, msg: import('@agentic-obs/common').DashboardMessage): import('@agentic-obs/common').DashboardMessage | Promise<import('@agentic-obs/common').DashboardMessage>
-  getMessages(dashboardId: string): import('@agentic-obs/common').DashboardMessage[] | Promise<import('@agentic-obs/common').DashboardMessage[]>
-  clearMessages(dashboardId: string): void | Promise<void>
-  deleteConversation(dashboardId: string): void | Promise<void>
+  addMessage(sessionId: string, msg: import('@agentic-obs/common').DashboardMessage): import('@agentic-obs/common').DashboardMessage | Promise<import('@agentic-obs/common').DashboardMessage>
+  getMessages(sessionId: string): import('@agentic-obs/common').DashboardMessage[] | Promise<import('@agentic-obs/common').DashboardMessage[]>
+  clearMessages(sessionId: string): void | Promise<void>
+  deleteConversation(sessionId: string): void | Promise<void>
 }
 
 export interface IInvestigationReportStore {

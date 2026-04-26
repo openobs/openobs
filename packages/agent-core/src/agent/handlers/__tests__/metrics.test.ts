@@ -56,7 +56,7 @@ describe('metrics handlers', () => {
       });
       const ctx = makeFakeActionContext({ adapters: makeAdaptersWithMetrics(adapter) });
       const observation = await handleMetricsQuery(ctx, { sourceId: 'prom', query: 'up' });
-      expect(adapter.instantQuery).toHaveBeenCalledWith('up');
+      expect(adapter.instantQuery).toHaveBeenCalledWith('up', undefined);
       expect(observation).toContain('job="api"');
       expect(ctx.sendEvent).toHaveBeenCalledWith(
         expect.objectContaining({ type: 'tool_result', tool: 'metrics.query', success: true }),
@@ -79,6 +79,14 @@ describe('metrics handlers', () => {
       expect(ctx.sendEvent).toHaveBeenCalledWith(
         expect.objectContaining({ type: 'tool_result', tool: 'metrics.query', success: false }),
       );
+    });
+
+    it('forwards `time` to the adapter so panel-window-anchored queries hit the right timestamp', async () => {
+      const adapter = makeAdapter();
+      const ctx = makeFakeActionContext({ adapters: makeAdaptersWithMetrics(adapter) });
+      const ts = '2026-04-25T16:00:00.000Z';
+      await handleMetricsQuery(ctx, { sourceId: 'prom', query: 'up', time: ts });
+      expect(adapter.instantQuery).toHaveBeenCalledWith('up', new Date(ts));
     });
   });
 
