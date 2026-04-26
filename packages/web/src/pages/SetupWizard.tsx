@@ -139,10 +139,12 @@ export default function SetupWizard() {
   const [llm, setLlm] = useState<LlmConfig>({
     provider: 'anthropic',
     apiKey: '',
-    model: 'claude-sonnet-4-5',
+    model: '',
     baseUrl: '',
     region: '',
     authType: 'api-key',
+    apiKeyHelper: '',
+    apiFormat: 'anthropic',
   });
 
   const [notifications, setNotifications] = useState<NotificationConfig>({

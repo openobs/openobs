@@ -10,8 +10,8 @@
 // provider (e.g. `corporate-gateway`) is a one-edit change instead of a
 // four-file change. Re-exported so existing consumers that import from
 // this module keep working.
-import type { LlmProvider, LlmAuthType } from '@agentic-obs/common';
-export type { LlmProvider, LlmAuthType };
+import type { LlmProvider, LlmAuthType, LlmApiFormat } from '@agentic-obs/common';
+export type { LlmProvider, LlmAuthType, LlmApiFormat };
 
 export interface ModelInfo {
   id: string;
@@ -33,6 +33,10 @@ export interface LlmConfig {
   baseUrl: string;
   region: string;
   authType: LlmAuthType;
+  /** Shell command that prints a fresh API key on stdout. Empty = unused. */
+  apiKeyHelper: string;
+  /** For corporate-gateway only: which wire format the upstream speaks. */
+  apiFormat: LlmApiFormat;
 }
 
 export interface DatasourceEntry {

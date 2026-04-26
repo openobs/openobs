@@ -91,44 +91,86 @@ export class SetupLlmService {
   async testConnection(cfg: LlmConfigWire): Promise<LlmConnectionTestResult> {
     try {
       if (cfg.provider === 'corporate-gateway') {
-        const token = resolveToken(cfg);
-        if (!token) return { ok: false, message: 'Bearer token or API key is required' };
         const baseUrl = cfg.baseUrl;
         if (!baseUrl) return { ok: false, message: 'Gateway base URL is required' };
-
-        const target = `${baseUrl}/v1/messages`;
+        const apiFormat = cfg.apiFormat ?? 'anthropic';
+        const token = resolveToken(cfg);
+        // Token is OPTIONAL for corp gateways — some authenticate via the
+        // network boundary (mTLS / IP allowlist / sidecar proxy). When set
+        // we forward it; when empty we skip the auth header entirely.
+        const model = cfg.model || DEFAULT_LLM_MODEL;
+        const probeBody = (() => {
+          if (apiFormat === 'anthropic-bedrock') {
+            return {
+              anthropic_version: 'bedrock-2023-05-31',
+              messages: [{ role: 'user', content: 'Say "ok".' }],
+              max_tokens: 5,
+            };
+          }
+          if (apiFormat === 'openai') {
+            return {
+              model,
+              messages: [{ role: 'user', content: 'Say "ok".' }],
+              max_tokens: 5,
+            };
+          }
+          // anthropic native
+          return {
+            model,
+            messages: [{ role: 'user', content: 'Say "ok".' }],
+            max_tokens: 5,
+          };
+        })();
+        const target = (() => {
+          if (apiFormat === 'anthropic-bedrock')
+            return `${baseUrl}/model/${encodeURIComponent(model)}/invoke`;
+          if (apiFormat === 'openai') return `${baseUrl}/chat/completions`;
+          if (apiFormat === 'gemini')
+            return `${baseUrl}/v1beta/models/${encodeURIComponent(model)}:generateContent${token ? `?key=${token}` : ''}`;
+          return `${baseUrl}/v1/messages`;
+        })();
         await guardProviderUrl(target, baseUrl);
+
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (apiFormat === 'anthropic' || apiFormat === 'anthropic-bedrock') {
+          headers['anthropic-version'] = '2023-06-01';
+        }
+        if (token && apiFormat !== 'gemini') {
+          if (cfg.authType === 'bearer' || apiFormat === 'openai') {
+            headers['Authorization'] = `Bearer ${token}`;
+          } else if (apiFormat === 'anthropic' || apiFormat === 'anthropic-bedrock') {
+            headers['x-api-key'] = token;
+          } else {
+            headers['api-key'] = token;
+          }
+        }
 
         const res = await fetch(target, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(cfg.authType === 'bearer'
-              ? { Authorization: `Bearer ${token}` }
-              : { 'api-key': token }),
-            'anthropic-version': '2023-06-01',
-          },
-          body: JSON.stringify({
-            model: cfg.model || DEFAULT_LLM_MODEL,
-            messages: [{ role: 'user', content: 'Say "ok".' }],
-            max_tokens: 5,
-          }),
+          headers,
+          body: JSON.stringify(probeBody),
           signal: AbortSignal.timeout(PROVIDER_PROBE_TIMEOUT_MS),
         });
 
-        if (res.ok) return { ok: true, message: 'Connected via corporate gateway' };
+        if (res.ok) return { ok: true, message: `Connected via corporate gateway (${apiFormat})` };
         const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
         return { ok: false, message: body.error?.message ?? `HTTP ${res.status}` };
       }
 
       if (cfg.provider === 'anthropic') {
         const key = cfg.apiKey ?? process.env['ANTHROPIC_API_KEY'] ?? '';
-        if (!key) return { ok: false, message: 'API key is required' };
+        // Empty key is allowed: when pointed at a custom baseUrl, the
+        // upstream may authenticate at the network boundary instead of via
+        // the x-api-key header. Default api.anthropic.com still needs a key
+        // — flag that case so the user gets a clear error.
+        if (!key && !cfg.baseUrl) return { ok: false, message: 'API key is required for the official Anthropic API' };
         const baseUrl = cfg.baseUrl || 'https://api.anthropic.com';
         const target = `${baseUrl}/v1/models`;
         await guardProviderUrl(target, cfg.baseUrl);
+        const headers: Record<string, string> = { 'anthropic-version': '2023-06-01' };
+        if (key) headers['x-api-key'] = key;
         const res = await fetch(target, {
-          headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+          headers,
           signal: AbortSignal.timeout(PROVIDER_PROBE_TIMEOUT_MS),
         });
         if (res.ok) return { ok: true, message: 'Connected successfully' };

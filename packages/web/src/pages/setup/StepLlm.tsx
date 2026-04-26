@@ -25,10 +25,12 @@ export function StepLlm({
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const provider = LLM_PROVIDERS.find((p) => p.value === config.provider) ?? LLM_PROVIDERS[0]!;
 
-  // The models to show: remote if fetched, otherwise fallback
-  const availableModels: Array<{ id: string; label: string }> = remoteModels.length > 0
-    ? remoteModels.map((m) => ({ id: m.id, label: m.description ? `${m.name} (${m.description})` : m.name }))
-    : provider.fallbackModels.map((m) => ({ id: m, label: m }));
+  // Only fetched models are selectable — no manual entry, no fallback list.
+  // The user must click Fetch Models successfully before they can pick one.
+  const availableModels: Array<{ id: string; label: string }> = remoteModels.map((m) => ({
+    id: m.id,
+    label: m.description ? `${m.name} (${m.description})` : m.name,
+  }));
 
   const handleFetchModels = async () => {
     setFetchingModels(true);
@@ -42,6 +44,8 @@ export function StepLlm({
           provider: config.provider,
           apiKey: config.apiKey || undefined,
           baseUrl: config.baseUrl || undefined,
+          apiKeyHelper: config.apiKeyHelper || undefined,
+          apiFormat: config.provider === 'corporate-gateway' ? config.apiFormat : undefined,
         },
       );
       if (res.data?.models && res.data.models.length > 0) {
@@ -74,6 +78,8 @@ export function StepLlm({
         baseUrl: config.baseUrl || undefined,
         region: config.region || undefined,
         authType: config.authType || undefined,
+        apiKeyHelper: config.apiKeyHelper || undefined,
+        apiFormat: config.provider === 'corporate-gateway' ? config.apiFormat : undefined,
       });
       if (res.error) {
         setTestResult({ ok: false, message: res.error.message });
@@ -101,15 +107,22 @@ export function StepLlm({
       baseUrl: config.baseUrl || undefined,
       region: config.region || undefined,
       authType: config.authType || undefined,
+      apiKeyHelper: config.apiKeyHelper || undefined,
+      apiFormat: config.provider === 'corporate-gateway' ? config.apiFormat : undefined,
     });
     onNext();
   };
 
-  const canProceed =
-    config.model &&
-    (config.provider === 'corporate-gateway' ||
-      !provider.needsKey ||
-      config.apiKey.length > 0);
+  // The model field is select-only with no default — the user MUST fetch
+  // the provider's model list and pick one before proceeding. Auth on a
+  // typo'd model name is the most common silent failure; forcing the
+  // dropdown removes that footgun.
+  const hasCredential =
+    !provider.needsKey ||
+    config.apiKey.length > 0 ||
+    config.apiKeyHelper.length > 0 ||
+    config.provider === 'corporate-gateway';
+  const canProceed = Boolean(config.model) && remoteModels.length > 0 && hasCredential;
 
   return (
     <div>
@@ -127,11 +140,14 @@ export function StepLlm({
                 onClick={() => {
                   onChange({
                     provider: p.value,
-                    model: p.fallbackModels[0],
+                    // No default model — user must fetch + pick.
+                    model: '',
                     apiKey: '',
                     baseUrl: '',
                     region: '',
                     authType: p.value === 'corporate-gateway' ? 'bearer' : 'api-key',
+                    apiKeyHelper: '',
+                    apiFormat: 'anthropic',
                   });
                   setTestResult(null);
                   setRemoteModels([]);
@@ -150,9 +166,33 @@ export function StepLlm({
           </div>
         </div>
 
+        {config.provider === 'corporate-gateway' && (
+          <div>
+            <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">Upstream API format</label>
+            <select
+              value={config.apiFormat}
+              onChange={(e) => {
+                onChange({ apiFormat: e.target.value as LlmConfig['apiFormat'] });
+                setRemoteModels([]);
+                setModelsFetched(false);
+                setTestResult(null);
+              }}
+              className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
+            >
+              <option value="anthropic">Anthropic Messages API</option>
+              <option value="openai">OpenAI Chat Completions API</option>
+              <option value="gemini">Google Gemini generateContent</option>
+              <option value="anthropic-bedrock">Anthropic on Bedrock (/model/&#123;id&#125;/invoke)</option>
+            </select>
+            <p className="text-xs text-[var(--color-on-surface-variant)] mt-1">
+              Which wire format the gateway speaks to its upstream. The backend dispatches to the matching provider implementation.
+            </p>
+          </div>
+        )}
+
         {provider.needsKey && (
           <div>
-            <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">API Key</label>
+            <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">API Key (optional if API key helper or upstream auth is used)</label>
             <input
               type="password"
               value={config.apiKey}
@@ -160,11 +200,30 @@ export function StepLlm({
                 onChange({ apiKey: e.target.value });
                 setTestResult(null);
               }}
-              placeholder="sk-..."
+              placeholder="sk-... (leave blank if you use API key helper or unauthenticated gateway)"
               className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]"
             />
           </div>
         )}
+
+        <div>
+          <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">
+            API key helper (optional)
+          </label>
+          <input
+            type="text"
+            value={config.apiKeyHelper}
+            onChange={(e) => {
+              onChange({ apiKeyHelper: e.target.value });
+              setTestResult(null);
+            }}
+            placeholder='e.g. aws-vault exec my-profile -- printenv ANTHROPIC_API_KEY'
+            className="w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)] font-mono"
+          />
+          <p className="text-xs text-[var(--color-on-surface-variant)] mt-1">
+            Shell command whose stdout is the API key. Wins over the static key when set; the gateway invokes it before each request (5-minute cache).
+          </p>
+        </div>
 
         {provider.needsUrl && (
           <div>
@@ -206,8 +265,12 @@ export function StepLlm({
             <select
               value={config.model}
               onChange={(e) => onChange({ model: e.target.value })}
-              className="flex-1 min-w-0 w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)] truncate"
+              disabled={availableModels.length === 0}
+              className="flex-1 min-w-0 w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)] truncate disabled:opacity-60"
             >
+              {availableModels.length === 0 && (
+                <option value="">— Click "Fetch Models" to load —</option>
+              )}
               {availableModels.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.label}

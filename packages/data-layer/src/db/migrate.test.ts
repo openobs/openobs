@@ -81,6 +81,7 @@ describe('migrate()', () => {
       '019_instance_settings.sql',
       '020_drop_dashboard_messages.sql',
       '021_backfill_resource_workspace_ids.sql',
+      '022_llm_config_helper_format.sql',
     ]);
   });
 

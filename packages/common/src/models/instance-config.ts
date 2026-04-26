@@ -26,6 +26,18 @@ export type LlmProvider =
 
 export type LlmAuthType = 'api-key' | 'bearer';
 
+/**
+ * Wire format the corp-gateway's backend speaks. Determines which provider
+ * implementation handles `complete()` and which endpoint URL pattern to use.
+ * Only meaningful when `provider === 'corporate-gateway'`. For native
+ * providers (anthropic / openai / etc.) this is implied by `provider`.
+ */
+export type LlmApiFormat =
+  | 'anthropic'
+  | 'openai'
+  | 'gemini'
+  | 'anthropic-bedrock';
+
 export interface InstanceLlmConfig {
   provider: LlmProvider;
   apiKey?: string | null;
@@ -33,6 +45,18 @@ export interface InstanceLlmConfig {
   baseUrl?: string | null;
   authType?: LlmAuthType | null;
   region?: string | null;
+  /**
+   * Optional shell command that prints a fresh API key on stdout. When set,
+   * the gateway invokes it before each request (with a 5-min cache) and uses
+   * the resulting key in place of the static `apiKey` field. Lets users plug
+   * in `aws-vault exec ...`, `op read ...`, or any rotating-credential helper.
+   */
+  apiKeyHelper?: string | null;
+  /**
+   * For `corporate-gateway` only: which wire format the gateway's upstream
+   * speaks. Backend dispatches to the matching provider implementation.
+   */
+  apiFormat?: LlmApiFormat | null;
   updatedAt: string;
   updatedBy?: string | null;
 }
@@ -44,6 +68,8 @@ export interface NewInstanceLlmConfig {
   baseUrl?: string | null;
   authType?: LlmAuthType | null;
   region?: string | null;
+  apiKeyHelper?: string | null;
+  apiFormat?: LlmApiFormat | null;
   updatedBy?: string | null;
 }
 

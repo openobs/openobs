@@ -36,6 +36,8 @@ interface LlmRow {
   base_url: string | null;
   auth_type: string | null;
   region: string | null;
+  api_key_helper: string | null;
+  api_format: string | null;
   updated_at: string;
   updated_by: string | null;
 }
@@ -49,6 +51,8 @@ function rowToLlmConfig(r: LlmRow, masked: boolean): InstanceLlmConfig {
     baseUrl: r.base_url,
     authType: (r.auth_type ?? null) as InstanceLlmConfig['authType'],
     region: r.region,
+    apiKeyHelper: r.api_key_helper,
+    apiFormat: (r.api_format ?? null) as InstanceLlmConfig['apiFormat'],
     updatedAt: r.updated_at,
     updatedBy: r.updated_by,
   };
@@ -59,7 +63,8 @@ export class PostgresInstanceConfigRepository implements IInstanceConfigReposito
 
   async getLlm(opts: MaskOptions = {}): Promise<InstanceLlmConfig | null> {
     const result = await this.db.execute(
-      sql`SELECT id, provider, api_key, model, base_url, auth_type, region, updated_at, updated_by
+      sql`SELECT id, provider, api_key, model, base_url, auth_type, region,
+              api_key_helper, api_format, updated_at, updated_by
           FROM instance_llm_config WHERE id = ${SINGLETON_ID}`,
     );
     const rows = result.rows as unknown as LlmRow[];
@@ -73,6 +78,7 @@ export class PostgresInstanceConfigRepository implements IInstanceConfigReposito
     await this.db.execute(sql`
       INSERT INTO instance_llm_config (
         id, provider, api_key, model, base_url, auth_type, region,
+        api_key_helper, api_format,
         updated_at, updated_by
       ) VALUES (
         ${SINGLETON_ID},
@@ -82,18 +88,22 @@ export class PostgresInstanceConfigRepository implements IInstanceConfigReposito
         ${input.baseUrl ?? null},
         ${input.authType ?? null},
         ${input.region ?? null},
+        ${input.apiKeyHelper ?? null},
+        ${input.apiFormat ?? null},
         ${now},
         ${input.updatedBy ?? null}
       )
       ON CONFLICT(id) DO UPDATE SET
-        provider   = excluded.provider,
-        api_key    = excluded.api_key,
-        model      = excluded.model,
-        base_url   = excluded.base_url,
-        auth_type  = excluded.auth_type,
-        region     = excluded.region,
-        updated_at = excluded.updated_at,
-        updated_by = excluded.updated_by
+        provider       = excluded.provider,
+        api_key        = excluded.api_key,
+        model          = excluded.model,
+        base_url       = excluded.base_url,
+        auth_type      = excluded.auth_type,
+        region         = excluded.region,
+        api_key_helper = excluded.api_key_helper,
+        api_format     = excluded.api_format,
+        updated_at     = excluded.updated_at,
+        updated_by     = excluded.updated_by
     `);
     const saved = await this.getLlm();
     if (!saved) throw new Error('[PostgresInstanceConfigRepository] setLlm: upsert did not produce a row');
