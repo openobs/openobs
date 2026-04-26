@@ -17,6 +17,9 @@ export {
   type IAlertRuleStore,
   type IInvestigationStore,
   type DatasourceConfig,
+  type OpsCommandRunner,
+  type OpsConnectorConfig,
+  type OpsCommandIntent,
   // Compat aliases
   type IConversationStore as IDashboardConversationStore,
   type IAlertRuleStore as IDashboardAlertRuleStore,

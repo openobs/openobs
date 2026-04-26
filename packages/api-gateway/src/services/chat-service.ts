@@ -5,6 +5,7 @@ import { createLlmGateway } from '../routes/llm-factory.js';
 import { DashboardOrchestratorAgent as OrchestratorAgent, shouldCompact, compactMessages } from '@agentic-obs/agent-core';
 import type { IConversationStore as IAgentConversationStore, IDashboardAlertRuleStore as IAlertRuleStore, IDashboardInvestigationStore as IInvestigationStore } from '@agentic-obs/agent-core';
 import { buildAdapterRegistry, toAgentDatasources } from './dashboard-service.js';
+import { OpsCommandRunnerService } from './ops-command-runner-service.js';
 import { DuckDuckGoSearchAdapter } from '@agentic-obs/adapters';
 
 // Web-search adapter is configuration-free for the default DuckDuckGo
@@ -14,7 +15,7 @@ import type { AccessControlSurface } from './accesscontrol-holder.js';
 import type { AuditWriter } from '../auth/audit-writer.js';
 import type { SetupConfigService } from './setup-config-service.js';
 import type { IGatewayDashboardStore } from '../repositories/types.js';
-import type { IInvestigationReportRepository, IAlertRuleRepository, IGatewayInvestigationStore, IChatSessionRepository, IChatMessageRepository, IChatSessionEventRepository } from '@agentic-obs/data-layer';
+import type { IInvestigationReportRepository, IAlertRuleRepository, IGatewayInvestigationStore, IChatSessionRepository, IChatMessageRepository, IChatSessionEventRepository, IOpsConnectorRepository, IApprovalRequestRepository } from '@agentic-obs/data-layer';
 
 const log = createLogger('chat-service');
 
@@ -48,6 +49,8 @@ export interface ChatServiceDeps {
   chatSessionStore?: IChatSessionRepository;
   chatMessageStore?: IChatMessageRepository;
   chatEventStore?: IChatSessionEventRepository;
+  opsConnectorStore?: IOpsConnectorRepository;
+  approvalStore?: IApprovalRequestRepository;
   /** Wave 7 — RBAC surface for the agent permission gate. Required. */
   accessControl: AccessControlSurface;
   /** Audit-log writer. Optional but strongly recommended in production. */
@@ -161,6 +164,13 @@ export class ChatService {
     const gateway = createLlmGateway(llm);
     const model = llm.model;
     const adapters = buildAdapterRegistry(datasources);
+    const opsCommandRunner = this.deps.opsConnectorStore && this.deps.approvalStore
+      ? new OpsCommandRunnerService({
+          connectors: this.deps.opsConnectorStore,
+          approvals: this.deps.approvalStore,
+        }, identity.orgId)
+      : undefined;
+    const opsConnectors = opsCommandRunner ? await opsCommandRunner.listConnectors() : undefined;
 
     // Parse relative time range (e.g., "1h", "6h", "24h", "7d") to absolute
     // start/end. Carry the client's IANA timezone so the prompt can label
@@ -239,6 +249,7 @@ export class ChatService {
       adapters,
       webSearchAdapter: sharedWebSearchAdapter,
       allDatasources: toAgentDatasources(datasources),
+      ...(opsCommandRunner ? { opsCommandRunner, opsConnectors } : {}),
       sendEvent: wrappedSendEvent,
       timeRange,
       conversationSummary,

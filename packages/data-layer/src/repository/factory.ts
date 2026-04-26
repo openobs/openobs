@@ -27,6 +27,7 @@ import type {
   IDatasourceRepository,
   INotificationChannelRepository,
 } from '@agentic-obs/common';
+import type { IOpsConnectorRepository } from './types/ops-connector.js';
 import type {
   IGatewayInvestigationStore,
   IGatewayIncidentStore,
@@ -60,6 +61,7 @@ import { SqliteChatSessionEventRepository } from './sqlite/chat-session-event.js
 import { InstanceConfigRepository } from './sqlite/instance-config.js';
 import { DatasourceRepository } from './sqlite/datasource.js';
 import { NotificationChannelRepository } from './sqlite/notification-channel.js';
+import { OpsConnectorRepository } from './sqlite/ops-connector.js';
 
 /**
  * Core repositories (shared across all backends that support them).
@@ -102,6 +104,7 @@ export interface SqliteRepositories {
   instanceConfig: IInstanceConfigRepository;
   datasources: IDatasourceRepository;
   notificationChannels: INotificationChannelRepository;
+  opsConnectors: IOpsConnectorRepository;
 }
 
 export function createPostgresRepositories(db: DbClient): Repositories {
@@ -135,6 +138,7 @@ export function createSqliteRepositories(db: SqliteClient): SqliteRepositories {
     instanceConfig: new InstanceConfigRepository(db),
     datasources: new DatasourceRepository(db),
     notificationChannels: new NotificationChannelRepository(db),
+    opsConnectors: new OpsConnectorRepository(db),
   };
 }
 

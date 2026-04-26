@@ -13,6 +13,8 @@ import type { AlertRuleAgent } from './alert-rule-agent.js';
 import type { ActionContext } from './orchestrator-action-handlers.js';
 import type {
   DatasourceConfig,
+  OpsCommandRunner,
+  OpsConnectorConfig,
   IDashboardAgentStore,
   IAlertRuleStore,
   IConversationStore,
@@ -33,6 +35,8 @@ export interface OrchestratorActionContextDeps {
   adapters: AdapterRegistry;
   webSearchAdapter?: IWebSearchAdapter;
   allDatasources?: DatasourceConfig[];
+  opsCommandRunner?: OpsCommandRunner;
+  opsConnectors?: OpsConnectorConfig[];
   sendEvent: (event: DashboardSseEvent) => void;
   identity: Identity;
   accessControl: IAccessControlService;
@@ -64,6 +68,8 @@ export function buildActionContext(
     adapters: deps.adapters,
     webSearchAdapter: deps.webSearchAdapter,
     allDatasources: deps.allDatasources,
+    opsCommandRunner: deps.opsCommandRunner,
+    opsConnectors: deps.opsConnectors,
     sendEvent: deps.sendEvent,
     sessionId: runtime.sessionId,
     identity: deps.identity,

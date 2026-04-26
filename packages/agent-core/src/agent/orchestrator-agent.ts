@@ -15,6 +15,8 @@ import type {
   IInvestigationStore,
   IAlertRuleStore,
   DatasourceConfig,
+  OpsCommandRunner,
+  OpsConnectorConfig,
 } from './types.js'
 import type { AdapterRegistry, IWebSearchAdapter } from '../adapters/index.js'
 import type { LLMGateway } from '@agentic-obs/llm-gateway'
@@ -62,6 +64,8 @@ export interface OrchestratorDeps {
   adapters: AdapterRegistry
   webSearchAdapter?: IWebSearchAdapter
   allDatasources?: DatasourceConfig[]
+  opsCommandRunner?: OpsCommandRunner
+  opsConnectors?: OpsConnectorConfig[]
   sendEvent: (event: DashboardSseEvent) => void
   timeRange?: { start: string; end: string; clientTimezone?: string }
   maxTokenBudget?: number
@@ -264,6 +268,7 @@ export class OrchestratorAgent {
       timeRange: this.deps.timeRange ? { start: this.deps.timeRange.start, end: this.deps.timeRange.end } : undefined,
       identity: this.deps.identity,
       permissionEscalationContact: this.deps.permissionEscalationContact,
+      opsConnectors: this.deps.opsConnectors,
     })
 
     try {

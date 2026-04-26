@@ -95,6 +95,23 @@ describe('TOOL_PERMS — per-builder scope derivation', () => {
     );
   });
 
+  it('ops.run_command is gated by connector scope', () => {
+    const e = TOOL_PERMS['ops.run_command']!(
+      { connectorId: 'kube-prod', command: 'kubectl get pods', intent: 'read' },
+      makeCtx(),
+    );
+    expect((e as { string: () => string }).string()).toBe(
+      'any(ops.commands:run on ops.connectors:id:kube-prod, instance.config:write)',
+    );
+  });
+
+  it('ops.run_command falls back to wildcard connector scope when connectorId is missing', () => {
+    const e = TOOL_PERMS['ops.run_command']!({}, makeCtx());
+    expect((e as { string: () => string }).string()).toBe(
+      'any(ops.commands:run on ops.connectors:id:*, instance.config:write)',
+    );
+  });
+
   it('investigation.add_section scopes to the investigation UID', () => {
     const e = TOOL_PERMS['investigation.add_section']!(
       { investigationId: 'inv-7', type: 'text', content: 'x' },

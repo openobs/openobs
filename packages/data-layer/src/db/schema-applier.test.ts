@@ -15,6 +15,7 @@ describe('applySchema()', () => {
       'folder', 'dashboard_acl', 'preferences', 'quota', 'audit_log',
       'instance_llm_config', 'instance_datasources',
       'notification_channels', 'instance_settings',
+      'ops_connectors',
     ];
 
     const rows = db.all<{ name: string }>(sql`SELECT name FROM sqlite_master WHERE type='table'`);

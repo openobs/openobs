@@ -50,6 +50,8 @@ agentRegistry.register({
     'logs.query', 'logs.labels', 'logs.label_values',
     // Recent change events
     'changes.list_recent',
+    // Kubernetes / Ops integrations (requires configured connector + RBAC)
+    'ops.run_command',
     // Knowledge
     'web.search',
     // Alert rules

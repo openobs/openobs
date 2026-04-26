@@ -87,6 +87,39 @@ describe('buildSystemPrompt — identity section is suppressed without identity'
   });
 });
 
+describe('buildSystemPrompt — Ops connector guidance', () => {
+  it('states that cluster queries require a configured connector and write commands propose approval', () => {
+    const prompt = build();
+    expect(prompt).toContain('cluster/Kubernetes questions require a configured Ops connector');
+    expect(prompt).toContain('do not invent a cluster');
+    expect(prompt).toContain('intent="read"');
+    expect(prompt).toContain('intent="propose"');
+    expect(prompt).toContain('approval/proposal');
+  });
+
+  it('shows not connected when no Ops connectors are configured', () => {
+    const prompt = build();
+    expect(prompt).toContain('# Ops Integrations\nnot connected');
+  });
+
+  it('lists configured Ops connectors when provided', () => {
+    const prompt = buildSystemPrompt(null, [], [], null, [], {
+      hasPrometheus: false,
+      now: '2026-04-18T00:00:00.000Z',
+      opsConnectors: [{
+        id: 'kube-prod',
+        name: 'Production Kubernetes',
+        environment: 'prod',
+        namespaces: ['default', 'api'],
+        capabilities: ['read', 'propose'],
+      }],
+    });
+    expect(prompt).toContain('connectorId="kube-prod"');
+    expect(prompt).toContain('namespaces=default,api');
+    expect(prompt).toContain('capabilities=read,propose');
+  });
+});
+
 describe('buildSystemPrompt — T6.C role-conditional nudge', () => {
   const VIEWER_LINE = 'You are operating as a Viewer.';
   const EDITOR_LINE = 'You are operating as an Editor.';

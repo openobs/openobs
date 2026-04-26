@@ -1,6 +1,6 @@
 import type { Dashboard, DashboardMessage, Identity } from '@agentic-obs/common'
 import type { AlertRuleSummary } from './orchestrator-alert-helpers.js'
-import type { DatasourceConfig } from './types.js'
+import type { DatasourceConfig, OpsConnectorConfig } from './types.js'
 import { buildStructuredAlertHistory } from './orchestrator-alert-helpers.js'
 
 // ---------------------------------------------------------------------------
@@ -36,9 +36,10 @@ Requests fall into four shapes: build something (dashboard / alert), investigate
 ## Decision flow before any tool call
 1. **Open vs create** — "open X" / "show X" / "go to X" / "打开 X" / "看一下 X" means OPEN an existing resource. List first (dashboard.list / investigation.list / alert_rule.list) with a filter keyword, then navigate. Only create new if the search finds nothing AND the wording implies creation.
 2. **Which datasource** — every metrics/logs/changes call requires an explicit \`sourceId\`. Call \`datasources.list\` first. If multiple same-signal sources exist and the user's intent is ambiguous, ask which one before querying.
-3. **Read before mutate** — mutation tools (dashboard.create / add_panels / modify_panel / create_alert_rule / investigation.add_section) need prerequisites verified. Before removing panels, check panel IDs from Dashboard State. Before creating alerts, query current values so the threshold is grounded.
-4. **Validate before adding panels** — panel queries must go through \`metrics.validate\` before \`dashboard.add_panels\`. Exception: pre-deployment dashboards (metrics don't exist yet) — skip validation, use web-researched naming conventions.
-5. **Named target → exporter or label?** — when the user names a target, first decide whether it's a standard system or their own service:
+3. **Ops connector first** — cluster/Kubernetes questions require a configured Ops connector. If no connector is configured, say it is not connected; do not invent a cluster. Read-only commands may run through \`ops.run_command\` with \`intent="read"\`; write/mutating commands must use \`intent="propose"\` so the connector returns an approval/proposal unless an approved execution is explicitly being run.
+4. **Read before mutate** — mutation tools (dashboard.create / add_panels / modify_panel / create_alert_rule / investigation.add_section) need prerequisites verified. Before removing panels, check panel IDs from Dashboard State. Before creating alerts, query current values so the threshold is grounded.
+5. **Validate before adding panels** — panel queries must go through \`metrics.validate\` before \`dashboard.add_panels\`. Exception: pre-deployment dashboards (metrics don't exist yet) — skip validation, use web-researched naming conventions.
+6. **Named target → exporter or label?** — when the user names a target, first decide whether it's a standard system or their own service:
    - \`web.search\` finds an established exporter naming convention → standard system; use those canonical metric names regardless of what's currently in the backend (empty = pre-deployment).
    - No exporter found → it's an in-house service; filter existing metrics by label (e.g. \`{service="..."}\` / \`{job="..."}\`). If no matching labels either, ask the user which label identifies it.
    When no target is named at all (exploratory: "what do I have"), use what the backend actually exposes.
@@ -338,6 +339,17 @@ function getDatasourceSection(allDatasources: DatasourceConfig[]): string {
     `- sourceId="${d.id}" name="${d.name}" type=${d.type}${d.environment ? ` env=${d.environment}` : ''}${d.isDefault ? ' DEFAULT' : ''}`).join('\n')}`
 }
 
+function getOpsConnectorSection(connectors: OpsConnectorConfig[] | undefined): string {
+  if (!connectors || connectors.length === 0) {
+    return '\n# Ops Integrations\nnot connected'
+  }
+  return `\n# Ops Integrations\n${connectors.map((connector) => {
+    const namespaces = connector.namespaces?.length ? ` namespaces=${connector.namespaces.join(',')}` : ''
+    const capabilities = connector.capabilities?.length ? ` capabilities=${connector.capabilities.join(',')}` : ''
+    return `- connectorId="${connector.id}" name="${connector.name}"${connector.environment ? ` env=${connector.environment}` : ''}${namespaces}${capabilities}`
+  }).join('\n')}`
+}
+
 function getAlertRulesSection(
   alertRules: AlertRuleSummary[],
   activeAlertRule: AlertRuleSummary | null,
@@ -383,6 +395,7 @@ export interface SystemPromptOptions {
   permissionEscalationContact?: string
   /** Override for deterministic tests. Defaults to `new Date().toISOString()`. */
   now?: string
+  opsConnectors?: OpsConnectorConfig[]
 }
 
 /**
@@ -486,6 +499,7 @@ export function buildSystemPrompt(
     dashboard ? getDashboardContextSection(dashboard, options?.timeRange) : getSessionModeSection(),
     getHistorySection(history),
     getDatasourceSection(allDatasources),
+    getOpsConnectorSection(options?.opsConnectors),
     getAlertRulesSection(alertRules, activeAlertRule, history),
   ]
 

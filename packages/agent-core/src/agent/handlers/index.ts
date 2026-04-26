@@ -58,3 +58,4 @@ export { handleDatasourcesList } from './datasources.js';
 export { handleWebSearch } from './web.js';
 export { handleNavigate } from './navigation.js';
 export { handleFolderCreate, handleFolderList } from './folder.js';
+export { handleOpsRunCommand } from './ops.js';

@@ -147,6 +147,9 @@ export const ACTIONS = {
   ChatUse: 'chat:use',
   AgentsConfigRead: 'agents.config:read',
   AgentsConfigWrite: 'agents.config:write',
+  OpsConnectorsRead: 'ops.connectors:read',
+  OpsConnectorsWrite: 'ops.connectors:write',
+  OpsCommandsRun: 'ops.commands:run',
   // [openobs-extension] — instance-wide config: LLM provider, notification
   // channels, and dev reset. Granted to Admin+ via ADMIN_ONLY_PERMISSIONS.
   // Lives in the `instance_config` SQLite table (see migration 019). No

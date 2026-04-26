@@ -45,6 +45,7 @@ import { createNotificationsRouter } from '../routes/notifications.js';
 import { createVersionRouter } from '../routes/versions.js';
 import { createSearchRouter } from '../routes/search.js';
 import { createChatRouter } from '../routes/chat.js';
+import { createOpsConnectorsRouter } from '../routes/ops-connectors.js';
 import { bootstrapAware } from '../middleware/bootstrap-aware.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { createOrgContextMiddleware } from '../middleware/org-context.js';
@@ -172,6 +173,8 @@ export function mountDomainRoutes(deps: MountDomainRoutesDeps): void {
     chatSessionStore: repos.chatSessions,
     chatMessageStore: repos.chatMessages,
     chatEventStore: repos.chatSessionEvents,
+    opsConnectorStore: repos.opsConnectors,
+    approvalStore: repos.approvals,
     accessControl,
     auditWriter: authSub.audit,
     folderRepository: sharedFolderRepo,
@@ -197,4 +200,14 @@ export function mountDomainRoutes(deps: MountDomainRoutesDeps): void {
     store: repos.versions,
     ac: accessControl,
   }));
+  app.use(
+    '/api/ops/connectors',
+    authMiddleware,
+    userRateLimiter,
+    createOrgContextMiddleware({ orgUsers: authRepos.orgUsers }),
+    createOpsConnectorsRouter({
+      connectors: repos.opsConnectors,
+      ac: accessControl,
+    }),
+  );
 }

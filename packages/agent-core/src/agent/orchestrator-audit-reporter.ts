@@ -87,6 +87,7 @@ function inferTargetType(tool: string): string | null {
     return 'datasource';
   }
   if (tool === 'changes.list_recent') return 'changes';
+  if (tool.startsWith('ops.')) return 'ops_connector';
   if (tool.startsWith('alert_rule.') || tool === 'create_alert_rule' || tool === 'modify_alert_rule' || tool === 'delete_alert_rule') {
     return 'alert_rule';
   }
@@ -101,6 +102,7 @@ function inferTargetId(tool: string, args: Record<string, unknown>): string | nu
   if (tool.startsWith('metrics.') || tool.startsWith('logs.') || tool === 'changes.list_recent') {
     return pickString(args.sourceId ?? args.datasourceId ?? args.datasourceUid);
   }
+  if (tool.startsWith('ops.')) return pickString(args.connectorId);
   if (tool === 'create_alert_rule') return pickString(args.folderUid);
   if (tool === 'modify_alert_rule' || tool === 'delete_alert_rule' || tool === 'alert_rule.history') {
     return pickString(args.ruleId);

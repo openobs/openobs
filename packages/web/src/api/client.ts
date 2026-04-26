@@ -12,3 +12,11 @@ export {
   type UserPermissions,
 } from './auth-api.js';
 export { adminApi } from './admin-api.js';
+export {
+  opsApi,
+  parseNamespaceList,
+  buildOpsConnectorInput,
+  type OpsCapability,
+  type OpsConnector,
+  type OpsConnectorInput,
+} from './ops-api.js';
