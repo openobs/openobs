@@ -6,6 +6,7 @@ import type {
   DashboardAction,
   Identity,
   IFolderRepository,
+  InvestigationReportSection,
 } from '@agentic-obs/common'
 import type {
   IDashboardAgentStore,
@@ -158,6 +159,12 @@ export class OrchestratorAgent {
   private pendingConversationActions: DashboardAction[] = []
   private pendingNavigateTo?: string
   private readonly allowAuditAt = new Map<string, number>()
+  /**
+   * Per-session accumulator for investigation report sections. Lives on the
+   * agent instance (not module-level) so concurrent sessions cannot leak
+   * sections into each other when investigation ids collide.
+   */
+  private readonly investigationSections = new Map<string, InvestigationReportSection[]>()
   readonly sessionId: string
 
   constructor(private deps: OrchestratorDeps, sessionId?: string) {
@@ -398,6 +405,7 @@ export class OrchestratorAgent {
       makeAgentEvent: (type, metadata) => this.makeAgentEvent(type, metadata),
       pushConversationAction: (action) => this.pendingConversationActions.push(action),
       setNavigateTo: (path) => { this.pendingNavigateTo = path },
+      investigationSections: this.investigationSections,
     }
   }
 
