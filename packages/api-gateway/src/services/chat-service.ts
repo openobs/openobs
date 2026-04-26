@@ -5,6 +5,11 @@ import { createLlmGateway } from '../routes/llm-factory.js';
 import { DashboardOrchestratorAgent as OrchestratorAgent, shouldCompact, compactMessages } from '@agentic-obs/agent-core';
 import type { IConversationStore as IAgentConversationStore, IDashboardAlertRuleStore as IAlertRuleStore, IDashboardInvestigationStore as IInvestigationStore } from '@agentic-obs/agent-core';
 import { buildAdapterRegistry, toAgentDatasources } from './dashboard-service.js';
+import { DuckDuckGoSearchAdapter } from '@agentic-obs/adapters';
+
+// Web-search adapter is configuration-free for the default DuckDuckGo
+// backend, so a single shared instance per process is fine.
+const sharedWebSearchAdapter = new DuckDuckGoSearchAdapter();
 import type { AccessControlSurface } from './accesscontrol-holder.js';
 import type { AuditWriter } from '../auth/audit-writer.js';
 import type { SetupConfigService } from './setup-config-service.js';
@@ -225,6 +230,7 @@ export class ChatService {
       alertRuleStore: toAlertRuleStore(this.deps.alertRuleStore),
       ...(this.deps.folderRepository ? { folderRepository: this.deps.folderRepository } : {}),
       adapters,
+      webSearchAdapter: sharedWebSearchAdapter,
       allDatasources: toAgentDatasources(datasources),
       sendEvent: wrappedSendEvent,
       timeRange,
