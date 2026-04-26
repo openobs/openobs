@@ -5,6 +5,8 @@ import type {
   ResourcePermissionSetItem,
 } from '@agentic-obs/common';
 import type { ApiResponse, SSEMessage } from './types.js';
+import type { z } from 'zod';
+import { parseOrThrow } from './schemas.js';
 
 /**
  * Build the REST path for a resource's permissions endpoint. Mirrors
@@ -124,8 +126,16 @@ class ApiClient {
     });
 
     if (!res.ok) {
-      if (res.status === 401 && !import.meta.env.DEV) {
-        window.location.href = '/login';
+      if (res.status === 401) {
+        // Unify DEV and prod: both redirect to /login. Previously DEV silently
+        // returned a fake `{ error: { code: 'UNKNOWN' } }` envelope, which let
+        // pages render in a half-broken state. The DEV-only console.warn keeps
+        // the local-dev signal that something needs attention (likely a
+        // missing DEV_AUTH_BYPASS in the backend .env).
+        if (import.meta.env.DEV) {
+          console.warn('[api] 401 from', path, '— redirecting to /login (DEV: check DEV_AUTH_BYPASS)');
+        }
+        if (typeof window !== 'undefined') window.location.href = '/login';
         return { data: null as T, error: { code: 'UNAUTHORIZED', message: 'Redirecting to login...' } };
       }
       // Canonical error envelope is `{ error: { code, message, details? } }`
@@ -136,13 +146,18 @@ class ApiClient {
         | { error?: { code?: string; message?: string; details?: unknown } | null; code?: string; message?: string }
         | null;
       const inner = raw?.error ?? raw;
+      // Attach the HTTP status so callers can distinguish 404 vs 5xx without
+      // inspecting `res` themselves; DashboardWorkspace and useChat both rely
+      // on this. ApiError doesn't declare `status`, but we attach it as an
+      // extra property — callers narrow it via `(res.error as { status }).status`.
       const error = {
         code: inner?.code ?? 'UNKNOWN',
         message: inner?.message ?? res.statusText,
+        status: res.status,
         ...(inner && 'details' in inner && inner.details !== undefined
           ? { details: inner.details }
           : {}),
-      };
+      } as import('@agentic-obs/common').ApiError;
       return { data: null as T, error };
     }
 
@@ -184,9 +199,78 @@ class ApiClient {
   }
 
   /**
+   * Internal: post-process a successful response by validating its body
+   * against `schema` before handing back to the caller. We deliberately keep
+   * the generic `<T>` independent from the schema's inferred type — the
+   * caller's local TS type is the contract; the schema is the runtime
+   * shape-check at the integration boundary. On parse failure
+   * `ApiResponseShapeError` propagates from `parseOrThrow`.
+   */
+  private validateResponse<T>(
+    res: ApiResponse<unknown>,
+    schema: z.ZodTypeAny,
+    schemaName: string,
+  ): ApiResponse<T> {
+    if (res.error || res.data === null || res.data === undefined) {
+      return res as ApiResponse<T>;
+    }
+    const parsed = parseOrThrow(schema, schemaName, res.data);
+    return { data: parsed as T };
+  }
+
+  /**
+   * GET + zod-validate the response data against `schema`. Used for the four
+   * highest-value response shapes (Dashboard, PanelConfig, RangeResponse,
+   * InstantResponse) — callers that don't pass a schema get the legacy
+   * `as T` cast behavior.
+   */
+  async getValidated<T>(
+    path: string,
+    schema: z.ZodTypeAny,
+    schemaName: string,
+  ): Promise<ApiResponse<T>> {
+    const res = await this.request<unknown>(path);
+    return this.validateResponse<T>(res, schema, schemaName);
+  }
+
+  async postValidated<T>(
+    path: string,
+    body: unknown,
+    schema: z.ZodTypeAny,
+    schemaName: string,
+  ): Promise<ApiResponse<T>> {
+    const res = await this.request<unknown>(path, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    return this.validateResponse<T>(res, schema, schemaName);
+  }
+
+  async putValidated<T>(
+    path: string,
+    body: unknown,
+    schema: z.ZodTypeAny,
+    schemaName: string,
+  ): Promise<ApiResponse<T>> {
+    const res = await this.request<unknown>(path, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    });
+    return this.validateResponse<T>(res, schema, schemaName);
+  }
+
+  /**
    * POST a request and consume the response as a Server-Sent Events stream.
    * Calls onEvent for each SSE event frame received.
    * Pass an AbortSignal to cancel mid-stream.
+   *
+   * Resilience: if `reader.read()` throws mid-stream (e.g. transient network
+   * drop), we attempt up to 3 reconnects with exponential backoff (1s, 2s,
+   * 4s), sending a `Last-Event-ID` header on each reconnect per the SSE spec.
+   * TODO: server-side resume support — the backend currently re-runs from
+   * scratch instead of honoring Last-Event-ID, so reconnects produce a fresh
+   * generation rather than resuming. Reconnect-from-scratch is still better
+   * than silently dropping a half-emitted assistant turn.
    */
   async postStream(
     path: string,
@@ -194,66 +278,110 @@ class ApiClient {
     onEvent: (eventType: string, rawData: string) => void,
     signal?: AbortSignal,
   ): Promise<void> {
-    const res = await fetch(`${this.baseUrl}${path}`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'text/event-stream',
-        ...this.authHeaders(),
-        ...csrfHeaders('POST'),
-      },
-      body: JSON.stringify(body),
-      signal,
-    });
-
-    if (!res.ok || !res.body) {
-      if (res.status === 401) {
-        // In dev mode the frontend skips login, but the backend still needs
-        // DEV_AUTH_BYPASS=true in .env.  Surface a clear message instead of
-        // a cryptic "Network error".
-        throw new Error('Authentication required — add DEV_AUTH_BYPASS=true to .env and restart the server, or log in first.');
-      }
-      if (res.status === 403) {
-        // Permission gate (HTTP layer or agent Layer 3 RBAC). Try to read
-        // the canonical `{ error: { message } }` envelope and surface the
-        // specific action the caller was denied; fall back to a generic
-        // explanation when the body isn't structured.
-        let detail = '';
-        try {
-          const body = await res.json() as { error?: { message?: string } };
-          if (body?.error?.message) detail = `: ${body.error.message}`;
-        } catch { /* non-JSON body */ }
-        throw new Error(
-          `Your role doesn't permit this action${detail}. Ask an administrator, or try a read-only question.`,
-        );
-      }
-      throw new Error(`Stream request failed: ${res.status} ${res.statusText}`);
-    }
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let currentEvent = 'message';
+    const MAX_RECONNECTS = 3;
+    let attempt = 0;
+    let lastEventId: string | null = null;
 
     while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+      const extraHeaders: Record<string, string> =
+        lastEventId !== null ? { 'Last-Event-ID': lastEventId } : {};
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
+      const res = await fetch(`${this.baseUrl}${path}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream',
+          ...this.authHeaders(),
+          ...csrfHeaders('POST'),
+          ...extraHeaders,
+        },
+        body: JSON.stringify(body),
+        signal,
+      });
 
-      for (const line of lines) {
-        if (line.startsWith('event:')) {
-          currentEvent = line.slice(6).trim();
-        } else if (line.startsWith('data:')) {
-          const data = line.slice(5).trim();
-          onEvent(currentEvent, data);
-          currentEvent = 'message';
-        } else if (line.trim() === '') {
-          currentEvent = 'message';
+      if (!res.ok || !res.body) {
+        if (res.status === 401) {
+          // In dev mode the frontend skips login, but the backend still needs
+          // DEV_AUTH_BYPASS=true in .env.  Surface a clear message instead of
+          // a cryptic "Network error".
+          throw new Error('Authentication required — add DEV_AUTH_BYPASS=true to .env and restart the server, or log in first.');
         }
+        if (res.status === 403) {
+          // Permission gate (HTTP layer or agent Layer 3 RBAC). Try to read
+          // the canonical `{ error: { message } }` envelope and surface the
+          // specific action the caller was denied; fall back to a generic
+          // explanation when the body isn't structured.
+          let detail = '';
+          try {
+            const body = await res.json() as { error?: { message?: string } };
+            if (body?.error?.message) detail = `: ${body.error.message}`;
+          } catch { /* non-JSON body */ }
+          throw new Error(
+            `Your role doesn't permit this action${detail}. Ask an administrator, or try a read-only question.`,
+          );
+        }
+        throw new Error(`Stream request failed: ${res.status} ${res.statusText}`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let currentEvent = 'message';
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) return;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+
+          for (const line of lines) {
+            if (line.startsWith('id:')) {
+              lastEventId = line.slice(3).trim();
+            } else if (line.startsWith('event:')) {
+              currentEvent = line.slice(6).trim();
+            } else if (line.startsWith('data:')) {
+              const data = line.slice(5).trim();
+              onEvent(currentEvent, data);
+              currentEvent = 'message';
+            } else if (line.trim() === '') {
+              currentEvent = 'message';
+            }
+          }
+        }
+      } catch (err) {
+        // Caller-initiated abort: don't reconnect.
+        if (signal?.aborted || (err instanceof Error && err.name === 'AbortError')) {
+          throw err;
+        }
+        attempt += 1;
+        if (attempt > MAX_RECONNECTS) {
+          const lastErrMsg = err instanceof Error ? err.message : String(err);
+          throw new Error(
+            `SSE connection lost — reconnect attempts exhausted (${MAX_RECONNECTS}). Last error: ${lastErrMsg}`,
+          );
+        }
+        const backoffMs = 1000 * 2 ** (attempt - 1); // 1s, 2s, 4s
+        console.warn(
+          `[api] SSE stream interrupted (attempt ${attempt}/${MAX_RECONNECTS}); retrying in ${backoffMs}ms`,
+          err,
+        );
+        await new Promise<void>((resolve, reject) => {
+          const t = setTimeout(resolve, backoffMs);
+          if (signal) {
+            const onAbort = () => {
+              clearTimeout(t);
+              reject(new DOMException('Aborted', 'AbortError'));
+            };
+            if (signal.aborted) onAbort();
+            else signal.addEventListener('abort', onAbort, { once: true });
+          }
+        });
+        // Loop back to retry with Last-Event-ID set.
+        continue;
       }
     }
   }
@@ -273,8 +401,14 @@ class ApiClient {
       try {
         const data = JSON.parse(e.data) as T;
         onMessage({ event: 'message', data });
-      } catch {
-        // ignore malformed frames
+      } catch (err) {
+        // Drop the frame, but log it so a misbehaving server (sending
+        // malformed protocol frames) is debuggable in production. Truncate
+        // raw frame to avoid flooding the console with huge payloads.
+        const truncated = typeof e.data === 'string' && e.data.length > 200
+          ? `${e.data.slice(0, 200)}...`
+          : String(e.data);
+        console.warn('[sse] dropped malformed frame:', truncated, err);
       }
     };
 
