@@ -93,6 +93,7 @@ export class ChatService {
     sendEvent: (event: DashboardSseEvent) => void,
     identity: Identity,
     pageContext?: { kind: string; id?: string; timeRange?: string },
+    signal?: AbortSignal,
   ): Promise<ChatSessionResult> {
     const llm = await this.deps.setupConfig.getLlm();
     if (!llm) {
@@ -246,7 +247,7 @@ export class ChatService {
     const dashboardId = pageContext?.kind === 'dashboard' ? pageContext.id : undefined;
 
     log.info({ sessionId: resolvedSessionId, dashboardId, message: message.slice(0, 80) }, 'starting session orchestrator');
-    const replyContent = await orchestrator.handleMessage(message, dashboardId);
+    const replyContent = await orchestrator.handleMessage(message, dashboardId, signal);
     const assistantActions = orchestrator.consumeConversationActions();
     const navigate = orchestrator.consumeNavigate();
     log.info({ sessionId: resolvedSessionId, reply: replyContent.slice(0, 100) }, 'session orchestrator done');

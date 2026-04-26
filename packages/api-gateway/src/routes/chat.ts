@@ -42,7 +42,15 @@ async function handleChatStream(
   });
 
   let closed = false;
-  res.on('close', () => { closed = true; });
+  // Plumb client-disconnect into an AbortController so the in-flight
+  // OrchestratorAgent → LLMGateway → provider fetch chain can unwind
+  // immediately instead of running the loop to completion against a closed
+  // socket (wastes tokens + keeps DB / store handles open longer than needed).
+  const abortController = new AbortController();
+  res.on('close', () => {
+    closed = true;
+    abortController.abort();
+  });
 
   const heartbeat = setInterval(() => {
     if (!closed) res.write(': heartbeat\n\n');
@@ -56,6 +64,7 @@ async function handleChatStream(
       (event) => { if (!closed) sendSseEvent(res, event); },
       req.auth,
       pageContext,
+      abortController.signal,
     );
 
     if (!closed) {
@@ -67,10 +76,16 @@ async function handleChatStream(
       } as DashboardSseEvent & { sessionId: string });
     }
   } catch (err) {
-    log.error({ err }, 'chat handler error');
-    const errMsg = err instanceof Error ? err.message : 'Internal error';
-    if (!closed) {
-      res.write(`event: error\ndata: ${JSON.stringify({ type: 'error', message: errMsg })}\n\n`);
+    // AbortError is the expected outcome of client-disconnect — log at info,
+    // not error, so it doesn't pollute alerting.
+    if (err instanceof Error && err.name === 'AbortError') {
+      log.info({ message: message.slice(0, 80) }, 'chat handler aborted by client disconnect');
+    } else {
+      log.error({ err }, 'chat handler error');
+      const errMsg = err instanceof Error ? err.message : 'Internal error';
+      if (!closed) {
+        res.write(`event: error\ndata: ${JSON.stringify({ type: 'error', message: errMsg })}\n\n`);
+      }
     }
   } finally {
     clearInterval(heartbeat);

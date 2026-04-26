@@ -150,12 +150,19 @@ export function createAuthMiddleware(deps: AuthMiddlewareDeps) {
           authenticatedBy: 'session',
           sessionId: row.id,
         };
-        // Best-effort markSeen — swallow errors so we never 500 on a
-        // transient write failure.
+        // Best-effort markSeen — never 500 on a transient write failure,
+        // BUT log at warn level (not debug) so a failing markSeen surfaces in
+        // standard log streams. A silently un-touched session is a real UX
+        // bug: idle expiry ticks down even while the user is active.
         deps.sessions.markSeen(row.id).catch((err) => {
-          log.debug(
-            { err: err instanceof Error ? err.message : err },
-            'markSeen failed',
+          log.warn(
+            {
+              err: err instanceof Error ? err.message : err,
+              errClass: err instanceof Error ? err.constructor.name : typeof err,
+              sessionId: row.id,
+              metric: 'session.markSeen.failed',
+            },
+            'markSeen failed — session idle timer will not be refreshed',
           );
         });
         next();

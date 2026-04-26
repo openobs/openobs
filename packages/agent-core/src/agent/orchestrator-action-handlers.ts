@@ -10,7 +10,10 @@ import type {
   GrafanaFolder,
 } from '@agentic-obs/common'
 import { ac } from '@agentic-obs/common'
+import { createLogger } from '@agentic-obs/common/logging'
 import type { LLMGateway } from '@agentic-obs/llm-gateway'
+
+const log = createLogger('orchestrator-action-handlers')
 import type { AdapterRegistry, IWebSearchAdapter, SignalType } from '../adapters/index.js'
 import type { AgentEvent } from './agent-events.js'
 import type {
@@ -560,24 +563,34 @@ export async function handleCreateAlertRule(
   })
   const generated = result.rule
 
-  // Upsert: if a rule with the same name exists, update it
+  // Upsert: if a rule with the same name exists, update it. We do NOT
+  // swallow store errors here — silently falling through to `create` when
+  // findAll/update fails produces duplicate rules with identical names,
+  // which is worse UX than a visible error.
   let rule: Record<string, unknown> | undefined
   let isUpdate = false
   if (ctx.alertRuleStore.findAll && ctx.alertRuleStore.update) {
+    let existing: unknown = undefined
     try {
-      const existing = await ctx.alertRuleStore.findAll()
-      const list = (Array.isArray(existing) ? existing : (existing as { list: unknown[] }).list ?? []) as Array<{ id: string; name: string }>
-      const match = list.find((r) => r.name === generated.name)
-      if (match) {
-        rule = await ctx.alertRuleStore.update(match.id, {
-          description: generated.description,
-          condition: generated.condition,
-          evaluationIntervalSec: generated.evaluationIntervalSec,
-          severity: generated.severity,
-        }) as Record<string, unknown> | undefined
-        isUpdate = true
-      }
-    } catch { /* fall through to create */ }
+      existing = await ctx.alertRuleStore.findAll()
+    } catch (err) {
+      log.warn(
+        { err: err instanceof Error ? err.message : String(err), tool: 'create_alert_rule' },
+        'alertRuleStore.findAll failed during upsert — re-throwing to avoid silent duplicate creation',
+      )
+      throw err
+    }
+    const list = (Array.isArray(existing) ? existing : (existing as { list: unknown[] }).list ?? []) as Array<{ id: string; name: string }>
+    const match = list.find((r) => r.name === generated.name)
+    if (match) {
+      rule = await ctx.alertRuleStore.update(match.id, {
+        description: generated.description,
+        condition: generated.condition,
+        evaluationIntervalSec: generated.evaluationIntervalSec,
+        severity: generated.severity,
+      }) as Record<string, unknown> | undefined
+      isUpdate = true
+    }
   }
 
   if (!rule) {

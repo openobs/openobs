@@ -53,7 +53,14 @@ export async function handleChatMessage(
   })
 
   let closed = false
-  req.on('close', () => { closed = true })
+  // Plumb client-disconnect through an AbortController — see chat.ts for
+  // rationale. Without this the orchestrator runs to completion even when
+  // the user has navigated away.
+  const abortController = new AbortController()
+  req.on('close', () => {
+    closed = true
+    abortController.abort()
+  })
 
   const heartbeat = setInterval(() => {
     if (!closed) res.write(': heartbeat\n\n')
@@ -73,6 +80,7 @@ export async function handleChatMessage(
         timeRange,
         (event) => { if (!closed) sendEvent(res, event) },
         req.auth!,
+        abortController.signal,
       )
 
       if (!closed) {
@@ -81,11 +89,25 @@ export async function handleChatMessage(
     })
   }
   catch (err) {
-    log.error({ err }, 'chat handler error')
-    // Ensure dashboard exits generating state even on error
-    try { await store.updateStatus(dashboardId, 'ready') } catch { /* best effort */ }
-    const errMsg = err instanceof Error ? err.message : 'Internal error'
-    res.write(`event: error\ndata: ${JSON.stringify({ type: 'error', message: errMsg })}\n\n`)
+    if (err instanceof Error && err.name === 'AbortError') {
+      log.info({ dashboardId }, 'dashboard chat handler aborted by client disconnect')
+      // Still try to update status so the UI doesn't get stuck "generating".
+      try {
+        await store.updateStatus(dashboardId, 'ready')
+      } catch (statusErr) {
+        log.warn({ err: statusErr, dashboardId }, 'updateStatus(ready) failed during abort cleanup')
+      }
+    } else {
+      log.error({ err }, 'chat handler error')
+      // Ensure dashboard exits generating state even on error
+      try {
+        await store.updateStatus(dashboardId, 'ready')
+      } catch (statusErr) {
+        log.warn({ err: statusErr, dashboardId }, 'updateStatus(ready) failed during error cleanup')
+      }
+      const errMsg = err instanceof Error ? err.message : 'Internal error'
+      res.write(`event: error\ndata: ${JSON.stringify({ type: 'error', message: errMsg })}\n\n`)
+    }
   }
   finally {
     clearInterval(heartbeat)

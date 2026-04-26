@@ -292,8 +292,13 @@ export class OrchestratorAgent {
    * Handle a user message. When dashboardId is provided, the agent is scoped
    * to that dashboard (backward compat). When omitted, the agent operates in
    * session mode — it can create dashboards/investigations via tools.
+   *
+   * `signal` is plumbed from the HTTP layer — when the SSE client disconnects
+   * the chat router triggers it, and the loop / gateway / provider fetches
+   * abort instead of running expensive LLM calls to completion against a
+   * closed socket.
    */
-  async handleMessage(message: string, dashboardId?: string): Promise<string> {
+  async handleMessage(message: string, dashboardId?: string, signal?: AbortSignal): Promise<string> {
     this.emitAgentEvent(this.makeAgentEvent('agent.started', { dashboardId, message }));
     this.pendingConversationActions = []
     this.pendingNavigateTo = undefined
@@ -310,13 +315,21 @@ export class OrchestratorAgent {
     const conversationKey = dashboardId ?? this.sessionId
     const history = await this.deps.conversationStore.getMessages(conversationKey)
 
-    // Fetch existing alert rules so LLM can reference them for modify/delete
+    // Fetch existing alert rules so LLM can reference them for modify/delete.
+    // Context-loading failure is degraded UX (model gets no rule list) but is
+    // safe — log + continue with an empty list so the user gets a working
+    // (if narrower) chat instead of a 500.
     let alertRules: AlertRuleSummary[] = []
     if (this.deps.alertRuleStore.findAll) {
       try {
         const result = await this.deps.alertRuleStore.findAll()
         alertRules = (Array.isArray(result) ? result : (result as { list: unknown[] }).list ?? []) as typeof alertRules
-      } catch { /* ignore */ }
+      } catch (err) {
+        log.warn(
+          { err: err instanceof Error ? err.message : String(err), dashboardId, sessionId: this.sessionId },
+          'orchestrator: alertRuleStore.findAll failed — proceeding with empty list',
+        )
+      }
     }
 
     const activeAlertRule = getStructuredAlertRuleContext(history, alertRules)
@@ -346,14 +359,18 @@ export class OrchestratorAgent {
         systemPrompt,
         message,
         (step) => this.executeAction(step, message),
+        signal,
       )
       this.emitAgentEvent(this.makeAgentEvent('agent.completed', { dashboardId }));
       return result;
     }
     catch (err) {
+      // Distinguish "client cancelled" (expected) from "agent crashed".
+      const isAbort = err instanceof Error && err.name === 'AbortError'
       this.emitAgentEvent(this.makeAgentEvent('agent.failed', {
         dashboardId,
         error: getErrorMessage(err),
+        ...(isAbort ? { reason: 'aborted' } : {}),
       }));
       throw err;
     }

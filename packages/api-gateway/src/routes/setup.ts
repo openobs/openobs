@@ -56,6 +56,7 @@ import {
   OpenAIProvider,
   GeminiProvider,
   OllamaProvider,
+  ProviderError,
   type ModelInfo,
 } from '@agentic-obs/llm-gateway';
 
@@ -205,11 +206,22 @@ async function testLlmConnection(cfg: LlmConfigWire): Promise<{ ok: boolean; mes
 
 // -- Model Listing ----------------------------------------------------
 
+interface FetchModelsResult {
+  models: ModelInfo[];
+  /**
+   * When the provider listModels call failed, the route surfaces this as a
+   * UI-visible warning string so the wizard can tell the user *why* the list
+   * is empty (auth vs network vs provider-not-supported) instead of silently
+   * showing an empty dropdown.
+   */
+  errorMessage?: string;
+}
+
 async function fetchModels(cfg: {
   provider: string;
   apiKey?: string;
   baseUrl?: string;
-}): Promise<ModelInfo[]> {
+}): Promise<FetchModelsResult> {
   try {
     switch (cfg.provider) {
       case 'anthropic': {
@@ -217,35 +229,54 @@ async function fetchModels(cfg: {
           apiKey: cfg.apiKey ?? '',
           baseUrl: cfg.baseUrl,
         });
-        return await provider.listModels();
+        return { models: await provider.listModels() };
       }
       case 'openai': {
         const provider = new OpenAIProvider({
           apiKey: cfg.apiKey ?? '',
           baseUrl: cfg.baseUrl,
         });
-        return await provider.listModels();
+        return { models: await provider.listModels() };
       }
       case 'deepseek': {
-        return await fetchDeepseekModels(cfg.apiKey ?? '', cfg.baseUrl);
+        return { models: await fetchDeepseekModels(cfg.apiKey ?? '', cfg.baseUrl) };
       }
       case 'gemini': {
         const provider = new GeminiProvider({
           apiKey: cfg.apiKey ?? '',
           baseUrl: cfg.baseUrl,
         });
-        return await provider.listModels();
+        return { models: await provider.listModels() };
       }
       case 'ollama': {
         const provider = new OllamaProvider({ baseUrl: cfg.baseUrl });
-        return await provider.listModels();
+        return { models: await provider.listModels() };
       }
       default:
-        return [];
+        return { models: [] };
     }
   } catch (err) {
+    // Surface ProviderError kind in the UI so the wizard can guide the user.
+    // Anything else falls through to a generic message — but it's still logged
+    // so the operator can investigate. We deliberately do NOT re-throw: the
+    // setup wizard treats "no models" as recoverable (user can pick from a
+    // default list); a 500 here would block the whole flow.
     log.warn({ err, provider: cfg.provider, baseUrl: cfg.baseUrl }, 'fetchModels failed');
-    return [];
+    if (err instanceof ProviderError) {
+      const detail =
+        err.kind === 'auth'
+          ? 'API key was rejected'
+          : err.kind === 'network'
+            ? 'could not reach the provider'
+            : err.kind === 'unsupported'
+              ? 'provider does not expose a model list endpoint'
+              : err.message;
+      return { models: [], errorMessage: `${cfg.provider}: ${detail}` };
+    }
+    return {
+      models: [],
+      errorMessage: `${cfg.provider}: ${err instanceof Error ? err.message : String(err)}`,
+    };
   }
 }
 
@@ -572,11 +603,13 @@ export function createSetupRouter(deps: SetupRouterDeps): Router {
         }
       }
     }
-    const models = await fetchModels(cfg);
+    const { models, errorMessage } = await fetchModels(cfg);
     if (models.length === 0) {
       res.json({
         models,
-        warning: `Could not fetch models from ${cfg.provider}. Check your API key / URL, or continue with the default list.`,
+        warning: errorMessage
+          ? `Could not fetch models — ${errorMessage}. Check your API key / URL, or continue with the default list.`
+          : `Could not fetch models from ${cfg.provider}. Check your API key / URL, or continue with the default list.`,
       });
       return;
     }

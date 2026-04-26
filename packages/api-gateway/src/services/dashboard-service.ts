@@ -204,6 +204,7 @@ export class DashboardService {
     timeRange: ChatTimeRange | undefined,
     sendEvent: (event: DashboardSseEvent) => void,
     identity: Identity,
+    signal?: AbortSignal,
   ): Promise<ChatResult> {
     const llm = await this.setupConfig.getLlm();
     if (!llm) {
@@ -248,7 +249,7 @@ export class DashboardService {
     });
 
     log.info({ dashboardId, message: message.slice(0, 80) }, 'starting orchestrator');
-    const replyContent = await orchestrator.handleMessage(message, dashboardId);
+    const replyContent = await orchestrator.handleMessage(message, dashboardId, signal);
     const assistantActions = orchestrator.consumeConversationActions();
     const navigate = orchestrator.consumeNavigate();
     log.info({ dashboardId, reply: replyContent.slice(0, 100) }, 'orchestrator done');

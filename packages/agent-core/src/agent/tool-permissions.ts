@@ -234,17 +234,18 @@ async function lookupAlertRuleFolderUid(
   ruleId: string,
 ): Promise<string | undefined> {
   if (!ruleId || !ctx.alertRuleStore.findById) return undefined;
-  try {
-    const rule = (await ctx.alertRuleStore.findById(ruleId)) as
-      | Record<string, unknown>
-      | undefined;
-    if (!rule) return undefined;
-    const folderUid =
-      (rule.folderUid as string | undefined) ??
-      (rule.folder_uid as string | undefined) ??
-      ((rule.labels as Record<string, string> | undefined)?.folderUid);
-    return folderUid;
-  } catch {
-    return undefined;
-  }
+  // Intentionally NOT wrapped in try/catch — a lookup failure here used to
+  // return undefined, which then scoped RBAC to the wildcard `folders:uid:*`.
+  // That meant a transient DB blip silently widened the gate to "any folder",
+  // which is fail-open. Now we let the throw propagate; the gate code in
+  // permission-gate.ts treats the throw as deny-by-default.
+  const rule = (await ctx.alertRuleStore.findById(ruleId)) as
+    | Record<string, unknown>
+    | undefined;
+  if (!rule) return undefined;
+  const folderUid =
+    (rule.folderUid as string | undefined) ??
+    (rule.folder_uid as string | undefined) ??
+    ((rule.labels as Record<string, string> | undefined)?.folderUid);
+  return folderUid;
 }
