@@ -12,7 +12,7 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { createDbClient, type DbClient } from '../../db/client.js';
-import { applyPostgresInstanceMigrations } from './migrate.js';
+import { applyPostgresSchema } from './schema-applier.js';
 import { PostgresInvestigationRepository } from './investigation.js';
 import type { Investigation } from '@agentic-obs/common';
 
@@ -49,7 +49,7 @@ describeIfPg('PostgresInvestigationRepository', () => {
 
   beforeAll(async () => {
     db = createDbClient({ url: PG_URL! });
-    await applyPostgresInstanceMigrations(db);
+    await applyPostgresSchema(db);
   });
 
   beforeEach(async () => {
