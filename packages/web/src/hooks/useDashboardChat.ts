@@ -32,6 +32,7 @@ export type ChatEventKind =
   | 'variable_added'
   | 'investigation_report'
   | 'ask_user'
+  | 'ds_choice'
   | 'done'
   | 'error';
 
@@ -39,6 +40,13 @@ export interface AskUserOption {
   id: string;
   label: string;
   hint?: string;
+}
+
+export interface DatasourceChoiceAlternative {
+  id: string;
+  name: string;
+  environment?: string;
+  cluster?: string;
 }
 
 /**
@@ -96,6 +104,12 @@ export interface ChatEvent {
   // For "ask_user" — the question + clickable option buttons
   question?: string;
   options?: AskUserOption[];
+  // For "ds_choice" — agent's inline narration of which datasource it picked
+  chosenId?: string;
+  chosenName?: string;
+  chooseReason?: string;
+  confidence?: 'high' | 'medium' | 'low';
+  alternatives?: DatasourceChoiceAlternative[];
 }
 
 interface UseDashboardChatResult {
@@ -342,6 +356,30 @@ export function useDashboardChat(
         case 'ask_user': {
           const { question, options } = parseAskUserPayload(parsed);
           appendEvent({ id, kind: 'ask_user', question, options });
+          break;
+        }
+
+        case 'ds_choice': {
+          const chosenId = typeof parsed.chosenId === 'string' ? parsed.chosenId : '';
+          const chosenName = typeof parsed.name === 'string' ? parsed.name : '';
+          const chooseReason = typeof parsed.reason === 'string' ? parsed.reason : '';
+          const confidence = (parsed.confidence === 'high' || parsed.confidence === 'medium' || parsed.confidence === 'low')
+            ? parsed.confidence
+            : 'low';
+          const rawAlts = Array.isArray(parsed.alternatives) ? parsed.alternatives : [];
+          const alternatives: DatasourceChoiceAlternative[] = rawAlts
+            .map((a) => {
+              if (!a || typeof a !== 'object') return null;
+              const obj = a as Record<string, unknown>;
+              const aid = typeof obj.id === 'string' ? obj.id : '';
+              const name = typeof obj.name === 'string' ? obj.name : '';
+              if (!aid || !name) return null;
+              const env = typeof obj.environment === 'string' ? obj.environment : undefined;
+              const cluster = typeof obj.cluster === 'string' ? obj.cluster : undefined;
+              return { id: aid, name, ...(env ? { environment: env } : {}), ...(cluster ? { cluster } : {}) };
+            })
+            .filter((a): a is DatasourceChoiceAlternative => a !== null);
+          appendEvent({ id, kind: 'ds_choice', chosenId, chosenName, chooseReason, confidence, alternatives });
           break;
         }
 

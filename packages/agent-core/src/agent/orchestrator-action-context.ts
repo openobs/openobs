@@ -35,6 +35,8 @@ export interface OrchestratorActionContextDeps {
   adapters: AdapterRegistry;
   webSearchAdapter?: IWebSearchAdapter;
   allDatasources?: DatasourceConfig[];
+  /** Per-session datasource pins; chat-service owns the lifecycle. */
+  sessionDatasourcePins?: Record<string, string>;
   opsCommandRunner?: OpsCommandRunner;
   opsConnectors?: OpsConnectorConfig[];
   sendEvent: (event: DashboardSseEvent) => void;
@@ -68,6 +70,7 @@ export function buildActionContext(
     adapters: deps.adapters,
     webSearchAdapter: deps.webSearchAdapter,
     allDatasources: deps.allDatasources,
+    sessionDatasourcePins: deps.sessionDatasourcePins,
     opsCommandRunner: deps.opsCommandRunner,
     opsConnectors: deps.opsConnectors,
     sendEvent: deps.sendEvent,

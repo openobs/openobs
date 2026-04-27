@@ -7,6 +7,7 @@ import type { Block } from './chat/event-processing.js';
 import { UserMessage, AssistantMessage, ErrorMessage } from './chat/MessageComponents.js';
 import AgentActivityBlock from './chat/AgentActivityBlock.js';
 import AskUserPrompt from './chat/AskUserPrompt.js';
+import { DatasourceChoiceChip } from './chat/DatasourceChoiceChip.js';
 import { OpenObsLogo } from './OpenObsLogo.js';
 
 // Types
@@ -245,6 +246,18 @@ export default function ChatPanel({ events, isGenerating, onSendMessage, onStop,
                   question={evt.question ?? ''}
                   options={evt.options ?? []}
                   onSelect={(id) => onSendMessage(`option:${id}`)}
+                />
+              );
+            }
+            if (evt.kind === 'ds_choice') {
+              return (
+                <DatasourceChoiceChip
+                  key={evt.id}
+                  chosenName={evt.chosenName ?? ''}
+                  reason={evt.chooseReason ?? ''}
+                  confidence={evt.confidence ?? 'low'}
+                  alternatives={evt.alternatives ?? []}
+                  onSwitch={(altId) => onSendMessage(`option:${altId}`)}
                 />
               );
             }

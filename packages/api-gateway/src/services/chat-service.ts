@@ -19,6 +19,24 @@ import type { IInvestigationReportRepository, IAlertRuleRepository, IGatewayInve
 
 const log = createLogger('chat-service');
 
+/**
+ * Per-process datasource pin map. Keyed by chat-session id, values are a
+ * `{ [signalType]: datasourceId }` bag the agent reads/writes via the
+ * `datasources.pin` / `datasources.unpin` tools. Lifetime is the gateway
+ * process — restarts drop pins (acceptable v1; persistence can land later
+ * via a dedicated chat_sessions column when there's actual user pain).
+ */
+const sessionDatasourcePins = new Map<string, Record<string, string>>();
+
+function getSessionDatasourcePins(sessionId: string): Record<string, string> {
+  let pins = sessionDatasourcePins.get(sessionId);
+  if (!pins) {
+    pins = {};
+    sessionDatasourcePins.set(sessionId, pins);
+  }
+  return pins;
+}
+
 /** Adapts data-layer IAlertRuleRepository to agent-core IAlertRuleStore. */
 function toAlertRuleStore(repo: IAlertRuleRepository): IAlertRuleStore {
   return {
@@ -249,6 +267,9 @@ export class ChatService {
       adapters,
       webSearchAdapter: sharedWebSearchAdapter,
       allDatasources: toAgentDatasources(datasources),
+      // Live pin bag for this session — the agent mutates it via
+      // datasources.pin/unpin and we read it back across messages.
+      sessionDatasourcePins: getSessionDatasourcePins(resolvedSessionId),
       ...(opsCommandRunner ? { opsCommandRunner, opsConnectors } : {}),
       sendEvent: wrappedSendEvent,
       timeRange,

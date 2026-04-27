@@ -201,6 +201,18 @@ export type DashboardSseEvent =
   | { type: 'approval_required'; tool: string; args: Record<string, unknown>; displayText: string }
   | { type: 'reply'; content: string }
   | { type: 'ask_user'; question: string; options: Array<{ id: string; label: string; hint?: string }> }
+  | {
+      // Inline narration of the agent's datasource pick. The chat UI renders
+      // a small chip "Using {name} · switch ▼" so the user can override the
+      // choice without typing — clicking an alternative submits "option:{id}"
+      // back to the agent (same protocol as ask_user buttons).
+      type: 'ds_choice';
+      chosenId: string;
+      name: string;
+      reason: string;
+      confidence: 'high' | 'medium' | 'low';
+      alternatives: Array<{ id: string; name: string; environment?: string; cluster?: string }>;
+    }
   | { type: 'done'; messageId: string }
   | { type: 'error'; message: string };
 

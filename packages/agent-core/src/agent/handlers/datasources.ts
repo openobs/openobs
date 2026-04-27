@@ -206,6 +206,20 @@ export async function handleDatasourcesSuggest(
       const summary = result.recommendedId
         ? `Suggested ${result.name} (${result.confidence})`
         : 'Ambiguous — needs user input';
+      // Surface a `ds_choice` event so the chat UI can render an inline
+      // chip ("Using prod-prom · switch ▼") next to the agent's narration.
+      // Skipped on the AMBIGUOUS branch — the agent will follow up with
+      // ask_user, which already has its own button-group affordance.
+      if (result.recommendedId && result.name) {
+        ctx.sendEvent({
+          type: 'ds_choice',
+          chosenId: result.recommendedId,
+          name: result.name,
+          reason: result.reason,
+          confidence: result.confidence,
+          alternatives: result.alternatives,
+        });
+      }
       return { observation: JSON.stringify(result), summary };
     },
   );
@@ -215,13 +229,12 @@ export async function handleDatasourcesSuggest(
 // datasources.pin / datasources.unpin — session-scoped pinning
 // ---------------------------------------------------------------------------
 
-// TODO: typed `sessionDatasourcePins` field is added to ActionContext in
-// Agent C's chat-service PR. Until then we read/write through `as any` and
-// persistence is in-memory only (chat-service will own write-through).
+/** Lazy-init the per-session pins bag on first use. chat-service constructs
+ *  it for each agent run; tests / fakes that omit it get an empty bag here so
+ *  the pin/unpin handlers don't crash on a missing field. */
 function getSessionPins(ctx: ActionContext): Record<string, string> {
-  const bag = (ctx as unknown as { sessionDatasourcePins?: Record<string, string> });
-  if (!bag.sessionDatasourcePins) bag.sessionDatasourcePins = {};
-  return bag.sessionDatasourcePins;
+  if (!ctx.sessionDatasourcePins) ctx.sessionDatasourcePins = {};
+  return ctx.sessionDatasourcePins;
 }
 
 export async function handleDatasourcesPin(

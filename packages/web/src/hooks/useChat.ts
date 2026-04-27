@@ -85,6 +85,28 @@ function payloadToChatEvent(
       const { question, options } = parseAskUserPayload(payload);
       return { id, kind: 'ask_user', question, options };
     }
+    case 'ds_choice': {
+      const chosenId = typeof payload.chosenId === 'string' ? payload.chosenId : '';
+      const chosenName = typeof payload.name === 'string' ? payload.name : '';
+      const chooseReason = typeof payload.reason === 'string' ? payload.reason : '';
+      const confidence = (payload.confidence === 'high' || payload.confidence === 'medium' || payload.confidence === 'low')
+        ? payload.confidence
+        : 'low';
+      const rawAlts = Array.isArray(payload.alternatives) ? payload.alternatives : [];
+      const alternatives = rawAlts
+        .map((a) => {
+          if (!a || typeof a !== 'object') return null;
+          const obj = a as Record<string, unknown>;
+          const aid = typeof obj.id === 'string' ? obj.id : '';
+          const name = typeof obj.name === 'string' ? obj.name : '';
+          if (!aid || !name) return null;
+          const env = typeof obj.environment === 'string' ? obj.environment : undefined;
+          const cluster = typeof obj.cluster === 'string' ? obj.cluster : undefined;
+          return { id: aid, name, ...(env ? { environment: env } : {}), ...(cluster ? { cluster } : {}) };
+        })
+        .filter((a): a is NonNullable<typeof a> => a !== null);
+      return { id, kind: 'ds_choice', chosenId, chosenName, chooseReason, confidence, alternatives };
+    }
     case 'error':
       return {
         id,
@@ -223,6 +245,12 @@ export function useChat(): UseChatResult {
         case 'ask_user': {
           const { question, options } = parseAskUserPayload(parsed);
           appendEvent({ id, kind: 'ask_user', question, options });
+          break;
+        }
+
+        case 'ds_choice': {
+          const evt = payloadToChatEvent(id, 'ds_choice', parsed);
+          if (evt) appendEvent(evt);
           break;
         }
 

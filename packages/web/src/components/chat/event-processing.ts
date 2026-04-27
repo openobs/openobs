@@ -25,7 +25,7 @@ export function groupEvents(events: ChatEvent[]): Block[] {
   };
 
   for (const evt of events) {
-    if (evt.kind === 'message' || evt.kind === 'error' || evt.kind === 'ask_user') {
+    if (evt.kind === 'message' || evt.kind === 'error' || evt.kind === 'ask_user' || evt.kind === 'ds_choice') {
       flushAgent();
       blocks.push({ type: 'message', event: evt });
     } else if (evt.kind === 'done') {

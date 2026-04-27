@@ -15,7 +15,7 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
   'datasources.list': {
     name: 'datasources.list',
     description:
-      'List every configured datasource with its id, backend type, and signal kind. Call this FIRST before any metrics/logs/changes query — every query tool requires an explicit sourceId.',
+      'Enumerate configured datasources (id, backend type, signal kind, isDefault flag). Use for "what data sources do I have" type questions. For PICKING a datasource to query against, prefer datasources.suggest — list is for browsing, suggest is for committing.',
     input_schema: {
       type: 'object',
       properties: {
@@ -31,17 +31,17 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
   'datasources.suggest': {
     name: 'datasources.suggest',
     description:
-      'Recommend a single datasource for the current request via the decision pyramid (intent hint > default > ambiguous). Pass `userIntent` (the user\'s message text) so name/environment/cluster substrings can be matched. Returns JSON with `recommendedId`, `confidence`, and `alternatives`; if `recommendedId` is null and `reason` says AMBIGUOUS, call ask_user.',
+      'Pick a datasource for the current request. Pass the raw user message as userIntent — substring-matches name/environment/cluster, falls back to the isDefault row, surfaces AMBIGUOUS when multiple candidates and no hint. On AMBIGUOUS use ask_user with the returned alternatives as structured options. After picking (or user confirms), follow with datasources.pin so subsequent tool calls reuse the choice. Skip when only one datasource of the right type exists.',
     input_schema: {
       type: 'object',
       properties: {
         userIntent: {
           type: 'string',
-          description: 'The user\'s prompt text (or extracted intent). Used to match datasource name/environment/cluster.',
+          description: 'The user\'s prompt text. Higher accuracy = pass it verbatim, not a paraphrase.',
         },
         type: {
           type: 'string',
-          description: 'Optional backend type filter, e.g. "prometheus", "victoria-metrics", "loki".',
+          description: 'Backend type filter (prometheus, victoria-metrics, loki, etc.). Omit if unknown.',
         },
       },
       required: [],
@@ -50,12 +50,12 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
   'datasources.pin': {
     name: 'datasources.pin',
     description:
-      'Pin a datasource for the rest of this chat session so subsequent tools can reuse it without re-asking. Use after the user picks a datasource, or after datasources.suggest returns a high-confidence match the user confirmed.',
+      'Stick a datasource to this session. Subsequent tools that need a datasource of the same backend type reuse it without re-suggesting. Use after the user picks one or confirms a high-confidence suggest match. Don\'t pin on cross-source compare requests — those need per-query overrides instead.',
     input_schema: {
       type: 'object',
       properties: {
-        datasourceId: { type: 'string', description: 'Datasource id from datasources.list / datasources.suggest' },
-        type: { type: 'string', description: 'Backend type slot to pin under (default "prometheus")' },
+        datasourceId: { type: 'string', description: 'Datasource id to pin' },
+        type: { type: 'string', description: 'Backend type slot (default "prometheus")' },
       },
       required: ['datasourceId'],
     },
@@ -63,7 +63,7 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
   'datasources.unpin': {
     name: 'datasources.unpin',
     description:
-      'Clear a previously pinned datasource for this session. Use when the user asks to switch sources or "use the other one".',
+      'Drop the session pin for a backend type. Use when the user explicitly asks to switch ("use staging instead", "换到 prod") — the next tool call will re-suggest from scratch.',
     input_schema: {
       type: 'object',
       properties: {
@@ -283,7 +283,7 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
   'dashboard.create': {
     name: 'dashboard.create',
     description:
-      'Create an empty dashboard. Returns dashboardId. Follow with dashboard.add_panels to populate it. Required before any other dashboard.* mutation when there is no current dashboard context. Requires a primary datasourceId — call datasources.list (or datasources.suggest with the user prompt) first to choose one.',
+      'Create an empty dashboard. Returns dashboardId. Follow with dashboard.add_panels to populate it. Required before any other dashboard.* mutation when there is no current dashboard context. Requires a primary datasourceId — pick one via datasources.suggest first (or reuse the session pin if set).',
     input_schema: {
       type: 'object',
       properties: {
