@@ -523,15 +523,24 @@ export default function DashboardPanelCard({
           `spark:${queryKey}`,
           cacheMaxAgeMs,
         );
-        const first = sparkCached?.data?.data?.result?.[0];
-        if (!first?.values) return false;
+        // Cache miss = need to fetch. Cache HIT with an empty result series
+        // (e.g. a "0 errors" query returning no series) is still a successful
+        // restore — the panel just has no trend to draw. Falling through to
+        // refetch on this branch was the source of an infinite re-render
+        // loop: refetch updated instantData, which is in fetchData's deps,
+        // which retriggered the useEffect, which re-entered restoreFromCache,
+        // which still saw the empty sparkline and bailed again — forever.
+        if (!sparkCached) return false;
+        const first = sparkCached.data?.data?.result?.[0];
         const timestamps: number[] = [];
         const values: number[] = [];
-        for (const [ts, v] of first.values) {
-          const num = Number.parseFloat(v);
-          if (Number.isFinite(num)) {
-            timestamps.push(ts * 1000);
-            values.push(num);
+        if (first?.values) {
+          for (const [ts, v] of first.values) {
+            const num = Number.parseFloat(v);
+            if (Number.isFinite(num)) {
+              timestamps.push(ts * 1000);
+              values.push(num);
+            }
           }
         }
         setSparklineData({ timestamps, values });
