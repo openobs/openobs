@@ -1,6 +1,9 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { apiClient } from '../api/client.js';
 import { queryScheduler } from '../api/query-scheduler.js';
+import { useDatasourceLookup } from '../hooks/useDatasourceLookup.js';
+import { useMeasure } from '../hooks/useMeasure.js';
+import type { InstanceDatasource } from '@agentic-obs/common';
 import TimeSeriesViz from './viz/TimeSeriesViz.js';
 import StatViz from './viz/StatViz.js';
 import GaugeViz from './viz/GaugeViz.js';
@@ -62,6 +65,72 @@ function InfoIcon({ description }: { description: string }) {
         <path d="M8 1.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM8 13A5 5 0 118 3a5 5 0 010 10zm-.75-7.5a.75.75 0 111.5 0 .75.75 0 01-1.5 0zM7 7h2v4.5H7V7z" />
       </svg>
     </span>
+  );
+}
+
+// Datasource chip — small pill in the panel header that surfaces which
+// datasource the panel's first query targets. Resolution is done by the
+// caller (so it can use the shared lookup hook once per render); this
+// component just renders the supplied state.
+//
+// `compact` collapses the label to a database glyph when the panel header
+// is too narrow to fit text alongside the title.
+interface DatasourceChipState {
+  /** Resolved single datasource (when all queries target the same id). */
+  ds: InstanceDatasource | null;
+  /** Number of distinct datasources across the panel's queries. */
+  count: number;
+  /** True when ds is set AND it is NOT the default for its type. The default
+   *  for the type is the closest stand-in for "the dashboard primary" we can
+   *  derive from the lookup alone. */
+  isOverride: boolean;
+}
+
+function DatabaseGlyph({ className = 'w-3 h-3' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden>
+      <ellipse cx="10" cy="4.5" rx="6.5" ry="2.5" />
+      <path d="M3.5 4.5v5c0 1.38 2.91 2.5 6.5 2.5s6.5-1.12 6.5-2.5v-5" />
+      <path d="M3.5 9.5v5c0 1.38 2.91 2.5 6.5 2.5s6.5-1.12 6.5-2.5v-5" />
+    </svg>
+  );
+}
+
+function DatasourceChip({ state, compact }: { state: DatasourceChipState; compact: boolean }) {
+  const { ds, count, isOverride } = state;
+  if (count === 0) return null;
+  const baseCls = 'inline-flex items-center gap-1 shrink-0 rounded-full border px-1.5 py-[1px] text-[10px] uppercase tracking-wide transition-colors';
+  const colorCls = count > 1
+    ? 'text-[var(--color-primary)] border-[var(--color-outline-variant)] bg-[var(--color-surface-high)]'
+    : 'text-[var(--color-on-surface-variant)] border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] hover:text-[var(--color-on-surface)]';
+  if (count > 1) {
+    const title = `${count} datasources across this panel's queries`;
+    return (
+      <button type="button" className={`${baseCls} ${colorCls}`} title={title} aria-label={title}>
+        <DatabaseGlyph />
+        {!compact && <span>{count} sources</span>}
+      </button>
+    );
+  }
+  // Single datasource path — ds may still be null if the lookup hasn't
+  // resolved yet; show a placeholder rather than dropping the chip so the
+  // header layout doesn't shift on first paint.
+  const label = ds?.name ?? '…';
+  const title = ds
+    ? `${ds.name}\n${ds.url}\n${ds.type}`
+    : 'Loading datasource…';
+  return (
+    <button type="button" className={`${baseCls} ${colorCls}`} title={title} aria-label={title}>
+      <DatabaseGlyph />
+      {!compact && <span className="normal-case font-medium tracking-normal max-w-[120px] truncate">{label}</span>}
+      {isOverride && (
+        <span
+          className="w-1.5 h-1.5 rounded-full bg-[var(--color-primary)]"
+          title="Overrides the default for this type"
+          aria-hidden
+        />
+      )}
+    </button>
   );
 }
 
@@ -137,9 +206,31 @@ interface Props {
   onDelete?: () => void;
   editMode?: boolean;
   timeRange?: string;
+  /** Resolved current values for `${name}` placeholders in panel queries
+   *  (today: just `${datasource}`). Used to substitute the panel's
+   *  `query.datasourceId` before sending — without this, a placeholder id
+   *  would 400 at the backend. */
+  variableValues?: Record<string, string>;
   /** Fired when the user box-zooms on a time-series panel; value is a
    *  resolveTimeRange-compatible `"ISO|ISO"` absolute range string. */
   onTimeRangeChange?: (range: string) => void;
+}
+
+/** Substitute `${name}` / `$name` placeholders from `values`. Returns the
+ *  input unchanged when nothing matches. Mirrors the backend helper of the
+ *  same name in `api-gateway/src/routes/dashboard/query.ts`. */
+function substituteVariableTokens(
+  value: string | undefined,
+  values: Record<string, string> | undefined,
+): string | undefined {
+  if (!value || !values) return value;
+  return value.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g, (match, braced: string | undefined, bare: string | undefined) => {
+    const key = braced ?? bare;
+    if (key && Object.prototype.hasOwnProperty.call(values, key)) {
+      return values[key] ?? match;
+    }
+    return match;
+  });
 }
 
 export default function DashboardPanelCard({
@@ -148,6 +239,7 @@ export default function DashboardPanelCard({
   onDelete,
   editMode = false,
   timeRange = '1h',
+  variableValues,
   onTimeRangeChange,
 }: Props) {
   const [loading, setLoading] = useState(true);
@@ -167,14 +259,31 @@ export default function DashboardPanelCard({
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Stable JSON key for the variableValues map so the queries memo only
+  // recomputes when the resolved values actually change (object identity
+  // alone would re-fire on every parent render).
+  const variableValuesKey = useMemo(
+    () => (variableValues ? JSON.stringify(variableValues) : ''),
+    [variableValues],
+  );
+
   const effectiveQueries = useMemo<PanelQuery[]>(
-    () =>
-      panel.queries && panel.queries.length > 0
+    () => {
+      const baseQueries = panel.queries && panel.queries.length > 0
         ? panel.queries
         : panel.query
           ? [{ refId: 'A', expr: panel.query, instant: panel.visualization !== 'time_series' }]
-          : [],
-    [panel.queries, panel.query, panel.visualization]
+          : [];
+      // Substitute `${datasource}` (or any `${name}`) placeholders in
+      // datasourceId so a `$datasource` template variable can swap backends
+      // at view time without rewriting the panel.
+      if (!variableValues) return baseQueries;
+      return baseQueries.map((q) => ({
+        ...q,
+        datasourceId: substituteVariableTokens(q.datasourceId, variableValues),
+      }));
+    },
+    [panel.queries, panel.query, panel.visualization, variableValues, variableValuesKey] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const isRangeViz = panel.visualization === 'time_series' || panel.visualization === 'status_timeline' || panel.visualization === 'heatmap';
@@ -187,13 +296,16 @@ export default function DashboardPanelCard({
   const activeQuery = activePanelQuery?.expr ?? '';
   const resolvedTimeRange = useMemo(() => resolveTimeRange(timeRange), [timeRange]);
 
-  // Build a stable dedup key from queries
+  // Build a stable dedup key from queries. Every query is required to carry
+  // an explicit datasourceId (enforced at write time by the dashboard
+  // handlers); a missing one is a contract violation that should fail
+  // loudly downstream, not get papered over with a 'default' sentinel.
   const queryKey = useMemo(
-    () => effectiveQueries.map((q) => `${q.datasourceId ?? 'default'}:${q.expr}`).join('|') + `@${timeRange}`,
+    () => effectiveQueries.map((q) => `${q.datasourceId ?? ''}:${q.expr}`).join('|') + `@${timeRange}`,
     [effectiveQueries, timeRange]
   );
   const instantQueryKey = useMemo(
-    () => `${activePanelQuery?.datasourceId ?? 'default'}:${activeQuery}@${resolvedTimeRange.end}`,
+    () => `${activePanelQuery?.datasourceId ?? ''}:${activeQuery}@${resolvedTimeRange.end}`,
     [activePanelQuery?.datasourceId, activeQuery, resolvedTimeRange.end]
   );
 
@@ -258,6 +370,7 @@ export default function DashboardPanelCard({
                   datasourceId: q.datasourceId,
                 })),
                 ...resolveTimeRange(timeRange),
+                ...(variableValues ? { variableValues } : {}),
               }) as Promise<{
                 data: { results: Record<string, { status: string; data: RangeResponse; error?: string }> } | null;
                 error?: unknown;
@@ -310,6 +423,7 @@ export default function DashboardPanelCard({
                       query: activeQuery,
                       datasourceId: activePanelQuery?.datasourceId,
                       ...resolveTimeRange(timeRange),
+                      ...(variableValues ? { variableValues } : {}),
                     }) as Promise<{ data: RangeResponse | null; error?: unknown }>,
                 )
                 .then((sparkRes) => {
@@ -346,6 +460,7 @@ export default function DashboardPanelCard({
                 query: activeQuery,
                 time: resolvedTimeRange.end,
                 datasourceId: activePanelQuery?.datasourceId,
+                ...(variableValues ? { variableValues } : {}),
               }) as Promise<{
                 data: InstantResponse | null;
                 error?: unknown;
@@ -372,7 +487,7 @@ export default function DashboardPanelCard({
 
       setLoading(false);
     },
-    [effectiveQueries, isRangeViz, activePanelQuery?.datasourceId, activeQuery, instantQueryKey, queryKey, cacheMaxAgeMs, multiRangeData.length, instantData, panel.refreshIntervalSec, panel.id, resolvedTimeRange.end, timeRange]
+    [effectiveQueries, isRangeViz, activePanelQuery?.datasourceId, activeQuery, instantQueryKey, queryKey, cacheMaxAgeMs, multiRangeData.length, instantData, panel.refreshIntervalSec, panel.id, resolvedTimeRange.end, timeRange, variableValues, variableValuesKey] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // Try to restore from cache without fetching
@@ -408,15 +523,24 @@ export default function DashboardPanelCard({
           `spark:${queryKey}`,
           cacheMaxAgeMs,
         );
-        const first = sparkCached?.data?.data?.result?.[0];
-        if (!first?.values) return false;
+        // Cache miss = need to fetch. Cache HIT with an empty result series
+        // (e.g. a "0 errors" query returning no series) is still a successful
+        // restore — the panel just has no trend to draw. Falling through to
+        // refetch on this branch was the source of an infinite re-render
+        // loop: refetch updated instantData, which is in fetchData's deps,
+        // which retriggered the useEffect, which re-entered restoreFromCache,
+        // which still saw the empty sparkline and bailed again — forever.
+        if (!sparkCached) return false;
+        const first = sparkCached.data?.data?.result?.[0];
         const timestamps: number[] = [];
         const values: number[] = [];
-        for (const [ts, v] of first.values) {
-          const num = Number.parseFloat(v);
-          if (Number.isFinite(num)) {
-            timestamps.push(ts * 1000);
-            values.push(num);
+        if (first?.values) {
+          for (const [ts, v] of first.values) {
+            const num = Number.parseFloat(v);
+            if (Number.isFinite(num)) {
+              timestamps.push(ts * 1000);
+              values.push(num);
+            }
           }
         }
         setSparklineData({ timestamps, values });
@@ -740,6 +864,32 @@ export default function DashboardPanelCard({
 
   const datasourceIds = Array.from(new Set(effectiveQueries.map((q) => q.datasourceId).filter(Boolean)));
 
+  // Datasource chip state. Resolution rules:
+  //   1. Multiple distinct ids → "N sources" chip.
+  //   2. queries[0].datasourceId set → resolve to that datasource.
+  //   3. Unset → no chip. We can't reach the dashboard config from here
+  //      without prop wiring, and rendering "default" without knowing which
+  //      datasource that maps to would be misleading.
+  // Override marker: when the resolved datasource is NOT the current default
+  // for its type, mark it with a small dot so dashboards mixing primary +
+  // override datasources read at a glance.
+  const datasourceLookup = useDatasourceLookup();
+  const chipState = useMemo<DatasourceChipState>(() => {
+    if (datasourceIds.length === 0) return { ds: null, count: 0, isOverride: false };
+    if (datasourceIds.length > 1) {
+      return { ds: null, count: datasourceIds.length, isOverride: false };
+    }
+    const id = datasourceIds[0]!;
+    const ds = datasourceLookup.get(id) ?? null;
+    const isOverride = !!ds && !ds.isDefault;
+    return { ds, count: 1, isOverride };
+  }, [datasourceIds, datasourceLookup]);
+
+  // Track header width so we can collapse the chip to its glyph on small
+  // panels rather than letting the chip push the title into truncation.
+  const [headerRef, headerSize] = useMeasure<HTMLDivElement>();
+  const compactChip = headerSize.width > 0 && headerSize.width < 280;
+
   const isStat = panel.visualization === 'stat' || panel.visualization === 'gauge';
 
   // Compact stat/gauge layout — like Grafana stat panel
@@ -751,11 +901,12 @@ export default function DashboardPanelCard({
         }`}
       >
         <StaleIndicator />
-        <div className="flex items-start justify-between gap-2">
+        <div ref={headerRef} className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <div className="w-2 h-4 bg-primary rounded-full shrink-0" />
             <span className="text-sm font-bold text-on-surface font-[Manrope] truncate">{panel.title}</span>
             {panel.description && <InfoIcon description={panel.description} />}
+            <DatasourceChip state={chipState} compact={compactChip} />
           </div>
           <div className={`flex items-center gap-0.5 shrink-0 transition-opacity duration-150 ${editMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
             {onEdit && <button type="button" onClick={onEdit} className="p-0.5 rounded hover:bg-surface-highest text-on-surface-variant hover:text-on-surface" title="Edit"><svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-8.5 8.5L5 15l.086-2.914 8.5-8.5zM4 16h12v1H4z" /></svg></button>}
@@ -775,12 +926,13 @@ export default function DashboardPanelCard({
       }`}
     >
       <StaleIndicator />
-      <div className="panel-drag-handle flex items-center justify-between px-3 pt-2 pb-1 cursor-grab active:cursor-grabbing">
+      <div ref={headerRef} className="panel-drag-handle flex items-center justify-between px-3 pt-2 pb-1 cursor-grab active:cursor-grabbing">
         <div className="flex items-center gap-2 min-w-0">
           <div className="drag-handle w-2 h-4 bg-primary rounded-full shrink-0" />
           {loading && <Spinner />}
           <span className="text-sm font-bold text-on-surface font-[Manrope] truncate">{panel.title}</span>
           {panel.description && <InfoIcon description={panel.description} />}
+          <DatasourceChip state={chipState} compact={compactChip} />
         </div>
 
         <div className={`flex items-center gap-1 shrink-0 transition-opacity duration-150 ${editMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>

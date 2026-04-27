@@ -30,7 +30,7 @@ agentRegistry.register({
   description: 'Autonomous observability agent that uses primitive tools to build dashboards, investigate issues, and manage alerts',
   allowedTools: [
     // Dashboard lifecycle + mutation primitives
-    'dashboard.create', 'dashboard.list',
+    'dashboard.create', 'dashboard.list', 'dashboard.clone',
     'dashboard.add_panels', 'dashboard.remove_panels', 'dashboard.modify_panel',
     // NOTE: 'dashboard.rearrange' was listed here historically but no handler
     // exists in orchestrator-action-handlers.ts (only the action-executor
@@ -43,6 +43,7 @@ agentRegistry.register({
     'investigation.complete',
     // Datasource discovery (always allowed; no RBAC)
     'datasources.list',
+    'datasources.suggest', 'datasources.pin', 'datasources.unpin',
     // Source-agnostic metrics primitives (each requires sourceId)
     'metrics.query', 'metrics.range_query', 'metrics.labels', 'metrics.label_values',
     'metrics.series', 'metrics.metadata', 'metrics.metric_names', 'metrics.validate',

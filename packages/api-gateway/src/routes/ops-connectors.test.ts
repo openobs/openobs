@@ -175,12 +175,17 @@ describe('ops connectors routes', () => {
   });
 
   it('tests connector structure without requiring a Kubernetes cluster', async () => {
+    // Inline `secret` (vs `secretRef: vault://...`) keeps the test
+    // hermetic — no VAULT_ADDR/VAULT_TOKEN env required. The intent is
+    // "structurally valid + has credentials", which an inline secret
+    // satisfies just as well; the runner only checks credential presence,
+    // not contents.
     await repo.create({
       id: 'k8s-a',
       orgId: 'org_a',
       name: 'Prod',
       config: { apiServer: 'https://k8s.example.com' },
-      secretRef: 'vault://openobs/k8s/prod',
+      secret: 'fake-kubeconfig-for-structural-test',
     });
     const app = makeApp(repo, 'org_a');
 

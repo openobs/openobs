@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   handleDashboardCreate,
+  handleDashboardClone,
   handleDashboardSetTitle,
   handleDashboardAddPanels,
   handleDashboardRemovePanels,
@@ -23,7 +24,7 @@ describe('dashboard handlers', () => {
         identity: makeTestIdentity({ orgId: 'org-7' }),
       });
 
-      const observation = await handleDashboardCreate(ctx, { title: 'My Dashboard' });
+      const observation = await handleDashboardCreate(ctx, { title: 'My Dashboard', datasourceId: 'prom-test' });
 
       expect(create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -45,7 +46,7 @@ describe('dashboard handlers', () => {
       const ctx = makeFakeActionContext({
         store: { findById: vi.fn(), update: vi.fn(), updatePanels: vi.fn(), updateVariables: vi.fn() } as never,
       });
-      const observation = await handleDashboardCreate(ctx, { title: 'X' });
+      const observation = await handleDashboardCreate(ctx, { title: 'X', datasourceId: 'prom-test' });
       expect(observation).toMatch(/does not support creation/);
       // No SSE events should have been emitted on the early-return branch.
       expect(ctx.sendEvent).not.toHaveBeenCalled();
@@ -56,7 +57,7 @@ describe('dashboard handlers', () => {
       const ctx = makeFakeActionContext({
         store: { create, findById: vi.fn(), update: vi.fn(), updatePanels: vi.fn(), updateVariables: vi.fn() } as never,
       });
-      await expect(handleDashboardCreate(ctx, { title: 'X' })).rejects.toThrow('db down');
+      await expect(handleDashboardCreate(ctx, { title: 'X', datasourceId: 'prom-test' })).rejects.toThrow('db down');
       expect(ctx.sendEvent).toHaveBeenCalledWith(
         expect.objectContaining({ type: 'tool_result', tool: 'dashboard.create', success: false, summary: 'db down' }),
       );
@@ -153,6 +154,139 @@ describe('dashboard handlers', () => {
       });
       expect(observation).toBe('Added variable $env.');
       expect(ctx.actionExecutor.execute).toHaveBeenCalled();
+    });
+  });
+
+  describe('handleDashboardClone', () => {
+    it('clones a dashboard, rewriting every query datasourceId to the target', async () => {
+      const sourcePanels = [
+        {
+          id: 'src-panel-1',
+          title: 'p1',
+          description: '',
+          visualization: 'time_series',
+          row: 0, col: 0, width: 6, height: 3,
+          queries: [
+            { refId: 'A', expr: 'up', datasourceId: 'prom-staging' },
+            { refId: 'B', expr: 'down', datasourceId: 'prom-staging' },
+          ],
+        },
+        {
+          id: 'src-panel-2',
+          title: 'p2',
+          description: '',
+          visualization: 'stat',
+          row: 0, col: 6, width: 6, height: 3,
+          queries: [
+            { refId: 'A', expr: 'rate(http_requests_total[5m])', datasourceId: 'other' },
+            { refId: 'B', expr: 'sum(rate(errors[5m]))' },
+          ],
+        },
+      ];
+      const sourceVariables = [
+        { name: 'env', label: 'env', type: 'custom' as const, options: ['a', 'b'], current: 'a' },
+      ];
+      const findById = vi.fn().mockResolvedValue({
+        id: 'src-1',
+        title: 'Original',
+        description: 'desc',
+        prompt: 'orig prompt',
+        panels: sourcePanels,
+        variables: sourceVariables,
+      });
+      const create = vi.fn().mockResolvedValue({ id: 'new-1', title: 'Original (cloned)' });
+      const updatePanels = vi.fn().mockResolvedValue(undefined);
+      const updateVariables = vi.fn().mockResolvedValue(undefined);
+      const updateStatus = vi.fn().mockResolvedValue(undefined);
+      const ctx = makeFakeActionContext({
+        store: {
+          create,
+          findById,
+          update: vi.fn(),
+          updatePanels,
+          updateVariables,
+          updateStatus,
+        } as never,
+        identity: makeTestIdentity({ orgId: 'org-9' }),
+      });
+
+      const observation = await handleDashboardClone(ctx, {
+        sourceDashboardId: 'src-1',
+        targetDatasourceId: 'prom-prod',
+      });
+
+      // Source was loaded
+      expect(findById).toHaveBeenCalledWith('src-1');
+      // New shell created with target datasource as primary
+      expect(create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Original (cloned)',
+          datasourceIds: ['prom-prod'],
+          workspaceId: 'org-9',
+        }),
+      );
+
+      // Every query.datasourceId is rewritten to the target
+      const persistedPanels = updatePanels.mock.calls[0]![1] as Array<{
+        id: string;
+        queries: Array<{ datasourceId: string }>;
+      }>;
+      expect(persistedPanels).toHaveLength(2);
+      for (const p of persistedPanels) {
+        for (const q of p.queries) {
+          expect(q.datasourceId).toBe('prom-prod');
+        }
+      }
+      // New panel ids are minted (not the source ids)
+      expect(persistedPanels[0]!.id).not.toBe('src-panel-1');
+      expect(persistedPanels[1]!.id).not.toBe('src-panel-2');
+
+      // Variables persisted verbatim
+      expect(updateVariables).toHaveBeenCalledWith('new-1', sourceVariables);
+
+      // Observation message + navigation
+      expect(observation).toContain('Cloned "Original" (2 panels)');
+      expect(observation).toContain('prom-prod');
+      expect(ctx.setNavigateTo).toHaveBeenCalledWith('/dashboards/new-1');
+    });
+
+    it('uses a custom newTitle when provided', async () => {
+      const findById = vi.fn().mockResolvedValue({
+        id: 'src-1', title: 'Original', description: '', prompt: '', panels: [], variables: [],
+      });
+      const create = vi.fn().mockResolvedValue({ id: 'new-1', title: 'My Copy' });
+      const ctx = makeFakeActionContext({
+        store: {
+          create, findById,
+          update: vi.fn(), updatePanels: vi.fn(), updateVariables: vi.fn(),
+        } as never,
+      });
+      await handleDashboardClone(ctx, {
+        sourceDashboardId: 'src-1',
+        targetDatasourceId: 'prom-prod',
+        newTitle: 'My Copy',
+      });
+      expect(create).toHaveBeenCalledWith(expect.objectContaining({ title: 'My Copy' }));
+    });
+
+    it('returns an error when the source dashboard is not found', async () => {
+      const findById = vi.fn().mockResolvedValue(undefined);
+      const create = vi.fn();
+      const ctx = makeFakeActionContext({
+        store: { create, findById, update: vi.fn(), updatePanels: vi.fn(), updateVariables: vi.fn() } as never,
+      });
+      const observation = await handleDashboardClone(ctx, {
+        sourceDashboardId: 'missing',
+        targetDatasourceId: 'prom-prod',
+      });
+      expect(observation).toMatch(/source dashboard missing not found/);
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it('errors when sourceDashboardId or targetDatasourceId is missing', async () => {
+      const ctx = makeFakeActionContext();
+      await expect(handleDashboardClone(ctx, { targetDatasourceId: 'x' })).resolves.toMatch(/sourceDashboardId/);
+      await expect(handleDashboardClone(ctx, { sourceDashboardId: 'x' })).resolves.toMatch(/targetDatasourceId/);
     });
   });
 

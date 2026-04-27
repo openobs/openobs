@@ -1,10 +1,13 @@
 # Chat & agents
 
-The chat panel is how you talk to OpenObs. Behind it is a multi-agent system: the **orchestrator** picks the right tool for each turn, the **alert-rule agent** handles alert lifecycle, and the **investigation agent** runs structured incident workflows.
+The chat panel is how you operate OpenObs. Behind it is a multi-agent system: the **orchestrator** picks the right tool for each turn, the **alert-rule agent** handles alert lifecycle, and the **investigation agent** runs structured incident workflows across telemetry and cluster state.
 
 ## What you can do
 
 - **Ask anything** — "what dashboards do I have", "create one for HTTP latency", "investigate the 5xx spike at 9am"
+- **Operate dashboards by conversation** — create, explain, clone, modify, rearrange, or delete dashboards without hand-editing JSON
+- **Investigate production symptoms** — ask why latency, errors, saturation, or alerts changed; the agent can query metrics, logs, changes, and Kubernetes when configured
+- **Approve risky actions** — read-only tools can run during investigation; mutating cluster operations are routed through approval requests
 - **Stream the agent's thinking** — every step (tool call, result, decision) renders live in the panel as it happens
 - **Multi-tool turns** — the agent can run several tools in parallel in one turn (e.g. 4 quantile queries at once) for speed
 - **Continue across sessions** — chats persist; reopen a thread to continue
@@ -29,6 +32,7 @@ Because tool calls are native (not prompted JSON), the model picks tools more ac
 | Discovery | `datasources.list`, `dashboard.list`, `alert_rule.list`, `investigation.list` | Find what exists |
 | Metrics | `metrics.query`, `range_query`, `labels`, `label_values`, `series`, `metadata`, `metric_names`, `validate` | Discover + query metric backends |
 | Logs | `logs.query`, `logs.labels`, `logs.label_values` | Search log backends |
+| Kubernetes | `ops.run_command` | Inspect cluster state and prepare approval-gated remediation |
 | Changes | `changes.list_recent` | Correlate with deployments / config changes |
 | Web | `web.search` | External research (best practices, error codes) |
 | Dashboards | `dashboard.create`, `add_panels`, `modify_panel`, `remove_panels`, `add_variable`, `set_title`, `rearrange` | Build / edit dashboards |
@@ -90,7 +94,7 @@ So a `Viewer` can ask the agent to read dashboards but can't ask it to create on
 
 - Per-session token budget — large conversations get auto-compacted (older messages summarized) to stay under the model's context window. Crucial IDs (dashboardId, investigationId) are preserved in the summary.
 - Multi-tool parallelism caps at the model's native limit (Anthropic: ~10, OpenAI: similar). The agent doesn't artificially cap.
-- The agent is read-only by default for sub-tasks like investigations; mutations require the orchestrator path with appropriate permissions.
+- The agent is read-only by default for sub-tasks like investigations; mutations require the orchestrator path, RBAC, and approval where the target is an infrastructure change.
 
 ## Related
 

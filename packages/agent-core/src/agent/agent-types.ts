@@ -5,7 +5,7 @@ export type AgentType =
 
 export type AgentToolName =
   // Dashboard lifecycle
-  | 'dashboard.create' | 'dashboard.list'
+  | 'dashboard.create' | 'dashboard.list' | 'dashboard.clone'
   // Dashboard mutation primitives — model constructs panel configs directly
   | 'dashboard.add_panels' | 'dashboard.remove_panels' | 'dashboard.modify_panel'
   | 'dashboard.rearrange' | 'dashboard.add_variable' | 'dashboard.set_title'
@@ -30,7 +30,7 @@ export type AgentToolName =
   // Kubernetes / Ops integrations
   | 'ops.run_command'
   // Datasource discovery (always-allowed, no RBAC)
-  | 'datasources.list'
+  | 'datasources.list' | 'datasources.suggest' | 'datasources.pin' | 'datasources.unpin'
   // Knowledge & utility
   | 'web.search' | 'llm.complete'
   | 'verifier.run';

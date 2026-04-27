@@ -50,6 +50,16 @@ export interface ActionContext {
   adapters: AdapterRegistry;
   webSearchAdapter?: IWebSearchAdapter;
   allDatasources?: DatasourceConfig[];
+  /**
+   * Mutable per-session "sticky" datasource pins keyed by signal type
+   * (e.g. `{ prometheus: 'ds-prod' }`). Survives across tool calls within
+   * a single chat session — chat-service constructs the bag, hands it to
+   * each agent run, and reads it back so subsequent messages see prior
+   * pins. Lifetime is process-memory only; gateway restart drops pins
+   * (acceptable v1 — re-asking once is a small cost vs. shipping a schema
+   * column for a UX nice-to-have).
+   */
+  sessionDatasourcePins?: Record<string, string>;
   opsCommandRunner?: OpsCommandRunner;
   opsConnectors?: OpsConnectorConfig[];
   sendEvent: (event: DashboardSseEvent) => void;

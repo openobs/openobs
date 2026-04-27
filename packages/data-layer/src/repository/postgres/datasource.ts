@@ -167,6 +167,18 @@ export class PostgresDatasourceRepository implements IDatasourceRepository {
         updated_by  = ${merged.updatedBy}
       WHERE id = ${id}
     `);
+    // Single-default invariant per (org, type): see sqlite/datasource.ts for
+    // why this matters. Mirror the demote-siblings step here.
+    if (merged.isDefault && !existing.isDefault) {
+      await this.db.execute(sql`
+        UPDATE instance_datasources
+        SET is_default = FALSE
+        WHERE org_id = ${existing.orgId}
+          AND type   = ${merged.type}
+          AND id    != ${id}
+          AND is_default = TRUE
+      `);
+    }
     return this.get(id);
   }
 

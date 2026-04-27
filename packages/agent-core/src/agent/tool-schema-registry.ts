@@ -15,7 +15,7 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
   'datasources.list': {
     name: 'datasources.list',
     description:
-      'List every configured datasource with its id, backend type, and signal kind. Call this FIRST before any metrics/logs/changes query — every query tool requires an explicit sourceId.',
+      'Enumerate configured datasources (id, backend type, signal kind, isDefault flag). Use for "what data sources do I have" type questions. For PICKING a datasource to query against, prefer datasources.suggest — list is for browsing, suggest is for committing.',
     input_schema: {
       type: 'object',
       properties: {
@@ -24,6 +24,50 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
           enum: ['metrics', 'logs', 'changes'],
           description: 'Filter by signal kind. Omit to see all datasources.',
         },
+      },
+      required: [],
+    },
+  },
+  'datasources.suggest': {
+    name: 'datasources.suggest',
+    description:
+      'Pick a datasource for the current request. Pass the raw user message as userIntent — substring-matches name/environment/cluster, falls back to the isDefault row, surfaces AMBIGUOUS when multiple candidates and no hint. On AMBIGUOUS use ask_user with the returned alternatives as structured options. After picking (or user confirms), follow with datasources.pin so subsequent tool calls reuse the choice. Skip when only one datasource of the right type exists.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        userIntent: {
+          type: 'string',
+          description: 'The user\'s prompt text. Higher accuracy = pass it verbatim, not a paraphrase.',
+        },
+        type: {
+          type: 'string',
+          description: 'Backend type filter (prometheus, victoria-metrics, loki, etc.). Omit if unknown.',
+        },
+      },
+      required: [],
+    },
+  },
+  'datasources.pin': {
+    name: 'datasources.pin',
+    description:
+      'Stick a datasource to this session. Subsequent tools that need a datasource of the same backend type reuse it without re-suggesting. Use after the user picks one or confirms a high-confidence suggest match. Don\'t pin on cross-source compare requests — those need per-query overrides instead.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        datasourceId: { type: 'string', description: 'Datasource id to pin' },
+        type: { type: 'string', description: 'Backend type slot (default "prometheus")' },
+      },
+      required: ['datasourceId'],
+    },
+  },
+  'datasources.unpin': {
+    name: 'datasources.unpin',
+    description:
+      'Drop the session pin for a backend type. Use when the user explicitly asks to switch ("use staging instead", "换到 prod") — the next tool call will re-suggest from scratch.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        type: { type: 'string', description: 'Backend type slot to unpin (default "prometheus")' },
       },
       required: [],
     },
@@ -239,15 +283,20 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
   'dashboard.create': {
     name: 'dashboard.create',
     description:
-      'Create an empty dashboard. Returns dashboardId. Follow with dashboard.add_panels to populate it. Required before any other dashboard.* mutation when there is no current dashboard context.',
+      'Create an empty dashboard. Returns dashboardId. Follow with dashboard.add_panels to populate it. Required before any other dashboard.* mutation when there is no current dashboard context. Requires a primary datasourceId — pick one via datasources.suggest first (or reuse the session pin if set).',
     input_schema: {
       type: 'object',
       properties: {
         title: { type: 'string', description: 'Dashboard title shown in the UI' },
         description: { type: 'string', description: 'One-line description of the dashboard purpose' },
         prompt: { type: 'string', description: 'Optional original user prompt for traceability (defaults to description)' },
+        datasourceId: {
+          type: 'string',
+          description:
+            'Primary datasource id for this dashboard. Panels added without their own per-query datasourceId fall back to this. Get from datasources.list / datasources.suggest.',
+        },
       },
-      required: ['title'],
+      required: ['title', 'datasourceId'],
     },
   },
   'dashboard.list': {
@@ -263,17 +312,31 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
       required: [],
     },
   },
+  'dashboard.clone': {
+    name: 'dashboard.clone',
+    description:
+      "Clone a dashboard, replacing every query's datasourceId with targetDatasourceId. Use when the user says 'copy/move/clone this dashboard to {env}' — far cheaper than rebuilding from scratch.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        sourceDashboardId: { type: 'string', description: 'Dashboard id to clone (from dashboard.list)' },
+        targetDatasourceId: { type: 'string', description: 'Datasource id assigned to every query in the new dashboard' },
+        newTitle: { type: 'string', description: 'Optional title for the new dashboard. Defaults to "{sourceTitle} (cloned)"' },
+      },
+      required: ['sourceDashboardId', 'targetDatasourceId'],
+    },
+  },
   'dashboard.add_panels': {
     name: 'dashboard.add_panels',
     description:
-      'Add one or more panels to a dashboard. The model constructs panel configs directly (title, visualization, queries, unit, ...). Validate complex queries with metrics.validate first. Panel sizing and layout are auto-applied.',
+      'Add one or more panels to a dashboard. The model constructs panel configs directly (title, visualization, queries, unit, ...). Validate complex queries with metrics.validate first. Panel sizing and layout are auto-applied. Every query must carry an explicit datasourceId — there is NO inheritance from the dashboard primary. For a single-source dashboard, set every query to the dashboard primary id. For cross-source compare panels, set per query (one source per query). The handler rejects panels with any missing datasourceId.',
     input_schema: {
       type: 'object',
       properties: {
         dashboardId: { type: 'string', description: 'Target dashboard id (from dashboard.create or dashboard.list)' },
         panels: {
           type: 'array',
-          description: 'Panel configs. Each: { title, visualization, queries: [{refId, expr, legendFormat?, instant?}], unit?, ... }. See Panel Schema Reference.',
+          description: 'Panel configs. Each: { title, visualization, queries: [{refId, expr, datasourceId, legendFormat?, instant?}], unit?, ... }. datasourceId is REQUIRED per query.',
           items: { type: 'object' },
         },
       },
@@ -551,11 +614,24 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
   'ask_user': {
     name: 'ask_user',
     description:
-      'Ask the user a clarifying question. Ends the conversation. Use VERY sparingly — only when the request is genuinely ambiguous (e.g. multiple datasources of the same kind and intent unclear).',
+      'Ask the user a clarifying question. Ends the conversation. Use VERY sparingly — only when the request is genuinely ambiguous (e.g. multiple datasources of the same kind and intent unclear). For one-of-N decisions (e.g. "Which datasource?"), pass `options`. The user\'s reply will be the option id, prefixed with `option:` so you can distinguish it from free text.',
     input_schema: {
       type: 'object',
       properties: {
         question: { type: 'string', description: 'The question to ask the user' },
+        options: {
+          type: 'array',
+          description: 'When the answer is one-of-N, provide options. The chat UI renders these as buttons; clicking submits the option id back to you. Omit options for free-text questions.',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', description: 'Stable id you will receive back as the user reply' },
+              label: { type: 'string', description: 'Button text shown to the user' },
+              hint: { type: 'string', description: 'Optional secondary text under the button' },
+            },
+            required: ['id', 'label'],
+          },
+        },
       },
       required: ['question'],
     },

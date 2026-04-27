@@ -392,6 +392,29 @@ export class ReActLoop {
           const text = action === 'ask_user'
             ? (step.message ?? pickString(args.question) ?? pickString(args.message) ?? pickString(args.text) ?? '')
             : (step.message ?? pickString(args.message) ?? pickString(args.text) ?? pickString(args.content) ?? '')
+
+          // Structured ask_user: when the LLM passed `options`, surface them
+          // to the chat UI as clickable buttons via a dedicated SSE event.
+          // Free-text ask_user falls through to the legacy `reply` path so the
+          // existing chat-message rendering keeps working unchanged.
+          if (action === 'ask_user' && Array.isArray(args.options) && args.options.length > 0) {
+            const options = (args.options as unknown[])
+              .map((o) => {
+                if (!o || typeof o !== 'object') return null
+                const obj = o as Record<string, unknown>
+                const id = pickString(obj.id)
+                const label = pickString(obj.label)
+                if (!id || !label) return null
+                const hint = pickString(obj.hint)
+                return hint ? { id, label, hint } : { id, label }
+              })
+              .filter((o): o is { id: string; label: string; hint?: string } => o !== null)
+            if (options.length > 0) {
+              this.deps.sendEvent({ type: 'ask_user', question: text, options })
+              return text
+            }
+          }
+
           if (text) {
             this.deps.sendEvent({ type: 'reply', content: text })
           }

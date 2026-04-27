@@ -162,6 +162,21 @@ export class DatasourceRepository implements IDatasourceRepository {
         updated_by  = ${merged.updatedBy}
       WHERE id = ${id}
     `);
+    // Single-default invariant per (org, type): when this row was just
+    // promoted to default, demote every sibling of the same type in the
+    // same org. Settings UI's "set as default" star relies on this — without
+    // it two rows could both render as default and the resolver fallback
+    // would still be ambiguous.
+    if (merged.isDefault && !existing.isDefault) {
+      this.db.run(sql`
+        UPDATE instance_datasources
+        SET is_default = 0
+        WHERE org_id = ${existing.orgId}
+          AND type   = ${merged.type}
+          AND id    != ${id}
+          AND is_default = 1
+      `);
+    }
     return this.get(id);
   }
 

@@ -19,13 +19,17 @@ export async function handleDashboardCreate(
   const title = String(args.title ?? 'Untitled Dashboard');
   const description = String(args.description ?? '');
   const prompt = String(args.prompt ?? args.description ?? '');
+  const datasourceId = typeof args.datasourceId === 'string' ? args.datasourceId.trim() : '';
+  if (!datasourceId) {
+    return 'Error: "datasourceId" is required. Call datasources.list (or datasources.suggest) first to choose the primary datasource for this dashboard.';
+  }
 
   let createdId = '';
   let observationText = '';
   await withToolEventBoundary(
     ctx.sendEvent,
     'dashboard.create',
-    { title },
+    { title, datasourceId },
     `Creating dashboard: "${title}"`,
     async () => {
       // Scope the new dashboard to the caller's org; the detail route enforces
@@ -37,7 +41,10 @@ export async function handleDashboardCreate(
           description,
           prompt,
           userId: 'agent',
-          datasourceIds: [],
+          // Stored as an array (dashboards may bind multiple sources for cross-
+          // env comparison panels); the first id is the dashboard's primary
+          // and acts as the fallback for any query that omits its own ds id.
+          datasourceIds: [datasourceId],
           sessionId: ctx.sessionId,
         }),
       );
@@ -61,6 +68,97 @@ export async function handleDashboardCreate(
 }
 
 // ---------------------------------------------------------------------------
+// Dashboard clone — duplicate a dashboard onto a different datasource
+// ---------------------------------------------------------------------------
+
+export async function handleDashboardClone(
+  ctx: ActionContext,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const sourceDashboardId = String(args.sourceDashboardId ?? '');
+  if (!sourceDashboardId) return 'Error: "sourceDashboardId" is required.';
+  const targetDatasourceId = String(args.targetDatasourceId ?? '');
+  if (!targetDatasourceId) return 'Error: "targetDatasourceId" is required.';
+
+  if (!ctx.store.create) {
+    return 'Error: dashboard store does not support creation.';
+  }
+  if (!ctx.store.findById) {
+    return 'Error: dashboard store does not support findById.';
+  }
+
+  return withToolEventBoundary(
+    ctx.sendEvent,
+    'dashboard.clone',
+    { sourceDashboardId, targetDatasourceId },
+    `Cloning dashboard ${sourceDashboardId} → ${targetDatasourceId}`,
+    async () => {
+      const source = await ctx.store.findById(sourceDashboardId);
+      if (!source) {
+        return `Error: source dashboard ${sourceDashboardId} not found.`;
+      }
+
+      const newTitle =
+        typeof args.newTitle === 'string' && args.newTitle.trim()
+          ? args.newTitle.trim()
+          : `${source.title} (cloned)`;
+
+      // Deep-clone panels and rewrite every query's datasourceId. New panel
+      // ids are assigned so the clone has a fresh identity (otherwise panel
+      // mutations on the new dashboard could collide with the source's ids
+      // through any id-keyed cache).
+      type CommonPanel = import('@agentic-obs/common').PanelConfig;
+      const clonedPanels: CommonPanel[] = source.panels.map((p) => ({
+        ...p,
+        id: randomUUID(),
+        queries: (p.queries ?? []).map((q) => ({
+          ...q,
+          datasourceId: targetDatasourceId,
+        })),
+      }));
+
+      const created = await ctx.store.create!(
+        withWorkspaceScope(ctx.identity, {
+          title: newTitle,
+          description: source.description,
+          prompt: source.prompt,
+          userId: 'agent',
+          datasourceIds: [targetDatasourceId],
+          sessionId: ctx.sessionId,
+        }),
+      );
+
+      // Persist panels + variables onto the freshly created shell. Variables
+      // copy over verbatim — they carry no per-datasource state on their own.
+      await ctx.store.updatePanels(created.id, clonedPanels);
+      await ctx.store.updateVariables(created.id, source.variables ?? []);
+      if (ctx.store.updateStatus) {
+        try {
+          await ctx.store.updateStatus(created.id, 'ready');
+        } catch {
+          /* non-fatal — leaves badge at 'generating' until next status write */
+        }
+      }
+
+      ctx.setNavigateTo(`/dashboards/${created.id}`);
+
+      const observation = `Cloned "${source.title}" (${clonedPanels.length} panel${clonedPanels.length === 1 ? '' : 's'}) to datasource ${targetDatasourceId}. New dashboard id: ${created.id}.`;
+      ctx.emitAgentEvent(
+        ctx.makeAgentEvent('agent.tool_completed', {
+          tool: 'dashboard.clone',
+          sourceDashboardId,
+          newDashboardId: created.id,
+          targetDatasourceId,
+          panelCount: clonedPanels.length,
+          summary: observation,
+        }),
+      );
+      return observation;
+    },
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard mutation primitives — model constructs panel configs directly
 // ---------------------------------------------------------------------------
 
@@ -74,6 +172,24 @@ export async function handleDashboardAddPanels(
   const panels = args.panels as Array<Record<string, unknown>> | undefined;
   if (!panels || !Array.isArray(panels) || panels.length === 0) {
     return 'Error: "panels" array is required with at least one panel config.';
+  }
+
+  // Strict per-query datasourceId contract: every query on every panel must
+  // carry an explicit datasourceId before we'll persist. No silent inheritance,
+  // no fallback to the dashboard primary, no resolver guessing — if the agent
+  // forgot, we error out and tell it which query was incomplete so the next
+  // tool turn fixes it. Saved panels are guaranteed self-describing; the
+  // renderer never sees `datasourceId: undefined`.
+  const missing: string[] = [];
+  panels.forEach((p, i) => {
+    const qs = Array.isArray(p.queries) ? p.queries as Array<Record<string, unknown>> : [];
+    qs.forEach((q, j) => {
+      const ds = typeof q.datasourceId === 'string' ? q.datasourceId.trim() : '';
+      if (!ds) missing.push(`panels[${i}].queries[${j}] (refId=${q.refId ?? '?'})`);
+    });
+  });
+  if (missing.length > 0) {
+    return `Error: every query needs a datasourceId. Missing on: ${missing.join(', ')}. Pass datasourceId per query — the dashboard primary is NOT inherited automatically. For a single-source dashboard, set every query to the dashboard's primary; for compare panels, set per query.`;
   }
 
   ctx.sendEvent({ type: 'tool_call', tool: 'dashboard.add_panels', args: { count: panels.length }, displayText: `Adding ${panels.length} panel(s)` });
@@ -95,6 +211,8 @@ export async function handleDashboardAddPanels(
       expr: String(q.expr ?? ''),
       legendFormat: typeof q.legendFormat === 'string' ? q.legendFormat : undefined,
       instant: q.instant === true,
+      // Already validated above — every query carries a non-empty datasourceId.
+      datasourceId: (q.datasourceId as string).trim(),
     })) : [],
     row: 0,
     col: 0,
@@ -226,6 +344,20 @@ export async function handleDashboardModifyPanel(
   if (!panelId) return 'Error: "panelId" is required.';
   const patch = { ...args } as Record<string, unknown>;
   delete patch.panelId;
+
+  // If the patch replaces the queries list, every replacement query must
+  // carry datasourceId — same strict contract as add_panels. Patches that
+  // don't touch queries pass through untouched.
+  if (Array.isArray(patch.queries)) {
+    const missing: string[] = [];
+    (patch.queries as Array<Record<string, unknown>>).forEach((q, j) => {
+      const ds = typeof q.datasourceId === 'string' ? q.datasourceId.trim() : '';
+      if (!ds) missing.push(`queries[${j}] (refId=${q.refId ?? '?'})`);
+    });
+    if (missing.length > 0) {
+      return `Error: every query needs a datasourceId. Missing on: ${missing.join(', ')}. Pass datasourceId per query — not inherited.`;
+    }
+  }
 
   ctx.sendEvent({ type: 'tool_call', tool: 'dashboard.modify_panel', args: { panelId, patch }, displayText: `Modifying panel ${panelId}` });
   await ctx.actionExecutor.execute(dashboardId, [{ type: 'modify_panel', panelId, patch }]);

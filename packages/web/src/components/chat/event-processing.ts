@@ -25,7 +25,7 @@ export function groupEvents(events: ChatEvent[]): Block[] {
   };
 
   for (const evt of events) {
-    if (evt.kind === 'message' || evt.kind === 'error') {
+    if (evt.kind === 'message' || evt.kind === 'error' || evt.kind === 'ask_user' || evt.kind === 'ds_choice') {
       flushAgent();
       blocks.push({ type: 'message', event: evt });
     } else if (evt.kind === 'done') {
@@ -87,6 +87,9 @@ export const USER_VISIBLE_TOOLS = new Set([
   'investigate_analyze',
   // Data source discovery
   'datasources.list',
+  'datasources.suggest',
+  'datasources.pin',
+  'datasources.unpin',
   // Metrics primitives (runtime-first toolized access, source-agnostic)
   'metrics.query',
   'metrics.range_query',
@@ -105,6 +108,7 @@ export const USER_VISIBLE_TOOLS = new Set([
   // Dashboard mutation primitives
   'dashboard.create',
   'dashboard.list',
+  'dashboard.clone',
   'dashboard.add_panels',
   'dashboard.remove_panels',
   'dashboard.modify_panel',
@@ -133,7 +137,12 @@ export const USER_VISIBLE_TOOLS = new Set([
  */
 export function phaseOf(tool: string): string {
   // Data source discovery
-  if (tool === 'datasources.list') return 'discover';
+  if (
+    tool === 'datasources.list' ||
+    tool === 'datasources.suggest' ||
+    tool === 'datasources.pin' ||
+    tool === 'datasources.unpin'
+  ) return 'discover';
 
   // Metrics primitives — group by activity type (mirrors old prometheus mapping 1:1)
   if (tool === 'metrics.metric_names' || tool === 'metrics.series' || tool === 'metrics.metadata') return 'discover';
@@ -192,6 +201,9 @@ export const TOOL_LABELS: Record<string, string> = {
   critic: 'Reviewing panels',
   // Data source discovery
   'datasources.list': 'Listing data sources',
+  'datasources.suggest': 'Choosing data source',
+  'datasources.pin': 'Pinning data source',
+  'datasources.unpin': 'Unpinning data source',
   // Metrics primitives (source-agnostic)
   'metrics.query': 'Querying metrics',
   'metrics.range_query': 'Range-querying metrics',
@@ -210,6 +222,7 @@ export const TOOL_LABELS: Record<string, string> = {
   // Dashboard mutation primitives
   'dashboard.create': 'Creating dashboard',
   'dashboard.list': 'Listing dashboards',
+  'dashboard.clone': 'Cloning dashboard',
   'dashboard.add_panels': 'Adding panels',
   'dashboard.remove_panels': 'Removing panels',
   'dashboard.modify_panel': 'Modifying panel',

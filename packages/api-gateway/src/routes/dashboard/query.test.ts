@@ -109,6 +109,34 @@ describe('query proxy permissions', () => {
     expect(seen).toEqual([]);
   });
 
+  it('substitutes ${datasource} placeholders against variableValues before resolving', async () => {
+    const seen: string[] = [];
+    const prodDs: InstanceDatasource = { ...baseDatasource, id: 'prom-prod', name: 'prod' };
+    const stagingDs: InstanceDatasource = { ...baseDatasource, id: 'prom-staging', name: 'staging', isDefault: false };
+    // Stub fetch so the route's actual Prometheus call is intercepted — the
+    // assertion is on which datasource was resolved, not on a real backend.
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({}) } as unknown as Response);
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const res = await request(appWith({
+      datasources: [prodDs, stagingDs],
+      seenEvaluators: seen,
+    }))
+      .post('/api/query/instant')
+      .send({
+        datasourceId: '${datasource}',
+        query: 'up',
+        variableValues: { datasource: 'prom-prod' },
+      });
+
+    // The placeholder resolved to prom-prod, so the gate evaluated against
+    // that scope and the route attempted a fetch against the prod base url.
+    expect(seen).toContain('datasources:query on datasources:uid:prom-prod');
+    expect(res.status).toBe(200);
+    const fetchedUrl = (fetchSpy.mock.calls[0]?.[0] as string | URL | undefined)?.toString() ?? '';
+    expect(fetchedUrl).toContain('prom.example');
+  });
+
   it('does not treat datasources without org ownership as shared', async () => {
     const seen: string[] = [];
     const res = await request(appWith({

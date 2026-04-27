@@ -16,6 +16,20 @@ interface CacheEntry<T = unknown> {
   timestamp: number;
 }
 
+/**
+ * apiClient resolves with `{ data, error? }` envelopes — non-OK HTTP doesn't
+ * throw. We refuse to cache envelopes carrying an error so a transient 429
+ * doesn't get pinned for the rest of the panel's life.
+ */
+function isErrorResult(result: unknown): boolean {
+  return (
+    typeof result === 'object' &&
+    result !== null &&
+    'error' in result &&
+    (result as { error?: unknown }).error != null
+  );
+}
+
 type QueueItem<T> = {
   key: string;
   execute: () => Promise<T>;
@@ -109,7 +123,14 @@ export class QueryScheduler {
       this.inflight.set(key, promise);
       promise
         .then((result) => {
-          this.cache.set(key, { data: result, timestamp: Date.now() });
+          // Only cache successful responses. apiClient resolves on HTTP errors
+          // (429, 500, …) with `{ data: null, error }` instead of throwing —
+          // caching that envelope poisons the cache, every retry hits the
+          // cached error and the panel spins forever (see the "无 fallback"
+          // session: original bug surfaced as 错误率 stat panel after a 429).
+          if (!isErrorResult(result)) {
+            this.cache.set(key, { data: result, timestamp: Date.now() });
+          }
         })
         // Errors surface via the original `promise` returned to the caller,
         // so swallow them here just to mark the derived chain as handled.
@@ -145,7 +166,9 @@ export class QueryScheduler {
     this.inflight.set(key, promise);
     promise
       .then((result) => {
-        this.cache.set(key, { data: result, timestamp: Date.now() });
+        if (!isErrorResult(result)) {
+          this.cache.set(key, { data: result, timestamp: Date.now() });
+        }
       })
       .catch(() => {})
       .finally(() => {

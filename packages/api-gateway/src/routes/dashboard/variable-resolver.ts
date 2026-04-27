@@ -27,7 +27,7 @@ export class VariableResolver {
     }
 
     if (variable.type === 'datasource') {
-      return this.resolveDatasources()
+      return this.resolveDatasources(variable.query)
     }
 
     return []
@@ -101,9 +101,38 @@ export class VariableResolver {
     )
   }
 
-  private async resolveDatasources(): Promise<string[]> {
+  /**
+   * Datasource variable: return the ids of every metrics-style datasource.
+   * The ids are what panels substitute into `${datasource}` placeholders, so
+   * returning ids (not labels) keeps the substitution path single-step. The
+   * UI is responsible for resolving id → human label for the dropdown.
+   *
+   * `filterPattern` is the variable's `query` field. When set to a regex
+   * (delimited by `/.../`), only datasource names matching the pattern are
+   * returned — useful for "$prom_env" filtered to `/^prom-/`.
+   */
+  private async resolveDatasources(filterPattern?: string): Promise<string[]> {
     if (!this.setupConfig) return []
     const datasources = await this.setupConfig.listDatasources()
-    return datasources.map((d) => d.label ?? d.name ?? d.id).filter(Boolean)
+    const metrics = datasources.filter(
+      (d) => d.type === 'prometheus' || d.type === 'victoria-metrics',
+    )
+
+    let candidates = metrics
+    if (filterPattern && filterPattern.startsWith('/') && filterPattern.lastIndexOf('/') > 0) {
+      const last = filterPattern.lastIndexOf('/')
+      const body = filterPattern.slice(1, last)
+      const flags = filterPattern.slice(last + 1)
+      try {
+        const re = new RegExp(body, flags)
+        candidates = metrics.filter((d) => re.test(d.name) || (d.label ? re.test(d.label) : false))
+      } catch {
+        // Bad regex — fall back to all metrics datasources rather than
+        // emptying the dropdown silently.
+        candidates = metrics
+      }
+    }
+
+    return candidates.map((d) => d.id).filter(Boolean)
   }
 }

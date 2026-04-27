@@ -1,12 +1,14 @@
 # Investigations
 
-Ask OpenObs to figure out what's wrong. The investigation agent collects evidence, evaluates hypotheses, and writes a structured report you can share with the rest of the team.
+Ask OpenObs to figure out what's wrong. The investigation agent collects evidence, evaluates hypotheses, checks configured telemetry and Kubernetes context, and writes a structured report you can share with the rest of the team.
 
 ## What you can do
 
 - **Trigger from a symptom** — "Investigate the spike in 5xx errors at 14:30 UTC" or "Why is checkout latency up?"
 - **Auto-correlate with deployment events** — the agent pulls `changes.list_recent` to check whether anything shipped near the incident window.
-- **Multi-signal evidence** — agent queries metrics, logs, and recent changes; cites every datapoint in the report.
+- **Multi-signal evidence** — agent queries metrics, logs, recent changes, and Kubernetes state when configured; cites every datapoint in the report.
+- **Recommend fixes** — if the likely cause is environmental, the agent can propose a cluster remediation.
+- **Approval-gated remediation** — mutating Kubernetes commands become approval requests before execution.
 - **Read the report** — sectioned write-up: Summary → Symptoms → Hypotheses → Evidence → Conclusion → Recommended actions.
 - **Continue the conversation** — ask follow-up questions inside the investigation thread; the agent has the full evidence loaded.
 
@@ -24,8 +26,9 @@ The agent runs `investigation.create` with a title + description, then iterates:
 2. `metrics.label_values` to find related dimensions (handler, region, instance)
 3. `logs.query` for error patterns in the affected window
 4. `changes.list_recent` to look for deploys / config changes
-5. `investigation.add_section` repeatedly as evidence accumulates
-6. `investigation.complete` when the analysis converges
+5. Kubernetes inspection tools to check pods, events, rollouts, and resource pressure when a cluster connector is configured
+6. `investigation.add_section` repeatedly as evidence accumulates
+7. `investigation.complete` when the analysis converges
 
 ### Read the report
 
@@ -52,11 +55,12 @@ Sidebar → Investigations. Filter by date, status, or tag. `investigation.list`
 |---|---|
 | `Why did the alert "high-error-rate" fire at 03:14?` | Pulls alert evaluation logs, queries the alert's metric, correlates with change events |
 | `What's causing the slow queries on the API last hour?` | Range queries on duration histogram, log search for slow-query patterns, deploy diff |
+| `Why are pods restarting after the deploy?` | Checks restart metrics, pod events, rollout status, logs, and resource limits |
 | `Compare today's traffic with last week's same time` | Range queries with offset, deltas plotted per handler |
 
 ## Limits
 
-- The investigation agent has the same `allowedTools` as the orchestrator plus investigation-specific ones. Read-only by default — investigations don't mutate dashboards or alerts.
+- The investigation agent has the same `allowedTools` as the orchestrator plus investigation-specific ones. Read-only inspection is allowed when permitted; mutating infrastructure actions require approval.
 - Time windows default to ±2h around the prompt's time reference. Specify explicitly for longer ranges: "investigate the last 24 hours of error rate spikes".
 - Logs queries are limited to your datasource's native limits (Loki: 5000 lines per query by default).
 - The agent stops when it has a confident conclusion or after a token budget; you can always ask "what else could it be?" to push further.
@@ -64,5 +68,5 @@ Sidebar → Investigations. Filter by date, status, or tag. `investigation.list`
 ## Related
 
 - [Datasources](/features/datasources) — connecting metrics + logs backends
-- [Alert rules](/features/alerts) — auto-trigger an investigation when an alert fires (planned)
+- [Alert rules](/features/alerts) — start an investigation from a firing alert; automatic investigation is the next product loop
 - [Permissions](/auth#built-in-roles-permission-summary) — `investigations:read` and `chat:use` for viewer access

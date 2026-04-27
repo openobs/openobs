@@ -211,7 +211,23 @@ export default function DashboardWorkspace() {
     setVariables((prev) =>
       prev.map((v) => (v.name === name ? { ...v, current: value } : v))
     );
+    // Datasource swaps invalidate every panel's query cache key, so wipe the
+    // shared cache and broadcast a refresh — without this, panels keep
+    // showing data from the previous backend until their next interval tick.
+    queryScheduler.clearCache();
+    window.dispatchEvent(new CustomEvent('dashboard:refresh-panels'));
   }, [setVariables]);
+
+  // Resolved variable values for `${name}` substitution in panel queries.
+  // Today only `$datasource` flows through here, but the map shape lets us
+  // add label/tag substitution later without touching every panel.
+  const variableValues = React.useMemo<Record<string, string>>(() => {
+    const out: Record<string, string> = {};
+    for (const v of variables) {
+      if (v.current) out[v.name] = v.current;
+    }
+    return out;
+  }, [variables]);
 
   // Title editing
 
@@ -524,6 +540,7 @@ export default function DashboardWorkspace() {
                 editMode={editMode}
                 isGenerating={isGenerating}
                 timeRange={timeRange}
+                variableValues={variableValues}
                 // When the user lacks write permission we pass `undefined`
                 // for the per-panel edit/delete callbacks. DashboardPanelCard
                 // conditionally renders the pencil/trash buttons on the

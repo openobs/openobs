@@ -64,6 +64,8 @@ export interface OrchestratorDeps {
   adapters: AdapterRegistry
   webSearchAdapter?: IWebSearchAdapter
   allDatasources?: DatasourceConfig[]
+  /** Live per-session datasource pin bag (see chat-service for lifecycle). */
+  sessionDatasourcePins?: Record<string, string>
   opsCommandRunner?: OpsCommandRunner
   opsConnectors?: OpsConnectorConfig[]
   sendEvent: (event: DashboardSseEvent) => void

@@ -31,8 +31,48 @@ export type ChatEventKind =
   | 'panel_modified'
   | 'variable_added'
   | 'investigation_report'
+  | 'ask_user'
+  | 'ds_choice'
   | 'done'
   | 'error';
+
+export interface AskUserOption {
+  id: string;
+  label: string;
+  hint?: string;
+}
+
+export interface DatasourceChoiceAlternative {
+  id: string;
+  name: string;
+  environment?: string;
+  cluster?: string;
+}
+
+/**
+ * Parse an SSE `ask_user` payload into a strongly-typed option list.
+ * Exported for unit tests so the parser can be exercised without mounting
+ * the hook. Drops malformed entries (missing id/label, wrong types) so the
+ * UI never has to render half-built buttons.
+ */
+export function parseAskUserPayload(
+  payload: Record<string, unknown>,
+): { question: string; options: AskUserOption[] } {
+  const question = typeof payload.question === 'string' ? payload.question : '';
+  const rawOptions = Array.isArray(payload.options) ? payload.options : [];
+  const options: AskUserOption[] = rawOptions
+    .map((o) => {
+      if (!o || typeof o !== 'object') return null;
+      const obj = o as Record<string, unknown>;
+      const id = typeof obj.id === 'string' ? obj.id : '';
+      const label = typeof obj.label === 'string' ? obj.label : '';
+      if (!id || !label) return null;
+      const hint = typeof obj.hint === 'string' ? obj.hint : undefined;
+      return hint ? { id, label, hint } : { id, label };
+    })
+    .filter((o): o is AskUserOption => o !== null);
+  return { question, options };
+}
 
 export interface InvestigationReportSection {
   type: 'text' | 'evidence';
@@ -61,6 +101,15 @@ export interface ChatEvent {
   variable?: DashboardVariable;
   // For investigation report
   investigationReport?: InvestigationReport;
+  // For "ask_user" — the question + clickable option buttons
+  question?: string;
+  options?: AskUserOption[];
+  // For "ds_choice" — agent's inline narration of which datasource it picked
+  chosenId?: string;
+  chosenName?: string;
+  chooseReason?: string;
+  confidence?: 'high' | 'medium' | 'low';
+  alternatives?: DatasourceChoiceAlternative[];
 }
 
 interface UseDashboardChatResult {
@@ -301,6 +350,36 @@ export function useDashboardChat(
           };
           setMessages((prev) => [...prev, aiMsg]);
           appendEvent({ id, kind: 'message', message: aiMsg });
+          break;
+        }
+
+        case 'ask_user': {
+          const { question, options } = parseAskUserPayload(parsed);
+          appendEvent({ id, kind: 'ask_user', question, options });
+          break;
+        }
+
+        case 'ds_choice': {
+          const chosenId = typeof parsed.chosenId === 'string' ? parsed.chosenId : '';
+          const chosenName = typeof parsed.name === 'string' ? parsed.name : '';
+          const chooseReason = typeof parsed.reason === 'string' ? parsed.reason : '';
+          const confidence = (parsed.confidence === 'high' || parsed.confidence === 'medium' || parsed.confidence === 'low')
+            ? parsed.confidence
+            : 'low';
+          const rawAlts = Array.isArray(parsed.alternatives) ? parsed.alternatives : [];
+          const alternatives: DatasourceChoiceAlternative[] = rawAlts
+            .map((a) => {
+              if (!a || typeof a !== 'object') return null;
+              const obj = a as Record<string, unknown>;
+              const aid = typeof obj.id === 'string' ? obj.id : '';
+              const name = typeof obj.name === 'string' ? obj.name : '';
+              if (!aid || !name) return null;
+              const env = typeof obj.environment === 'string' ? obj.environment : undefined;
+              const cluster = typeof obj.cluster === 'string' ? obj.cluster : undefined;
+              return { id: aid, name, ...(env ? { environment: env } : {}), ...(cluster ? { cluster } : {}) };
+            })
+            .filter((a): a is DatasourceChoiceAlternative => a !== null);
+          appendEvent({ id, kind: 'ds_choice', chosenId, chosenName, chooseReason, confidence, alternatives });
           break;
         }
 

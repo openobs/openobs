@@ -7,11 +7,11 @@ Complete list of OpenObs authentication and authorization endpoints.
 - Base path: `/api/`
 - Auth: cookie-based (`openobs_session`) OR bearer token (`Authorization:
   Bearer openobs_sa_...` / `Authorization: Bearer openobs_pat_...`) OR
-  `X-Api-Key: <token>` header.
-- Org context: `X-Openobs-Org-Id: <orgUid>` header (optional; defaults to
+  `X-Api-Key: TOKEN` header.
+- Org context: `X-Openobs-Org-Id: ORG_UID` header (optional; defaults to
   the user's default org).
-- Errors: `{ "message": "<string>" }` with appropriate HTTP status.
-- List pagination: `?perpage=<N>&page=<1-based>`. Responses include
+- Errors: `{ "message": "string" }` with appropriate HTTP status.
+- List pagination: `?perpage=N&page=1`. Responses include
   `{ totalCount, ...items }` or equivalent.
 
 ## Legend
@@ -33,7 +33,7 @@ Complete list of OpenObs authentication and authorization endpoints.
 
 Local password login.
 
-**Body**: `{ "user": "<email or login>", "password": "<string>" }`
+**Body**: `{ "user": "email or login", "password": "string" }`
 **200**: `{ "message": "Logged in", "redirectUrl": "/..." }` + `Set-Cookie: openobs_session=...`
 **401**: `{ "message": "invalid username or password" }`
 **429**: `{ "message": "too many login attempts" }`
@@ -42,13 +42,13 @@ Local password login.
 
 Lists enabled authentication methods.
 
-**200**: `[{ "id": "local" | "github" | "google" | "generic" | "saml" | "ldap", "name": "...", "enabled": boolean, "url": "/api/login/<id>" }]`
+**200**: `[{ "id": "local" | "github" | "google" | "generic" | "saml" | "ldap", "name": "...", "enabled": boolean, "url": "/api/login/ID" }]`
 
 ### 🔓 `GET /api/login/:provider`
 
 Initiates OAuth flow. Redirects to the provider's authorize URL.
 
-### 🔓 `GET /api/login/:provider/callback?code=&state=`
+### 🔓 `GET /api/login/:provider/callback`
 
 OAuth callback. Exchanges code, creates/links user, issues session cookie,
 redirects to root.
@@ -150,7 +150,7 @@ Personal access token lifecycle.
 
 ## Organizations
 
-### ⭐ `GET /api/orgs?query=&perpage=&page=`
+### ⭐ `GET /api/orgs`
 
 List all orgs.
 
@@ -175,7 +175,7 @@ Update org name / address / billing email.
 
 Delete org. Cascades to all org-scoped resources.
 
-### 🏢 `GET /api/orgs/:id/users?query=&perpage=&page=`
+### 🏢 `GET /api/orgs/:id/users`
 
 List org members.
 
@@ -203,7 +203,7 @@ Remove user from org.
 
 Get / update the active org.
 
-### 🍪 `GET /api/org/users?query=&perpage=&page=`
+### 🍪 `GET /api/org/users`
 
 List users in current org.
 
@@ -223,7 +223,7 @@ Org preferences.
 
 ## Admin (server admin)
 
-### ⭐ `GET /api/admin/users?query=&perpage=&page=&filter=`
+### ⭐ `GET /api/admin/users`
 
 List all users across all orgs.
 
@@ -265,7 +265,7 @@ Revoke all of the user's sessions.
 
 Inspect / revoke specific user sessions.
 
-### ⭐ `GET /api/admin/audit-log?from=&to=&action=&actorId=&outcome=&page=&perpage=`
+### ⭐ `GET /api/admin/audit-log`
 
 Query the audit log.
 
@@ -279,7 +279,7 @@ Server stats and runtime settings.
 
 ## Teams
 
-### 📝 `GET /api/teams/search?query=&perpage=&page=`
+### 📝 `GET /api/teams/search`
 
 List teams in current org. Permission: `teams:read`.
 
@@ -292,7 +292,7 @@ Create team. Permission: `teams:create`.
 ### 📝 `GET /api/teams/:id` / `PUT /api/teams/:id` / `DELETE /api/teams/:id`
 
 Get / update / delete. Permissions: `teams:read` / `:write` / `:delete`
-with scope `teams:id:<id>`.
+with scope `teams:id:ID`.
 
 ### 📝 `GET /api/teams/:id/members` / `POST /api/teams/:id/members`
 
@@ -310,7 +310,7 @@ Team preferences (home dashboard, timezone, theme).
 
 ## Service accounts
 
-### 📝 `GET /api/serviceaccounts/search?query=&perpage=&page=&disabled=`
+### 📝 `GET /api/serviceaccounts/search`
 
 List SAs in current org.
 
@@ -351,13 +351,13 @@ Bulk-migrate legacy `API_KEYS` env-var tokens to SAs. Idempotent.
 ### 📝 `GET /api/auth/keys` / `POST /api/auth/keys` / `DELETE /api/auth/keys/:id`
 
 Pre-SA-era API keys. New code should use service accounts instead. Thin
-shim: POST auto-provisions a hidden "legacy-<name>" SA.
+shim: POST auto-provisions a hidden `legacy-NAME` SA.
 
 ---
 
 ## Access control (RBAC)
 
-### 📝 `GET /api/access-control/roles?includeHidden=&delegatable=`
+### 📝 `GET /api/access-control/roles`
 
 List roles in current org + global.
 
@@ -416,7 +416,7 @@ Re-run built-in + fixed role seeding for the current org. Idempotent.
 
 ## Folders
 
-### 📝 `GET /api/folders?parentUid=&limit=&page=`
+### 📝 `GET /api/folders`
 
 List root folders or children of a parent.
 
@@ -567,10 +567,10 @@ interface AuditLogEntry {
 | Token | Format | Where to use |
 |---|---|---|
 | Session (cookie) | opaque, HttpOnly, 30d max | Browser-driven calls |
-| SA token | `openobs_sa_<base64url>` | Bot / script calls |
-| PAT | `openobs_pat_<base64url>` | CLI / personal scripts |
+| SA token | `openobs_sa_BASE64URL` | Bot / script calls |
+| PAT | `openobs_pat_BASE64URL` | CLI / personal scripts |
 
-All three authenticate via `Authorization: Bearer <token>` OR `X-Api-Key: <token>`; session cookie is also accepted automatically when present.
+All three authenticate via `Authorization: Bearer TOKEN` OR `X-Api-Key: TOKEN`; session cookie is also accepted automatically when present.
 
 ---
 

@@ -95,6 +95,87 @@ describe('ReActLoop', () => {
     })
   })
 
+  it('emits an ask_user event when ask_user carries an options array', async () => {
+    const sendEvent = vi.fn()
+    const gateway = {
+      complete: vi.fn().mockResolvedValue({
+        content: '',
+        toolCalls: [
+          {
+            id: 'call_1',
+            name: 'ask_user',
+            input: {
+              question: 'Which datasource?',
+              options: [
+                { id: 'prom-prod', label: 'Prometheus prod', hint: 'cluster=prod' },
+                { id: 'prom-stg', label: 'Prometheus staging' },
+              ],
+            },
+          },
+        ],
+      }),
+    } as any
+
+    const loop = new ReActLoop({
+      gateway,
+      model: 'test-model',
+      sendEvent,
+      identity: makeTestIdentity(),
+      accessControl: new AccessControlStub(),
+      allowedTools: ALLOWED_TOOLS,
+    })
+
+    await loop.runLoop('system', 'I have two prom datasources', vi.fn())
+
+    expect(sendEvent).toHaveBeenCalledWith({
+      type: 'ask_user',
+      question: 'Which datasource?',
+      options: [
+        { id: 'prom-prod', label: 'Prometheus prod', hint: 'cluster=prod' },
+        { id: 'prom-stg', label: 'Prometheus staging' },
+      ],
+    })
+    // Free-text reply event should NOT have been emitted on the structured path.
+    expect(sendEvent).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'reply' }),
+    )
+  })
+
+  it('falls back to a reply event when ask_user has no options (free-text)', async () => {
+    const sendEvent = vi.fn()
+    const gateway = {
+      complete: vi.fn().mockResolvedValue({
+        content: '',
+        toolCalls: [
+          {
+            id: 'call_1',
+            name: 'ask_user',
+            input: { question: 'What time range should I use?' },
+          },
+        ],
+      }),
+    } as any
+
+    const loop = new ReActLoop({
+      gateway,
+      model: 'test-model',
+      sendEvent,
+      identity: makeTestIdentity(),
+      accessControl: new AccessControlStub(),
+      allowedTools: ALLOWED_TOOLS,
+    })
+
+    await loop.runLoop('system', 'help', vi.fn())
+
+    expect(sendEvent).toHaveBeenCalledWith({
+      type: 'reply',
+      content: 'What time range should I use?',
+    })
+    expect(sendEvent).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'ask_user' }),
+    )
+  })
+
   it('returns a misconfiguration error when the model emits neither tool call nor text', async () => {
     const sendEvent = vi.fn()
     const gateway = {

@@ -14,6 +14,7 @@ export type { ActionContext } from './handlers/_context.js';
 export {
   handleDashboardCreate,
   handleDashboardList,
+  handleDashboardClone,
   handleDashboardAddPanels,
   handleDashboardRemovePanels,
   handleDashboardModifyPanel,
@@ -41,6 +42,9 @@ export {
   handleLogsLabelValues,
   handleChangesListRecent,
   handleDatasourcesList,
+  handleDatasourcesSuggest,
+  handleDatasourcesPin,
+  handleDatasourcesUnpin,
   handleWebSearch,
   handleNavigate,
   handleFolderCreate,
