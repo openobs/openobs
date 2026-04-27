@@ -54,7 +54,12 @@ export {
 } from './logs.js';
 
 export { handleChangesListRecent } from './changes.js';
-export { handleDatasourcesList } from './datasources.js';
+export {
+  handleDatasourcesList,
+  handleDatasourcesSuggest,
+  handleDatasourcesPin,
+  handleDatasourcesUnpin,
+} from './datasources.js';
 export { handleWebSearch } from './web.js';
 export { handleNavigate } from './navigation.js';
 export { handleFolderCreate, handleFolderList } from './folder.js';

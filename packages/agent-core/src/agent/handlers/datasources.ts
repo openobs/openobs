@@ -1,5 +1,7 @@
 import type { ActionContext } from './_context.js';
-import type { SignalType } from '../../adapters/index.js';
+import type { SignalType, DatasourceInfo } from '../../adapters/index.js';
+import type { DatasourceConfig } from '../types.js';
+import { withToolEventBoundary } from './_shared.js';
 
 // ---------------------------------------------------------------------------
 // Datasource discovery (always allowed — required before metrics/logs/changes)
@@ -42,4 +44,223 @@ export async function handleDatasourcesList(
     success: true,
   });
   return summary;
+}
+
+// ---------------------------------------------------------------------------
+// Decision-pyramid helper used by suggest/pin/unpin
+// ---------------------------------------------------------------------------
+
+/** Merged datasource view: AdapterRegistry info + optional environment/cluster
+ *  metadata from `ctx.allDatasources` (populated by chat-service). */
+interface DatasourceView {
+  id: string;
+  name: string;
+  type: string;
+  signalType?: string;
+  environment?: string;
+  cluster?: string;
+  isDefault?: boolean;
+}
+
+function listDatasourceViews(ctx: ActionContext, type?: string): DatasourceView[] {
+  const cfgById = new Map<string, DatasourceConfig>();
+  for (const cfg of ctx.allDatasources ?? []) cfgById.set(cfg.id, cfg);
+
+  // Prefer the in-process AdapterRegistry as the source of truth (matches
+  // handleDatasourcesList) and merge in environment/cluster from allDatasources.
+  const infos: DatasourceInfo[] = ctx.adapters.list();
+  const views: DatasourceView[] = infos.map((info) => {
+    const cfg = cfgById.get(info.id);
+    return {
+      id: info.id,
+      name: info.name,
+      type: info.type,
+      signalType: info.signalType,
+      isDefault: info.isDefault,
+      ...(cfg?.environment ? { environment: cfg.environment } : {}),
+      ...(cfg?.cluster ? { cluster: cfg.cluster } : {}),
+    };
+  });
+
+  if (!type) return views;
+  const lower = type.toLowerCase();
+  return views.filter((v) => v.type.toLowerCase() === lower);
+}
+
+interface SuggestResult {
+  recommendedId: string | null;
+  name: string | null;
+  reason: string;
+  confidence: 'high' | 'medium' | 'low';
+  alternatives: Array<{ id: string; name: string; environment?: string; cluster?: string }>;
+}
+
+function buildSuggestion(views: DatasourceView[], userIntent: string): SuggestResult {
+  const intent = userIntent.toLowerCase();
+
+  // Layer 1 — explicit hint match (name / environment / cluster substring).
+  if (intent) {
+    const hits = views.filter((v) => {
+      const name = v.name.toLowerCase();
+      const env = v.environment?.toLowerCase();
+      const cluster = v.cluster?.toLowerCase();
+      return (
+        (name && intent.includes(name)) ||
+        (env && intent.includes(env)) ||
+        (cluster && intent.includes(cluster))
+      );
+    });
+    if (hits.length > 0) {
+      const chosen = hits[0]!;
+      const matched: string[] = [];
+      if (chosen.name && intent.includes(chosen.name.toLowerCase())) matched.push(`name "${chosen.name}"`);
+      if (chosen.environment && intent.includes(chosen.environment.toLowerCase())) matched.push(`environment "${chosen.environment}"`);
+      if (chosen.cluster && intent.includes(chosen.cluster.toLowerCase())) matched.push(`cluster "${chosen.cluster}"`);
+      return {
+        recommendedId: chosen.id,
+        name: chosen.name,
+        reason: `User intent mentioned ${matched.join(', ') || 'a matching attribute'}.`,
+        confidence: 'high',
+        alternatives: toAlternatives(views, chosen.id),
+      };
+    }
+  }
+
+  // Layer 2 — default datasource.
+  const def = views.find((v) => v.isDefault === true);
+  if (def) {
+    return {
+      recommendedId: def.id,
+      name: def.name,
+      reason: 'No explicit hint; picked the default datasource.',
+      confidence: 'medium',
+      alternatives: toAlternatives(views, def.id),
+    };
+  }
+
+  // Layer 3 — ambiguous (multiple non-default candidates, no hint).
+  if (views.length > 1) {
+    return {
+      recommendedId: null,
+      name: null,
+      reason: 'AMBIGUOUS — call ask_user',
+      confidence: 'low',
+      alternatives: toAlternatives(views, null),
+    };
+  }
+
+  // Single candidate fallback.
+  const only = views[0]!;
+  return {
+    recommendedId: only.id,
+    name: only.name,
+    reason: 'no clear hint, picked first',
+    confidence: 'low',
+    alternatives: [],
+  };
+}
+
+function toAlternatives(views: DatasourceView[], excludeId: string | null): SuggestResult['alternatives'] {
+  return views
+    .filter((v) => v.id !== excludeId)
+    .slice(0, 5)
+    .map((v) => ({
+      id: v.id,
+      name: v.name,
+      ...(v.environment ? { environment: v.environment } : {}),
+      ...(v.cluster ? { cluster: v.cluster } : {}),
+    }));
+}
+
+// ---------------------------------------------------------------------------
+// datasources.suggest — decision pyramid (hint > default > ambiguous)
+// ---------------------------------------------------------------------------
+
+export async function handleDatasourcesSuggest(
+  ctx: ActionContext,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const userIntent = typeof args.userIntent === 'string' ? args.userIntent : '';
+  const type = typeof args.type === 'string' && args.type.trim() !== '' ? args.type.trim() : undefined;
+
+  return withToolEventBoundary(
+    ctx.sendEvent,
+    'datasources.suggest',
+    { userIntent, ...(type ? { type } : {}) },
+    'Choosing data source',
+    async () => {
+      const views = listDatasourceViews(ctx, type);
+      if (views.length === 0) {
+        const empty: SuggestResult = {
+          recommendedId: null,
+          name: null,
+          reason: type
+            ? `No datasources of type "${type}" are configured.`
+            : 'No datasources are configured.',
+          confidence: 'low',
+          alternatives: [],
+        };
+        return { observation: JSON.stringify(empty), summary: empty.reason };
+      }
+      const result = buildSuggestion(views, userIntent);
+      const summary = result.recommendedId
+        ? `Suggested ${result.name} (${result.confidence})`
+        : 'Ambiguous — needs user input';
+      return { observation: JSON.stringify(result), summary };
+    },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// datasources.pin / datasources.unpin — session-scoped pinning
+// ---------------------------------------------------------------------------
+
+// TODO: typed `sessionDatasourcePins` field is added to ActionContext in
+// Agent C's chat-service PR. Until then we read/write through `as any` and
+// persistence is in-memory only (chat-service will own write-through).
+function getSessionPins(ctx: ActionContext): Record<string, string> {
+  const bag = (ctx as unknown as { sessionDatasourcePins?: Record<string, string> });
+  if (!bag.sessionDatasourcePins) bag.sessionDatasourcePins = {};
+  return bag.sessionDatasourcePins;
+}
+
+export async function handleDatasourcesPin(
+  ctx: ActionContext,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const datasourceId = typeof args.datasourceId === 'string' ? args.datasourceId.trim() : '';
+  const type = typeof args.type === 'string' && args.type.trim() !== '' ? args.type.trim() : 'prometheus';
+
+  return withToolEventBoundary(
+    ctx.sendEvent,
+    'datasources.pin',
+    { datasourceId, type },
+    'Pinning data source',
+    async () => {
+      if (!datasourceId) return 'Error: "datasourceId" is required.';
+      const pins = getSessionPins(ctx);
+      pins[type] = datasourceId;
+      return `Pinned ${type} datasource to ${datasourceId} for this session.`;
+    },
+  );
+}
+
+export async function handleDatasourcesUnpin(
+  ctx: ActionContext,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const type = typeof args.type === 'string' && args.type.trim() !== '' ? args.type.trim() : 'prometheus';
+
+  return withToolEventBoundary(
+    ctx.sendEvent,
+    'datasources.unpin',
+    { type },
+    'Unpinning data source',
+    async () => {
+      const pins = getSessionPins(ctx);
+      if (!(type in pins)) return `No ${type} datasource was pinned.`;
+      delete pins[type];
+      return `Unpinned ${type} datasource for this session.`;
+    },
+  );
 }

@@ -157,7 +157,7 @@ describe('Scenario 2 — Editor → dashboard.create → allowed', () => {
   it('executes the create and audits an allow row', async () => {
     const { agent, audit, store } = build({
       llmResponses: [
-        asStep('create', 'dashboard.create', { folderUid: 'prod', title: 'My Dash' }),
+        asStep('create', 'dashboard.create', { folderUid: 'prod', title: 'My Dash', datasourceId: 'prom-test' }),
         asStep('done', 'finish', {}, 'Created.'),
       ],
       identity: makeTestIdentity({ orgRole: 'Editor' }),

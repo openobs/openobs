@@ -23,7 +23,7 @@ describe('dashboard handlers', () => {
         identity: makeTestIdentity({ orgId: 'org-7' }),
       });
 
-      const observation = await handleDashboardCreate(ctx, { title: 'My Dashboard' });
+      const observation = await handleDashboardCreate(ctx, { title: 'My Dashboard', datasourceId: 'prom-test' });
 
       expect(create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -45,7 +45,7 @@ describe('dashboard handlers', () => {
       const ctx = makeFakeActionContext({
         store: { findById: vi.fn(), update: vi.fn(), updatePanels: vi.fn(), updateVariables: vi.fn() } as never,
       });
-      const observation = await handleDashboardCreate(ctx, { title: 'X' });
+      const observation = await handleDashboardCreate(ctx, { title: 'X', datasourceId: 'prom-test' });
       expect(observation).toMatch(/does not support creation/);
       // No SSE events should have been emitted on the early-return branch.
       expect(ctx.sendEvent).not.toHaveBeenCalled();
@@ -56,7 +56,7 @@ describe('dashboard handlers', () => {
       const ctx = makeFakeActionContext({
         store: { create, findById: vi.fn(), update: vi.fn(), updatePanels: vi.fn(), updateVariables: vi.fn() } as never,
       });
-      await expect(handleDashboardCreate(ctx, { title: 'X' })).rejects.toThrow('db down');
+      await expect(handleDashboardCreate(ctx, { title: 'X', datasourceId: 'prom-test' })).rejects.toThrow('db down');
       expect(ctx.sendEvent).toHaveBeenCalledWith(
         expect.objectContaining({ type: 'tool_result', tool: 'dashboard.create', success: false, summary: 'db down' }),
       );

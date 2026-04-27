@@ -28,6 +28,50 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
       required: [],
     },
   },
+  'datasources.suggest': {
+    name: 'datasources.suggest',
+    description:
+      'Recommend a single datasource for the current request via the decision pyramid (intent hint > default > ambiguous). Pass `userIntent` (the user\'s message text) so name/environment/cluster substrings can be matched. Returns JSON with `recommendedId`, `confidence`, and `alternatives`; if `recommendedId` is null and `reason` says AMBIGUOUS, call ask_user.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        userIntent: {
+          type: 'string',
+          description: 'The user\'s prompt text (or extracted intent). Used to match datasource name/environment/cluster.',
+        },
+        type: {
+          type: 'string',
+          description: 'Optional backend type filter, e.g. "prometheus", "victoria-metrics", "loki".',
+        },
+      },
+      required: [],
+    },
+  },
+  'datasources.pin': {
+    name: 'datasources.pin',
+    description:
+      'Pin a datasource for the rest of this chat session so subsequent tools can reuse it without re-asking. Use after the user picks a datasource, or after datasources.suggest returns a high-confidence match the user confirmed.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        datasourceId: { type: 'string', description: 'Datasource id from datasources.list / datasources.suggest' },
+        type: { type: 'string', description: 'Backend type slot to pin under (default "prometheus")' },
+      },
+      required: ['datasourceId'],
+    },
+  },
+  'datasources.unpin': {
+    name: 'datasources.unpin',
+    description:
+      'Clear a previously pinned datasource for this session. Use when the user asks to switch sources or "use the other one".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        type: { type: 'string', description: 'Backend type slot to unpin (default "prometheus")' },
+      },
+      required: [],
+    },
+  },
 
   // -------------------------------------------------------------------------
   // Metrics primitives (read-only, source-agnostic). Every call requires sourceId.
@@ -556,11 +600,24 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
   'ask_user': {
     name: 'ask_user',
     description:
-      'Ask the user a clarifying question. Ends the conversation. Use VERY sparingly — only when the request is genuinely ambiguous (e.g. multiple datasources of the same kind and intent unclear).',
+      'Ask the user a clarifying question. Ends the conversation. Use VERY sparingly — only when the request is genuinely ambiguous (e.g. multiple datasources of the same kind and intent unclear). For one-of-N decisions (e.g. "Which datasource?"), pass `options`. The user\'s reply will be the option id, prefixed with `option:` so you can distinguish it from free text.',
     input_schema: {
       type: 'object',
       properties: {
         question: { type: 'string', description: 'The question to ask the user' },
+        options: {
+          type: 'array',
+          description: 'When the answer is one-of-N, provide options. The chat UI renders these as buttons; clicking submits the option id back to you. Omit options for free-text questions.',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', description: 'Stable id you will receive back as the user reply' },
+              label: { type: 'string', description: 'Button text shown to the user' },
+              hint: { type: 'string', description: 'Optional secondary text under the button' },
+            },
+            required: ['id', 'label'],
+          },
+        },
       },
       required: ['question'],
     },

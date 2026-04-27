@@ -30,7 +30,7 @@ export type AgentToolName =
   // Kubernetes / Ops integrations
   | 'ops.run_command'
   // Datasource discovery (always-allowed, no RBAC)
-  | 'datasources.list'
+  | 'datasources.list' | 'datasources.suggest' | 'datasources.pin' | 'datasources.unpin'
   // Knowledge & utility
   | 'web.search' | 'llm.complete'
   | 'verifier.run';

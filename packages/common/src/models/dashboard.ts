@@ -200,6 +200,7 @@ export type DashboardSseEvent =
   | { type: 'agent_event'; event: { type: string; agentType: string; timestamp: string; metadata?: Record<string, unknown> } }
   | { type: 'approval_required'; tool: string; args: Record<string, unknown>; displayText: string }
   | { type: 'reply'; content: string }
+  | { type: 'ask_user'; question: string; options: Array<{ id: string; label: string; hint?: string }> }
   | { type: 'done'; messageId: string }
   | { type: 'error'; message: string };
 

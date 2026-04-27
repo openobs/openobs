@@ -8,6 +8,7 @@ import { LLM_PROVIDERS } from './setup/types.js';
 import type { LlmProvider, LlmConfig } from './setup/types.js';
 import type { DatasourceType, InstanceDatasource } from '@agentic-obs/common';
 import { useAuth } from '../contexts/AuthContext.js';
+import { notifyDatasourcesChanged } from '../hooks/useDatasourceLookup.js';
 
 // ─── Shared types ───
 //
@@ -220,6 +221,10 @@ function DataSourcesTab({ canCreate, canWrite, canDelete }: { canCreate: boolean
   const [showAddForm, setShowAddForm] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editForms, setEditForms] = useState<Map<string, DsFormState>>(new Map());
+  // Per-row in-flight flag for the "set as default" star — disables the
+  // button while the PUT is pending so a double-click doesn't fire two
+  // mutations against the single-default-per-(org,type) invariant.
+  const [defaultUpdatingId, setDefaultUpdatingId] = useState<string | null>(null);
 
   const loadDatasources = useCallback(async () => {
     const res = await apiClient.get<{ datasources: InstanceDatasource[] }>('/datasources');
@@ -250,15 +255,34 @@ function DataSourcesTab({ canCreate, canWrite, canDelete }: { canCreate: boolean
   }, []);
 
   const handleAdd = useCallback(async (form: DsFormState) => {
+    // Auto-default the first datasource of a given type — there's no other
+    // sensible default the agent could fall back on, so promoting it here
+    // saves the operator a second click. If the user already ticked the box,
+    // we keep their explicit choice.
+    const isFirstOfType = !datasources.some((d) => d.type === form.type);
+    const isDefault = form.isDefault || isFirstOfType;
     const body: Partial<InstanceDatasource> = {
       type: form.type, name: form.name, url: form.url, environment: form.environment,
-      cluster: form.cluster || undefined, label: form.label || undefined, isDefault: form.isDefault,
+      cluster: form.cluster || undefined, label: form.label || undefined, isDefault,
     };
     if (form.authType === 'bearer' && form.apiKey) body.apiKey = form.apiKey;
     if (form.authType === 'basic') { body.username = form.username; body.password = form.password; }
     const res = await apiClient.post<{ datasource: InstanceDatasource }>('/datasources', body);
-    if (!res.error) { setDatasources((prev) => [...prev, res.data.datasource]); setShowAddForm(false); }
-  }, []);
+    if (!res.error) {
+      const created = res.data.datasource;
+      setDatasources((prev) => {
+        // Mirror the backend single-default-per-(org,type) invariant locally
+        // so the new row's "Default" pill shows up immediately and any sibling
+        // of the same type loses its pill without waiting for a refetch.
+        const next = created.isDefault
+          ? prev.map((d) => (d.type === created.type ? { ...d, isDefault: false } : d))
+          : prev;
+        return [...next, created];
+      });
+      setShowAddForm(false);
+      notifyDatasourcesChanged();
+    }
+  }, [datasources]);
 
   const handleUpdate = useCallback(async (id: string, form: DsFormState) => {
     const body: Partial<InstanceDatasource> = {
@@ -269,15 +293,52 @@ function DataSourcesTab({ canCreate, canWrite, canDelete }: { canCreate: boolean
     if (form.authType === 'basic') { body.username = form.username; body.password = form.password; }
     const res = await apiClient.put<{ datasource: InstanceDatasource }>(`/datasources/${id}`, body);
     if (!res.error) {
-      setDatasources((prev) => prev.map((d) => (d.id === id ? res.data.datasource : d)));
+      const updated = res.data.datasource;
+      setDatasources((prev) =>
+        prev.map((d) => {
+          if (d.id === id) return updated;
+          // Demote sibling rows of the same type if this update set isDefault.
+          if (updated.isDefault && d.type === updated.type) return { ...d, isDefault: false };
+          return d;
+        }),
+      );
       setExpandedIds((prev) => { const n = new Set(prev); n.delete(id); return n; });
+      notifyDatasourcesChanged();
     }
   }, []);
 
   const handleDelete = useCallback(async (id: string) => {
     const res = await apiClient.delete(`/datasources/${id}`);
-    if (!res.error) setDatasources((prev) => prev.filter((d) => d.id !== id));
+    if (!res.error) {
+      setDatasources((prev) => prev.filter((d) => d.id !== id));
+      notifyDatasourcesChanged();
+    }
   }, []);
+
+  const handleSetDefault = useCallback(async (ds: InstanceDatasource) => {
+    if (ds.isDefault || defaultUpdatingId) return;
+    setDefaultUpdatingId(ds.id);
+    try {
+      const res = await apiClient.put<{ datasource: InstanceDatasource }>(
+        `/datasources/${ds.id}`,
+        { isDefault: true },
+      );
+      if (!res.error) {
+        const updated = res.data.datasource;
+        setDatasources((prev) =>
+          prev.map((d) => {
+            if (d.id === updated.id) return updated;
+            // Mirror the server's single-default-per-(org,type) invariant.
+            if (d.type === updated.type) return { ...d, isDefault: false };
+            return d;
+          }),
+        );
+        notifyDatasourcesChanged();
+      }
+    } finally {
+      setDefaultUpdatingId(null);
+    }
+  }, [defaultUpdatingId]);
 
   if (loading) {
     return (
@@ -317,20 +378,56 @@ function DataSourcesTab({ canCreate, canWrite, canDelete }: { canCreate: boolean
       {datasources.map((ds) => {
         const info = datasourceInfo(ds.type);
         const isOpen = expandedIds.has(ds.id);
+        const starBusy = defaultUpdatingId === ds.id;
+        const starDisabled = !canWrite || starBusy || ds.isDefault;
+        const starTitle = ds.isDefault
+          ? `Default for ${info.label}`
+          : 'Set as default for this type';
         return (
           <div key={ds.id} className={`rounded-xl border transition-colors ${isOpen ? 'border-[var(--color-primary)]/40 bg-[var(--color-surface-high)]/30' : 'border-[var(--color-outline-variant)] hover:border-[var(--color-outline)]'}`}>
-            <button type="button" onClick={() => toggleExpand(ds.id, ds)} className="w-full text-left px-4 py-3 flex items-center gap-3">
-              <svg className={`w-3.5 h-3.5 text-[var(--color-outline)] transition-transform shrink-0 ${isOpen ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-              </svg>
-              <TypeIcon type={ds.type} />
-              <span className="text-sm font-medium text-[var(--color-on-surface)] truncate">{ds.name}</span>
-              {ds.isDefault && <span className="px-1.5 py-0.5 rounded bg-[var(--color-primary)]/15 text-[var(--color-primary)] text-[10px] font-semibold shrink-0">Default</span>}
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium border shrink-0" style={{ backgroundColor: `${info.color}15`, color: info.color, borderColor: `${info.color}30` }}>{info.label}</span>
-              {ds.environment && <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border shrink-0 ${ENV_STYLES[ds.environment] ?? ENV_STYLES.custom}`}>{ds.environment}</span>}
-              <span className="flex-1" />
-              <span className="text-[11px] text-[var(--color-outline)] font-mono truncate max-w-[200px] hidden sm:inline">{ds.url}</span>
-            </button>
+            <div className="w-full px-4 py-3 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => toggleExpand(ds.id, ds)}
+                className="flex-1 min-w-0 text-left flex items-center gap-3"
+              >
+                <svg className={`w-3.5 h-3.5 text-[var(--color-outline)] transition-transform shrink-0 ${isOpen ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+                <TypeIcon type={ds.type} />
+                <span className="text-sm font-medium text-[var(--color-on-surface)] truncate">{ds.name}</span>
+                {ds.isDefault && <span className="px-1.5 py-0.5 rounded bg-[var(--color-primary)]/15 text-[var(--color-primary)] text-[10px] font-semibold shrink-0">Default</span>}
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium border shrink-0" style={{ backgroundColor: `${info.color}15`, color: info.color, borderColor: `${info.color}30` }}>{info.label}</span>
+                {ds.environment && <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border shrink-0 ${ENV_STYLES[ds.environment] ?? ENV_STYLES.custom}`}>{ds.environment}</span>}
+                <span className="flex-1" />
+                <span className="text-[11px] text-[var(--color-outline)] font-mono truncate max-w-[200px] hidden sm:inline">{ds.url}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSetDefault(ds)}
+                disabled={starDisabled}
+                title={starTitle}
+                aria-label={starTitle}
+                aria-pressed={ds.isDefault}
+                className={`shrink-0 p-1 rounded transition-colors ${
+                  ds.isDefault
+                    ? 'text-[var(--color-primary)]'
+                    : 'text-[var(--color-on-surface-variant)]/60 hover:text-[var(--color-primary)] hover:bg-[var(--color-primary)]/10'
+                } ${starBusy ? 'opacity-50' : ''} ${ds.isDefault ? 'cursor-default' : starDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+              >
+                {ds.isDefault ? (
+                  // Filled star
+                  <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                    <path d="M10 1.5l2.6 5.27 5.82.85-4.21 4.1.99 5.78L10 14.77l-5.2 2.73.99-5.78L1.58 7.62l5.82-.85L10 1.5z" />
+                  </svg>
+                ) : (
+                  // Hollow star
+                  <svg className="w-4 h-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden>
+                    <path strokeLinejoin="round" d="M10 1.5l2.6 5.27 5.82.85-4.21 4.1.99 5.78L10 14.77l-5.2 2.73.99-5.78L1.58 7.62l5.82-.85L10 1.5z" />
+                  </svg>
+                )}
+              </button>
+            </div>
             {isOpen && editForms.has(ds.id) && (
               <div className="px-4 pb-4">
                 <EditFormWrapper

@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { apiClient } from '../api/client.js';
 import type { ChatMessage, ChatEvent } from './useDashboardChat.js';
+import { parseAskUserPayload } from './useDashboardChat.js';
 
 /** Page context — tells the agent what the user is currently looking at. */
 export interface PageContext {
@@ -80,6 +81,10 @@ function payloadToChatEvent(
       return { id, kind: 'panel_removed', panelId: payload.panelId as string | undefined };
     case 'panel_modified':
       return { id, kind: 'panel_modified', panelId: payload.panelId as string | undefined };
+    case 'ask_user': {
+      const { question, options } = parseAskUserPayload(payload);
+      return { id, kind: 'ask_user', question, options };
+    }
     case 'error':
       return {
         id,
@@ -212,6 +217,12 @@ export function useChat(): UseChatResult {
           };
           setMessages((prev) => [...prev, aiMsg]);
           appendEvent({ id, kind: 'message', message: aiMsg });
+          break;
+        }
+
+        case 'ask_user': {
+          const { question, options } = parseAskUserPayload(parsed);
+          appendEvent({ id, kind: 'ask_user', question, options });
           break;
         }
 

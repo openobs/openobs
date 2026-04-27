@@ -215,6 +215,12 @@ export const UNGATED_TOOLS: ReadonlySet<string> = new Set([
   // BEFORE they can form a gated call. This is a read of the in-process
   // registry; no backend side effect.
   'datasources.list',
+  // Suggestion, pin, unpin are session-scoped reads / in-memory writes — no
+  // backend mutation. They MUST stay ungated so the agent can call them
+  // before doing any RBAC-checked work.
+  'datasources.suggest',
+  'datasources.pin',
+  'datasources.unpin',
 ]);
 
 /**

@@ -20,6 +20,9 @@ import {
   handleDashboardModifyPanel,
   handleDashboardAddVariable,
   handleDatasourcesList,
+  handleDatasourcesSuggest,
+  handleDatasourcesPin,
+  handleDatasourcesUnpin,
   handleMetricsQuery,
   handleMetricsRangeQuery,
   handleMetricsLabels,
@@ -172,6 +175,9 @@ async function dispatchAction(
     case 'navigate': return handleNavigate(ctx, args);
     // Datasource discovery (always allowed)
     case 'datasources.list': return handleDatasourcesList(ctx, args);
+    case 'datasources.suggest': return handleDatasourcesSuggest(ctx, args);
+    case 'datasources.pin': return handleDatasourcesPin(ctx, args);
+    case 'datasources.unpin': return handleDatasourcesUnpin(ctx, args);
     // Source-agnostic metrics primitives
     case 'metrics.query': return handleMetricsQuery(ctx, args);
     case 'metrics.range_query': return handleMetricsRangeQuery(ctx, args);

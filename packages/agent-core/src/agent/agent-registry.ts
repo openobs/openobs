@@ -43,6 +43,7 @@ agentRegistry.register({
     'investigation.complete',
     // Datasource discovery (always allowed; no RBAC)
     'datasources.list',
+    'datasources.suggest', 'datasources.pin', 'datasources.unpin',
     // Source-agnostic metrics primitives (each requires sourceId)
     'metrics.query', 'metrics.range_query', 'metrics.labels', 'metrics.label_values',
     'metrics.series', 'metrics.metadata', 'metrics.metric_names', 'metrics.validate',
