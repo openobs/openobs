@@ -239,15 +239,20 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
   'dashboard.create': {
     name: 'dashboard.create',
     description:
-      'Create an empty dashboard. Returns dashboardId. Follow with dashboard.add_panels to populate it. Required before any other dashboard.* mutation when there is no current dashboard context.',
+      'Create an empty dashboard. Returns dashboardId. Follow with dashboard.add_panels to populate it. Required before any other dashboard.* mutation when there is no current dashboard context. Requires a primary datasourceId — call datasources.list (or datasources.suggest with the user prompt) first to choose one.',
     input_schema: {
       type: 'object',
       properties: {
         title: { type: 'string', description: 'Dashboard title shown in the UI' },
         description: { type: 'string', description: 'One-line description of the dashboard purpose' },
         prompt: { type: 'string', description: 'Optional original user prompt for traceability (defaults to description)' },
+        datasourceId: {
+          type: 'string',
+          description:
+            'Primary datasource id for this dashboard. Panels added without their own per-query datasourceId fall back to this. Get from datasources.list / datasources.suggest.',
+        },
       },
-      required: ['title'],
+      required: ['title', 'datasourceId'],
     },
   },
   'dashboard.list': {
@@ -266,14 +271,14 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
   'dashboard.add_panels': {
     name: 'dashboard.add_panels',
     description:
-      'Add one or more panels to a dashboard. The model constructs panel configs directly (title, visualization, queries, unit, ...). Validate complex queries with metrics.validate first. Panel sizing and layout are auto-applied.',
+      'Add one or more panels to a dashboard. The model constructs panel configs directly (title, visualization, queries, unit, ...). Validate complex queries with metrics.validate first. Panel sizing and layout are auto-applied. Each query may carry its own datasourceId; omit to inherit the dashboard primary. For cross-source compare panels, set datasourceId per query (one per source) — the legend gets a {{__datasource}} prefix automatically.',
     input_schema: {
       type: 'object',
       properties: {
         dashboardId: { type: 'string', description: 'Target dashboard id (from dashboard.create or dashboard.list)' },
         panels: {
           type: 'array',
-          description: 'Panel configs. Each: { title, visualization, queries: [{refId, expr, legendFormat?, instant?}], unit?, ... }. See Panel Schema Reference.',
+          description: 'Panel configs. Each: { title, visualization, queries: [{refId, expr, datasourceId?, legendFormat?, instant?}], unit?, ... }. See Panel Schema Reference.',
           items: { type: 'object' },
         },
       },

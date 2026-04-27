@@ -19,13 +19,17 @@ export async function handleDashboardCreate(
   const title = String(args.title ?? 'Untitled Dashboard');
   const description = String(args.description ?? '');
   const prompt = String(args.prompt ?? args.description ?? '');
+  const datasourceId = typeof args.datasourceId === 'string' ? args.datasourceId.trim() : '';
+  if (!datasourceId) {
+    return 'Error: "datasourceId" is required. Call datasources.list (or datasources.suggest) first to choose the primary datasource for this dashboard.';
+  }
 
   let createdId = '';
   let observationText = '';
   await withToolEventBoundary(
     ctx.sendEvent,
     'dashboard.create',
-    { title },
+    { title, datasourceId },
     `Creating dashboard: "${title}"`,
     async () => {
       // Scope the new dashboard to the caller's org; the detail route enforces
@@ -37,7 +41,10 @@ export async function handleDashboardCreate(
           description,
           prompt,
           userId: 'agent',
-          datasourceIds: [],
+          // Stored as an array (dashboards may bind multiple sources for cross-
+          // env comparison panels); the first id is the dashboard's primary
+          // and acts as the fallback for any query that omits its own ds id.
+          datasourceIds: [datasourceId],
           sessionId: ctx.sessionId,
         }),
       );
@@ -95,6 +102,14 @@ export async function handleDashboardAddPanels(
       expr: String(q.expr ?? ''),
       legendFormat: typeof q.legendFormat === 'string' ? q.legendFormat : undefined,
       instant: q.instant === true,
+      // Per-query datasourceId is preserved verbatim. The runtime falls back
+      // to the dashboard's primary datasource (datasourceIds[0]) when this
+      // is absent, so this field is what makes cross-source compare panels
+      // possible. Don't strip even if empty — empty string still signals
+      // "use dashboard primary" which differs from "I forgot to set it".
+      datasourceId: typeof q.datasourceId === 'string' && q.datasourceId.trim()
+        ? q.datasourceId.trim()
+        : undefined,
     })) : [],
     row: 0,
     col: 0,

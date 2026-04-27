@@ -31,6 +31,8 @@ async function resolvePrometheusDatasource(
   const belongsToOrg = (d: InstanceDatasource) =>
     d.orgId === orgId
 
+  // Explicit id wins. Caller (panel query, agent tool call) supplied the exact
+  // datasource — never silently substitute even if isPrometheus is false.
   if (datasourceId) {
     const ds = await setupConfig.getDatasource(datasourceId)
     return ds && isPrometheus(ds) && belongsToOrg(ds) ? ds : null
@@ -39,16 +41,24 @@ async function resolvePrometheusDatasource(
   const all = await setupConfig.listDatasources()
   const candidates = all.filter((d) => isPrometheus(d) && belongsToOrg(d))
 
-  if (environment || cluster) {
-    const match = candidates.find((d) => {
-      if (environment && d.environment !== environment) return false
-      if (cluster && d.cluster !== cluster) return false
-      return true
-    })
-    return match ?? null
-  }
+  // Environment/cluster hint narrows before fallback. Useful for panel query
+  // params like `?environment=prod` from a $datasource template variable.
+  const narrowed = (environment || cluster)
+    ? candidates.filter((d) => {
+        if (environment && d.environment !== environment) return false
+        if (cluster && d.cluster !== cluster) return false
+        return true
+      })
+    : candidates
 
-  return candidates[0] ?? null
+  if (narrowed.length === 0) return null
+  if (narrowed.length === 1) return narrowed[0]!
+
+  // Multiple candidates: prefer the one explicitly marked default. Falling
+  // back to alphabetical (the previous behavior) hid silent breakage when
+  // operators added a second datasource — see PR #22 incident report.
+  const explicitDefault = narrowed.find((d) => d.isDefault)
+  return explicitDefault ?? narrowed[0]!
 }
 
 function buildClientConfig(ds: InstanceDatasource): ConstructorParameters<typeof PrometheusHttpClient>[0] {
