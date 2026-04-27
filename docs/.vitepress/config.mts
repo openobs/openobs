@@ -38,6 +38,7 @@ export default defineConfig({
       {
         text: 'Features',
         items: [
+          { text: 'Operator loop', link: '/features/operator-loop' },
           { text: 'Dashboards', link: '/features/dashboards' },
           { text: 'Investigations', link: '/features/investigations' },
           { text: 'Alert rules', link: '/features/alerts' },

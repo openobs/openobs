@@ -1,13 +1,21 @@
 # OpenObs
 
-OpenObs is an AI-native observability platform for incident investigation, dashboard generation, and alert lifecycle management.
+OpenObs is an open-source AI SRE loop for modern operations.
 
-## What OpenObs does
+Use natural language to build dashboards, create alerts, investigate incidents, and approve safe fixes.
 
-- **Generates dashboards** from natural-language prompts against your real metrics
-- **Investigates incidents** by collecting evidence, evaluating hypotheses, and writing reports
-- **Manages alert rules** through conversational workflows
-- **Streams agent progress live** so you can see exactly what the system is doing at every step
+## Try asking
+
+- `Create a dashboard for checkout latency`
+- `Alert me when p95 latency is above 500ms for 10 minutes`
+- `Why is checkout latency high right now?`
+
+## What it does
+
+- **Observe** — build and edit dashboards from your real metrics
+- **Detect** — create and tune alert rules
+- **Investigate** — use metrics, logs, changes, and Kubernetes when configured
+- **Act safely** — route risky cluster fixes through approval
 
 ## Install
 
@@ -19,6 +27,8 @@ Two supported install paths:
 ## Next steps
 
 - [Getting Started](/getting-started) — first-run walkthrough
+- [Operator loop](/features/operator-loop) — the product workflow in one page
+- [Chat & agents](/features/chat) — what the agent can do
 - [Configuration](/configuration) — environment variable reference
 - [Authentication](/auth) — users, roles, OAuth/SAML/LDAP, service accounts
 - [API Reference](/api-reference) — endpoint documentation

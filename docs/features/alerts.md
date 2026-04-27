@@ -1,11 +1,12 @@
 # Alert rules
 
-Define, manage, and tune alert rules through chat — or click through the UI. OpenObs handles the lifecycle: rule creation, evaluation, notification, history, and silencing.
+Define, manage, and tune alert rules through chat — or click through the UI. OpenObs handles the lifecycle: rule creation, evaluation, notification, history, silencing, and alert-to-investigation handoff.
 
 ## What you can do
 
 - **Create from a prompt** — "Alert me when the API error rate exceeds 1% for 5 minutes"
 - **Modify existing rules** — "Change the threshold on the high-latency alert to 500ms"
+- **Investigate a firing alert** — start an evidence-backed investigation directly from the alert context
 - **Delete safely** — confirmation prompt before destructive changes; audit-logged
 - **List & filter** — `alert_rule.list` returns rules by folder, severity, state
 - **Inspect history** — `alert_rule.history` shows every state transition (firing / pending / resolved) with the values that triggered them
@@ -53,6 +54,7 @@ Use the UI: Alerts → Silences → New. (Silences aren't currently exposed as a
 - Alert rules need a metric expression. Log-based alerts (Loki ruler) are planned but not in the current release.
 - Notification channels (Slack, PagerDuty, email, webhook) configured separately under Admin → Notifications.
 - Folder-scoped permissions apply: `alert.rules:write` on `folders:uid:<id>` controls who can create/modify rules in that folder.
+- Automatic investigation and automatic remediation requests are planned as the next step after one-click investigations.
 - The agent doesn't auto-silence on dependent failures; chain alerts via the notification dispatcher's `groupBy` + `inhibit` rules instead.
 
 ## Related
