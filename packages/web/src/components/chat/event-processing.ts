@@ -108,6 +108,7 @@ export const USER_VISIBLE_TOOLS = new Set([
   // Dashboard mutation primitives
   'dashboard.create',
   'dashboard.list',
+  'dashboard.clone',
   'dashboard.add_panels',
   'dashboard.remove_panels',
   'dashboard.modify_panel',
@@ -221,6 +222,7 @@ export const TOOL_LABELS: Record<string, string> = {
   // Dashboard mutation primitives
   'dashboard.create': 'Creating dashboard',
   'dashboard.list': 'Listing dashboards',
+  'dashboard.clone': 'Cloning dashboard',
   'dashboard.add_panels': 'Adding panels',
   'dashboard.remove_panels': 'Removing panels',
   'dashboard.modify_panel': 'Modifying panel',

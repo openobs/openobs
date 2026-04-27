@@ -312,6 +312,20 @@ export const TOOL_SCHEMAS: Record<string, ToolDefinition> = {
       required: [],
     },
   },
+  'dashboard.clone': {
+    name: 'dashboard.clone',
+    description:
+      "Clone a dashboard, replacing every query's datasourceId with targetDatasourceId. Use when the user says 'copy/move/clone this dashboard to {env}' — far cheaper than rebuilding from scratch.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        sourceDashboardId: { type: 'string', description: 'Dashboard id to clone (from dashboard.list)' },
+        targetDatasourceId: { type: 'string', description: 'Datasource id assigned to every query in the new dashboard' },
+        newTitle: { type: 'string', description: 'Optional title for the new dashboard. Defaults to "{sourceTitle} (cloned)"' },
+      },
+      required: ['sourceDashboardId', 'targetDatasourceId'],
+    },
+  },
   'dashboard.add_panels': {
     name: 'dashboard.add_panels',
     description:

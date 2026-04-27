@@ -68,6 +68,97 @@ export async function handleDashboardCreate(
 }
 
 // ---------------------------------------------------------------------------
+// Dashboard clone — duplicate a dashboard onto a different datasource
+// ---------------------------------------------------------------------------
+
+export async function handleDashboardClone(
+  ctx: ActionContext,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const sourceDashboardId = String(args.sourceDashboardId ?? '');
+  if (!sourceDashboardId) return 'Error: "sourceDashboardId" is required.';
+  const targetDatasourceId = String(args.targetDatasourceId ?? '');
+  if (!targetDatasourceId) return 'Error: "targetDatasourceId" is required.';
+
+  if (!ctx.store.create) {
+    return 'Error: dashboard store does not support creation.';
+  }
+  if (!ctx.store.findById) {
+    return 'Error: dashboard store does not support findById.';
+  }
+
+  return withToolEventBoundary(
+    ctx.sendEvent,
+    'dashboard.clone',
+    { sourceDashboardId, targetDatasourceId },
+    `Cloning dashboard ${sourceDashboardId} → ${targetDatasourceId}`,
+    async () => {
+      const source = await ctx.store.findById(sourceDashboardId);
+      if (!source) {
+        return `Error: source dashboard ${sourceDashboardId} not found.`;
+      }
+
+      const newTitle =
+        typeof args.newTitle === 'string' && args.newTitle.trim()
+          ? args.newTitle.trim()
+          : `${source.title} (cloned)`;
+
+      // Deep-clone panels and rewrite every query's datasourceId. New panel
+      // ids are assigned so the clone has a fresh identity (otherwise panel
+      // mutations on the new dashboard could collide with the source's ids
+      // through any id-keyed cache).
+      type CommonPanel = import('@agentic-obs/common').PanelConfig;
+      const clonedPanels: CommonPanel[] = source.panels.map((p) => ({
+        ...p,
+        id: randomUUID(),
+        queries: (p.queries ?? []).map((q) => ({
+          ...q,
+          datasourceId: targetDatasourceId,
+        })),
+      }));
+
+      const created = await ctx.store.create!(
+        withWorkspaceScope(ctx.identity, {
+          title: newTitle,
+          description: source.description,
+          prompt: source.prompt,
+          userId: 'agent',
+          datasourceIds: [targetDatasourceId],
+          sessionId: ctx.sessionId,
+        }),
+      );
+
+      // Persist panels + variables onto the freshly created shell. Variables
+      // copy over verbatim — they carry no per-datasource state on their own.
+      await ctx.store.updatePanels(created.id, clonedPanels);
+      await ctx.store.updateVariables(created.id, source.variables ?? []);
+      if (ctx.store.updateStatus) {
+        try {
+          await ctx.store.updateStatus(created.id, 'ready');
+        } catch {
+          /* non-fatal — leaves badge at 'generating' until next status write */
+        }
+      }
+
+      ctx.setNavigateTo(`/dashboards/${created.id}`);
+
+      const observation = `Cloned "${source.title}" (${clonedPanels.length} panel${clonedPanels.length === 1 ? '' : 's'}) to datasource ${targetDatasourceId}. New dashboard id: ${created.id}.`;
+      ctx.emitAgentEvent(
+        ctx.makeAgentEvent('agent.tool_completed', {
+          tool: 'dashboard.clone',
+          sourceDashboardId,
+          newDashboardId: created.id,
+          targetDatasourceId,
+          panelCount: clonedPanels.length,
+          summary: observation,
+        }),
+      );
+      return observation;
+    },
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard mutation primitives — model constructs panel configs directly
 // ---------------------------------------------------------------------------
 

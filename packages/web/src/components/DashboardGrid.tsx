@@ -8,6 +8,10 @@ interface Props {
   editMode?: boolean;
   isGenerating?: boolean;
   timeRange?: string;
+  /** Resolved current values for `${name}` placeholders in panel queries
+   *  (today: just `${datasource}`). Forwarded to every panel so the runtime
+   *  can substitute the panel's `query.datasourceId` before fetching. */
+  variableValues?: Record<string, string>;
   onEditPanel?: (id: string) => void;
   onDeletePanel?: (id: string) => void;
   onLayoutChange?: (layout: Array<{ i: string; x: number; y: number; w: number; h: number }>) => void;
@@ -142,6 +146,7 @@ function SectionGrid({
   width,
   editMode,
   timeRange,
+  variableValues,
   onEditPanel,
   onDeletePanel,
   onLayoutChange,
@@ -151,6 +156,7 @@ function SectionGrid({
   width: number;
   editMode: boolean;
   timeRange?: string;
+  variableValues?: Record<string, string>;
   onEditPanel?: (id: string) => void;
   onDeletePanel?: (id: string) => void;
   onLayoutChange?: Props['onLayoutChange'];
@@ -207,6 +213,7 @@ function SectionGrid({
             panel={panel}
             editMode={!!editMode}
             timeRange={timeRange}
+            variableValues={variableValues}
             onEdit={() => onEditPanel?.(panel.id)}
             onDelete={() => onDeletePanel?.(panel.id)}
             onTimeRangeChange={onTimeRangeChange}
@@ -256,6 +263,7 @@ export default function DashboardGrid({
   editMode,
   isGenerating,
   timeRange,
+  variableValues,
   onEditPanel,
   onDeletePanel,
   onLayoutChange,
@@ -331,6 +339,7 @@ export default function DashboardGrid({
                 width={width}
                 editMode={!!editMode}
                 timeRange={timeRange}
+                variableValues={variableValues}
                 onEditPanel={onEditPanel}
                 onDeletePanel={onDeletePanel}
                 onLayoutChange={onLayoutChange}

@@ -60,6 +60,16 @@ export const TOOL_PERMS: Record<string, ToolPermissionBuilder> = {
       `folders:uid:${String(args.folderUid ?? '*')}`,
     ),
   'dashboard.list': () => ac.eval('dashboards:read', 'dashboards:*'),
+  // Clone is read-then-create. We mirror dashboard.create's gating — the new
+  // dashboard lands in the wildcard folder (no folderUid arg today), so any
+  // narrow per-folder grant must be backed by a wider create grant. The
+  // source dashboard's read is gated by the per-row filter in handlers/list,
+  // which the source-id lookup goes through implicitly.
+  'dashboard.clone': (args: Record<string, unknown>) =>
+    ac.eval(
+      'dashboards:create',
+      `folders:uid:${String(args.folderUid ?? '*')}`,
+    ),
   'dashboard.add_panels': (args: Record<string, unknown>) =>
     ac.eval(
       'dashboards:write',

@@ -30,7 +30,7 @@ agentRegistry.register({
   description: 'Autonomous observability agent that uses primitive tools to build dashboards, investigate issues, and manage alerts',
   allowedTools: [
     // Dashboard lifecycle + mutation primitives
-    'dashboard.create', 'dashboard.list',
+    'dashboard.create', 'dashboard.list', 'dashboard.clone',
     'dashboard.add_panels', 'dashboard.remove_panels', 'dashboard.modify_panel',
     // NOTE: 'dashboard.rearrange' was listed here historically but no handler
     // exists in orchestrator-action-handlers.ts (only the action-executor

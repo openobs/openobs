@@ -86,6 +86,28 @@ function getRequestOrgId(req: Request): string | null | undefined {
   return (req as AuthenticatedRequest).auth?.orgId
 }
 
+/**
+ * Substitute `${name}` / `$name` placeholders against a value map. Used so a
+ * panel's `datasourceId: '${datasource}'` resolves to the id picked by the
+ * dashboard's `$datasource` template variable before resolution. Returns the
+ * input unchanged when nothing matches — non-placeholder ids pass through.
+ */
+function substituteVariableTokens(
+  value: string | undefined,
+  values: Record<string, string> | undefined,
+): string | undefined {
+  if (!value || !values) return value
+  // Match ${name} OR $name (alphanumeric / underscore). Substitution is
+  // applied repeatedly to handle the rare ${a}${b} adjacency case in one pass.
+  return value.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g, (match, braced: string | undefined, bare: string | undefined) => {
+    const key = braced ?? bare
+    if (key && Object.prototype.hasOwnProperty.call(values, key)) {
+      return values[key] ?? match
+    }
+    return match
+  })
+}
+
 async function requireDatasourcePermission(
   deps: QueryRouterDeps,
   req: Request,
@@ -122,7 +144,7 @@ export function createQueryRouter(deps: QueryRouterDeps): Router {
 
   // POST /api/query/range
   router.post('/range', authMiddleware, async (req: Request, res: Response) => {
-    const { query, start, end, step = '30s', datasourceId, environment, cluster } = req.body as {
+    const { query, start, end, step = '30s', datasourceId, environment, cluster, variableValues } = req.body as {
       query?: string
       start?: string
       end?: string
@@ -130,6 +152,7 @@ export function createQueryRouter(deps: QueryRouterDeps): Router {
       datasourceId?: string
       environment?: string
       cluster?: string
+      variableValues?: Record<string, string>
     }
 
     if (!query) {
@@ -137,7 +160,8 @@ export function createQueryRouter(deps: QueryRouterDeps): Router {
       return
     }
 
-    const ds = await resolvePrometheusDatasource(setupConfig, getRequestOrgId(req), datasourceId, environment, cluster)
+    const resolvedDatasourceId = substituteVariableTokens(datasourceId, variableValues)
+    const ds = await resolvePrometheusDatasource(setupConfig, getRequestOrgId(req), resolvedDatasourceId, environment, cluster)
     if (!ds) {
       res.status(400).json({ error: { code: 'NO_DATASOURCE', message: 'No Prometheus datasource configured' } })
       return
@@ -158,12 +182,13 @@ export function createQueryRouter(deps: QueryRouterDeps): Router {
 
   // POST /api/query/instant
   router.post('/instant', authMiddleware, async (req: Request, res: Response) => {
-    const { query, time, datasourceId, environment, cluster } = req.body as {
+    const { query, time, datasourceId, environment, cluster, variableValues } = req.body as {
       query?: string
       time?: string
       datasourceId?: string
       environment?: string
       cluster?: string
+      variableValues?: Record<string, string>
     }
 
     if (!query) {
@@ -171,7 +196,8 @@ export function createQueryRouter(deps: QueryRouterDeps): Router {
       return
     }
 
-    const ds = await resolvePrometheusDatasource(setupConfig, getRequestOrgId(req), datasourceId, environment, cluster)
+    const resolvedDatasourceId = substituteVariableTokens(datasourceId, variableValues)
+    const ds = await resolvePrometheusDatasource(setupConfig, getRequestOrgId(req), resolvedDatasourceId, environment, cluster)
     if (!ds) {
       res.status(400).json({ error: { code: 'NO_DATASOURCE', message: 'No Prometheus datasource configured' } })
       return
@@ -280,7 +306,7 @@ export function createQueryRouter(deps: QueryRouterDeps): Router {
 
   // POST /api/query/batch
   router.post('/batch', authMiddleware, async (req: Request, res: Response) => {
-    const { queries, start, end, step = '30s', datasourceId, environment, cluster } = req.body as {
+    const { queries, start, end, step = '30s', datasourceId, environment, cluster, variableValues } = req.body as {
       queries?: Array<{ refId: string, expr: string, instant?: boolean, datasourceId?: string }>
       start?: string
       end?: string
@@ -288,6 +314,7 @@ export function createQueryRouter(deps: QueryRouterDeps): Router {
       datasourceId?: string
       environment?: string
       cluster?: string
+      variableValues?: Record<string, string>
     }
 
     if (!queries || queries.length === 0) {
@@ -311,7 +338,9 @@ export function createQueryRouter(deps: QueryRouterDeps): Router {
     const startDate = start ? new Date(start) : new Date(endDate.getTime() - 30 * 60 * 1000)
     const resolved: InstanceDatasource[] = []
     for (const q of queries) {
-      const ds = await resolvePrometheusDatasource(setupConfig, getRequestOrgId(req), q.datasourceId ?? datasourceId, environment, cluster)
+      const perQueryDsId = substituteVariableTokens(q.datasourceId, variableValues)
+      const fallbackDsId = substituteVariableTokens(datasourceId, variableValues)
+      const ds = await resolvePrometheusDatasource(setupConfig, getRequestOrgId(req), perQueryDsId ?? fallbackDsId, environment, cluster)
       if (!ds) {
         res.status(400).json({
           error: {

@@ -206,9 +206,31 @@ interface Props {
   onDelete?: () => void;
   editMode?: boolean;
   timeRange?: string;
+  /** Resolved current values for `${name}` placeholders in panel queries
+   *  (today: just `${datasource}`). Used to substitute the panel's
+   *  `query.datasourceId` before sending — without this, a placeholder id
+   *  would 400 at the backend. */
+  variableValues?: Record<string, string>;
   /** Fired when the user box-zooms on a time-series panel; value is a
    *  resolveTimeRange-compatible `"ISO|ISO"` absolute range string. */
   onTimeRangeChange?: (range: string) => void;
+}
+
+/** Substitute `${name}` / `$name` placeholders from `values`. Returns the
+ *  input unchanged when nothing matches. Mirrors the backend helper of the
+ *  same name in `api-gateway/src/routes/dashboard/query.ts`. */
+function substituteVariableTokens(
+  value: string | undefined,
+  values: Record<string, string> | undefined,
+): string | undefined {
+  if (!value || !values) return value;
+  return value.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g, (match, braced: string | undefined, bare: string | undefined) => {
+    const key = braced ?? bare;
+    if (key && Object.prototype.hasOwnProperty.call(values, key)) {
+      return values[key] ?? match;
+    }
+    return match;
+  });
 }
 
 export default function DashboardPanelCard({
@@ -217,6 +239,7 @@ export default function DashboardPanelCard({
   onDelete,
   editMode = false,
   timeRange = '1h',
+  variableValues,
   onTimeRangeChange,
 }: Props) {
   const [loading, setLoading] = useState(true);
@@ -236,14 +259,31 @@ export default function DashboardPanelCard({
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Stable JSON key for the variableValues map so the queries memo only
+  // recomputes when the resolved values actually change (object identity
+  // alone would re-fire on every parent render).
+  const variableValuesKey = useMemo(
+    () => (variableValues ? JSON.stringify(variableValues) : ''),
+    [variableValues],
+  );
+
   const effectiveQueries = useMemo<PanelQuery[]>(
-    () =>
-      panel.queries && panel.queries.length > 0
+    () => {
+      const baseQueries = panel.queries && panel.queries.length > 0
         ? panel.queries
         : panel.query
           ? [{ refId: 'A', expr: panel.query, instant: panel.visualization !== 'time_series' }]
-          : [],
-    [panel.queries, panel.query, panel.visualization]
+          : [];
+      // Substitute `${datasource}` (or any `${name}`) placeholders in
+      // datasourceId so a `$datasource` template variable can swap backends
+      // at view time without rewriting the panel.
+      if (!variableValues) return baseQueries;
+      return baseQueries.map((q) => ({
+        ...q,
+        datasourceId: substituteVariableTokens(q.datasourceId, variableValues),
+      }));
+    },
+    [panel.queries, panel.query, panel.visualization, variableValues, variableValuesKey] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const isRangeViz = panel.visualization === 'time_series' || panel.visualization === 'status_timeline' || panel.visualization === 'heatmap';
@@ -327,6 +367,7 @@ export default function DashboardPanelCard({
                   datasourceId: q.datasourceId,
                 })),
                 ...resolveTimeRange(timeRange),
+                ...(variableValues ? { variableValues } : {}),
               }) as Promise<{
                 data: { results: Record<string, { status: string; data: RangeResponse; error?: string }> } | null;
                 error?: unknown;
@@ -379,6 +420,7 @@ export default function DashboardPanelCard({
                       query: activeQuery,
                       datasourceId: activePanelQuery?.datasourceId,
                       ...resolveTimeRange(timeRange),
+                      ...(variableValues ? { variableValues } : {}),
                     }) as Promise<{ data: RangeResponse | null; error?: unknown }>,
                 )
                 .then((sparkRes) => {
@@ -415,6 +457,7 @@ export default function DashboardPanelCard({
                 query: activeQuery,
                 time: resolvedTimeRange.end,
                 datasourceId: activePanelQuery?.datasourceId,
+                ...(variableValues ? { variableValues } : {}),
               }) as Promise<{
                 data: InstantResponse | null;
                 error?: unknown;
@@ -441,7 +484,7 @@ export default function DashboardPanelCard({
 
       setLoading(false);
     },
-    [effectiveQueries, isRangeViz, activePanelQuery?.datasourceId, activeQuery, instantQueryKey, queryKey, cacheMaxAgeMs, multiRangeData.length, instantData, panel.refreshIntervalSec, panel.id, resolvedTimeRange.end, timeRange]
+    [effectiveQueries, isRangeViz, activePanelQuery?.datasourceId, activeQuery, instantQueryKey, queryKey, cacheMaxAgeMs, multiRangeData.length, instantData, panel.refreshIntervalSec, panel.id, resolvedTimeRange.end, timeRange, variableValues, variableValuesKey] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // Try to restore from cache without fetching

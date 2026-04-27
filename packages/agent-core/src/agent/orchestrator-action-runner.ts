@@ -8,6 +8,7 @@ import { checkPermission, denialObservation } from './permission-gate.js';
 import type { ActionContext } from './orchestrator-action-handlers.js';
 import {
   handleDashboardCreate,
+  handleDashboardClone,
   handleInvestigationCreate,
   handleInvestigationAddSection,
   handleInvestigationComplete,
@@ -56,7 +57,8 @@ const log = createLogger('orchestrator');
  * deferral (emit a proposal, don't execute) rather than a denial.
  */
 const MUTATION_ACTIONS = [
-  'dashboard.create', 'dashboard.add_panels', 'dashboard.remove_panels', 'dashboard.modify_panel',
+  'dashboard.create', 'dashboard.clone',
+  'dashboard.add_panels', 'dashboard.remove_panels', 'dashboard.modify_panel',
   'dashboard.rearrange', 'dashboard.add_variable', 'dashboard.set_title',
   'investigation.create', 'investigation.add_section', 'investigation.complete',
   'create_alert_rule', 'modify_alert_rule', 'delete_alert_rule',
@@ -151,6 +153,7 @@ async function dispatchAction(
     // Dashboard lifecycle
     case 'dashboard.create': return handleDashboardCreate(ctx, args);
     case 'dashboard.list': return handleDashboardList(ctx, args);
+    case 'dashboard.clone': return handleDashboardClone(ctx, args);
     // Dashboard mutation primitives (dashboardId comes from args)
     case 'dashboard.add_panels': return handleDashboardAddPanels(ctx, args);
     case 'dashboard.set_title': return handleDashboardSetTitle(ctx, args);
