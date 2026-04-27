@@ -181,7 +181,7 @@ export class SetupConfigService {
     return removed;
   }
 
-  async countDatasources(orgId?: string | null): Promise<number> {
+  async countDatasources(orgId?: string): Promise<number> {
     return this.deps.datasources.count(orgId);
   }
 

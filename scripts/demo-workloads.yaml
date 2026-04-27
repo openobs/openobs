@@ -1,0 +1,159 @@
+---
+# Healthy baseline so the cluster has normal traffic to compare against.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+  namespace: default
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+  namespace: default
+spec:
+  selector:
+    app: nginx
+  ports:
+    - port: 80
+      targetPort: 80
+---
+# CrashLoopBackOff — exits non-zero immediately.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crashloop-app
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: crashloop-app
+  template:
+    metadata:
+      labels:
+        app: crashloop-app
+    spec:
+      containers:
+        - name: app
+          image: busybox:1.36
+          command: ["/bin/sh", "-c", "echo 'starting up...'; sleep 2; echo 'ERROR: cannot connect to db'; exit 1"]
+---
+# OOMKilled — requests way more memory than the limit.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memory-hog
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: memory-hog
+  template:
+    metadata:
+      labels:
+        app: memory-hog
+    spec:
+      containers:
+        - name: hog
+          image: polinux/stress
+          resources:
+            limits:
+              memory: 32Mi
+          command: ["stress"]
+          args: ["--vm", "1", "--vm-bytes", "100M", "--vm-hang", "1"]
+---
+# ImagePullBackOff — image doesn't exist.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bad-image
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bad-image
+  template:
+    metadata:
+      labels:
+        app: bad-image
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/openobs/this-image-does-not-exist:v9.9.9
+---
+# Pending — requests more CPU than any node has.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: too-greedy
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: too-greedy
+  template:
+    metadata:
+      labels:
+        app: too-greedy
+    spec:
+      containers:
+        - name: app
+          image: nginx:1.27-alpine
+          resources:
+            requests:
+              cpu: "100"  # 100 cores — no node has this
+              memory: 1Gi
+---
+# A workload that occasionally errors out (5xx) — useful for HTTP error-rate queries.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flaky-api
+  namespace: default
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: flaky-api
+  template:
+    metadata:
+      labels:
+        app: flaky-api
+    spec:
+      containers:
+        - name: app
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi

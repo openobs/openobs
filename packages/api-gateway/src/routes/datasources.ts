@@ -46,12 +46,24 @@ interface DatasourceBody {
   username?: string | null;
   password?: string | null;
   isDefault?: boolean;
-  orgId?: string | null;
+  orgId?: string;
 }
 
 function actorFromReq(req: Request): { userId: string | null } {
   const ar = req as AuthenticatedRequest;
   return { userId: ar.auth?.userId ?? null };
+}
+
+/**
+ * Resolve the owning org for a datasource. Pre-bootstrap the wizard hits
+ * this route unauthenticated (no `req.auth`); we default to `org_main` which
+ * is the seeded default org. Once authenticated we trust the caller's org.
+ * Body-supplied `orgId` is honored if present (admin tooling).
+ */
+function resolveOrgId(req: Request, body: DatasourceBody): string {
+  if (body.orgId) return body.orgId;
+  const auth = (req as AuthenticatedRequest).auth;
+  return auth?.orgId ?? 'org_main';
 }
 
 export function createDatasourcesRouter(deps: DatasourcesRouterDeps): Router {
@@ -127,7 +139,7 @@ export function createDatasourcesRouter(deps: DatasourcesRouterDeps): Router {
       username: body.username ?? null,
       password: body.password ?? null,
       isDefault: body.isDefault ?? false,
-      orgId: body.orgId ?? null,
+      orgId: resolveOrgId(req, body),
     };
     const created = await setupConfig.createDatasource(input, actor);
     res.status(201).json({ datasource: maskForWire(created) });

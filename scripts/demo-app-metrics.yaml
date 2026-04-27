@@ -1,0 +1,354 @@
+---
+# ============================================================================
+# Scenario A — HTTP service with mixed 2xx/5xx traffic.
+# Image: prometheus-example-app exposes /metrics with
+#   http_requests_total{code,method} counter
+#   http_request_duration_seconds histogram
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-api
+  namespace: default
+  labels: { app: web-api, scrape: "true" }
+spec:
+  replicas: 3
+  selector: { matchLabels: { app: web-api } }
+  template:
+    metadata:
+      labels: { app: web-api, scrape: "true" }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      containers:
+        - name: app
+          image: quay.io/brancz/prometheus-example-app:v0.5.0
+          ports:
+            - containerPort: 8080
+              name: http
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits:   { cpu: 200m, memory: 128Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-api
+  namespace: default
+  labels: { app: web-api, scrape: "true" }
+spec:
+  selector: { app: web-api }
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+# Healthy load: hits / on web-api → 200s
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: load-200
+  namespace: default
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: load-200 } }
+  template:
+    metadata: { labels: { app: load-200 } }
+    spec:
+      containers:
+        - name: curl
+          image: curlimages/curl:8.10.1
+          command: ["/bin/sh", "-c"]
+          args:
+            - while true; do curl -sfo /dev/null http://web-api:8080/; sleep 0.2; done
+---
+# Error load: hits /err on web-api → 500s (spikes the error rate)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: load-500
+  namespace: default
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: load-500 } }
+  template:
+    metadata: { labels: { app: load-500 } }
+    spec:
+      containers:
+        - name: curl
+          image: curlimages/curl:8.10.1
+          command: ["/bin/sh", "-c"]
+          args:
+            - while true; do curl -so /dev/null http://web-api:8080/err; sleep 0.5; done
+---
+# ============================================================================
+# Scenario B — Fortio: latency histograms + configurable load.
+# Image: fortio/fortio
+# Metrics at /fortio/metrics:
+#   fortio_http_response_count_total
+#   fortio_http_response_duration_seconds_bucket
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fortio-server
+  namespace: default
+  labels: { app: fortio-server, scrape: "true" }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: fortio-server } }
+  template:
+    metadata:
+      labels: { app: fortio-server, scrape: "true" }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/fortio/metrics"
+    spec:
+      containers:
+        - name: fortio
+          image: fortio/fortio:1.69.6
+          args: ["server"]
+          ports:
+            - containerPort: 8080
+              name: http
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fortio-server
+  namespace: default
+  labels: { app: fortio-server, scrape: "true" }
+spec:
+  selector: { app: fortio-server }
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+# Steady load on fortio (QPS 10)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fortio-load
+  namespace: default
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: fortio-load } }
+  template:
+    metadata: { labels: { app: fortio-load } }
+    spec:
+      containers:
+        - name: load
+          image: fortio/fortio:1.69.6
+          command: ["fortio", "load", "-qps", "10", "-t", "0", "-c", "4", "http://fortio-server:8080/echo?delay=50ms"]
+---
+# ============================================================================
+# Scenario C — Redis + redis_exporter: DB-level metrics
+# redis_commands_processed_total, redis_memory_used_bytes, redis_connected_clients
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: default
+  labels: { app: redis, scrape: "true" }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: redis } }
+  template:
+    metadata:
+      labels: { app: redis, scrape: "true" }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9121"
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports: [{ containerPort: 6379, name: redis }]
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+        - name: exporter
+          image: oliver006/redis_exporter:v1.66.0-alpine
+          ports: [{ containerPort: 9121, name: metrics }]
+          args: ["-redis.addr=redis://localhost:6379"]
+          resources:
+            requests: { cpu: 20m, memory: 32Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: default
+  labels: { app: redis, scrape: "true" }
+spec:
+  selector: { app: redis }
+  ports:
+    - { name: redis, port: 6379, targetPort: redis }
+    - { name: metrics, port: 9121, targetPort: metrics }
+---
+# Redis traffic generator: PUSH/POP on a queue, INCR on counters
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-load
+  namespace: default
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: redis-load } }
+  template:
+    metadata: { labels: { app: redis-load } }
+    spec:
+      containers:
+        - name: client
+          image: redis:7-alpine
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              while true; do
+                redis-cli -h redis INCR counter:requests > /dev/null
+                redis-cli -h redis LPUSH queue:jobs "job-$(date +%s)" > /dev/null
+                redis-cli -h redis RPOP queue:jobs > /dev/null
+                redis-cli -h redis SET "key:$(($RANDOM % 100))" "value" EX 60 > /dev/null
+                sleep 0.3
+              done
+---
+# ============================================================================
+# Scenario D — Custom business-metrics app (Python, inlined via ConfigMap).
+# Exposes:
+#   orders_processed_total{status} counter
+#   orders_inflight gauge
+#   order_processing_seconds histogram
+#   queue_depth{queue} gauge
+# Has a built-in pattern: bursts of orders, occasional 'failed' status,
+# queue depth grows then drains. No external load gen needed.
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orders-app-src
+  namespace: default
+data:
+  app.py: |
+    import random, time, threading
+    from prometheus_client import Counter, Gauge, Histogram, start_http_server
+
+    orders_total = Counter(
+        "orders_processed_total", "Orders processed", ["status", "tier"]
+    )
+    inflight = Gauge("orders_inflight", "Orders currently being processed")
+    proc_secs = Histogram(
+        "order_processing_seconds", "Order processing latency",
+        buckets=[0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+    )
+    queue_depth = Gauge("queue_depth", "Items in queue", ["queue"])
+
+    def worker():
+        depth = 0
+        while True:
+            # Bursty arrivals: most ticks add 0–3, occasionally a burst of 20.
+            if random.random() < 0.05:
+                depth += 20  # burst
+            depth += random.randint(0, 3)
+            queue_depth.labels(queue="orders").set(depth)
+            queue_depth.labels(queue="dead-letter").set(random.randint(0, 5))
+
+            # Process one item per tick if there's any.
+            if depth > 0:
+                inflight.inc()
+                # 90% fast, 10% slow tail (latency spike)
+                latency = random.uniform(0.02, 0.15) if random.random() > 0.1 else random.uniform(1.5, 4.0)
+                with proc_secs.time():
+                    time.sleep(latency)
+                tier = random.choice(["free", "free", "pro", "pro", "enterprise"])
+                # 5% failure rate, jumps to 30% during bursts (depth>15)
+                fail_rate = 0.30 if depth > 15 else 0.05
+                status = "failed" if random.random() < fail_rate else "succeeded"
+                orders_total.labels(status=status, tier=tier).inc()
+                inflight.dec()
+                depth -= 1
+            else:
+                time.sleep(0.5)
+
+    if __name__ == "__main__":
+        start_http_server(8000)
+        print("orders-sim listening on :8000/metrics", flush=True)
+        worker()
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders-sim
+  namespace: default
+  labels: { app: orders-sim, scrape: "true" }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: orders-sim } }
+  template:
+    metadata:
+      labels: { app: orders-sim, scrape: "true" }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+    spec:
+      containers:
+        - name: app
+          image: python:3.12-alpine
+          command: ["/bin/sh", "-c"]
+          args:
+            - pip install --no-cache-dir prometheus_client && python /app/app.py
+          volumeMounts:
+            - name: src
+              mountPath: /app
+          ports: [{ containerPort: 8000, name: metrics }]
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+      volumes:
+        - name: src
+          configMap: { name: orders-app-src }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orders-sim
+  namespace: default
+  labels: { app: orders-sim, scrape: "true" }
+spec:
+  selector: { app: orders-sim }
+  ports:
+    - { name: metrics, port: 8000, targetPort: metrics }
+---
+# ============================================================================
+# Scrape config: a single PodMonitor that picks up everything labeled
+# scrape=true. kube-prometheus-stack's Prometheus operator watches PodMonitor
+# CRDs in any namespace by default.
+# ============================================================================
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: demo-apps
+  namespace: monitoring   # operator only watches monitoring namespace by default in some setups; place here to be safe
+  labels:
+    release: prom
+spec:
+  namespaceSelector:
+    matchNames: ["default"]
+  selector:
+    matchLabels:
+      scrape: "true"
+  podMetricsEndpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+    - port: metrics
+      path: /metrics
+      interval: 15s
+    # fortio uses /fortio/metrics
+    - port: http
+      path: /fortio/metrics
+      interval: 15s

@@ -56,13 +56,8 @@ export interface IInstanceConfigRepository {
 // -- DatasourceRepository ---------------------------------------------
 
 export interface ListDatasourcesOptions extends MaskOptions {
-  /**
-   * Filter by org_id. When undefined, returns all datasources (both
-   * instance-global, org_id IS NULL, and any per-org rows). Pass `null`
-   * explicitly to fetch only instance-global rows; pass a string to
-   * fetch only that org's rows.
-   */
-  orgId?: string | null;
+  /** Filter to one org. When undefined, returns all datasources across all orgs. */
+  orgId?: string;
   type?: string;
 }
 
@@ -72,7 +67,7 @@ export interface IDatasourceRepository {
   create(input: NewInstanceDatasource): Promise<InstanceDatasource>;
   update(id: string, patch: InstanceDatasourcePatch): Promise<InstanceDatasource | null>;
   delete(id: string): Promise<boolean>;
-  count(orgId?: string | null): Promise<number>;
+  count(orgId?: string): Promise<number>;
 }
 
 // -- NotificationChannelRepository ------------------------------------
