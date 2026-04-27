@@ -142,6 +142,22 @@ describe('ApiKeyService.issueServiceAccountToken', () => {
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
+  it('403 when SA has no membership in the target org', async () => {
+    const orphanSa = await ctx.users.create({
+      email: 'orphan-sa@t.local',
+      name: 'Orphan SA',
+      login: 'orphan-sa',
+      orgId: 'org_main',
+      isServiceAccount: true,
+    });
+
+    await expect(
+      ctx.svc.issueServiceAccountToken('org_main', orphanSa.id, {
+        name: 'n',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
   it('honours secondsToLive', async () => {
     const issued = await ctx.svc.issueServiceAccountToken(
       'org_main',
@@ -209,6 +225,19 @@ describe('ApiKeyService.issuePersonalAccessToken', () => {
     );
     const row = await ctx.apiKeys.findById(issued.id);
     expect(row?.role).toBe('Editor');
+  });
+
+  it('403 when PAT owner has no membership in the target org', async () => {
+    const orphan = await ctx.users.create({
+      email: 'orphan-human@t.local',
+      name: 'Orphan Human',
+      login: 'orphan-human',
+      orgId: 'org_main',
+    });
+
+    await expect(
+      ctx.svc.issuePersonalAccessToken('org_main', orphan.id, { name: 'p' }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
   it('audit event apikey.created', async () => {

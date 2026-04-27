@@ -1,12 +1,6 @@
-import type { DbClient } from '../db/client.js';
 import type { SqliteClient } from '../db/sqlite-client.js';
 import type {
-  IInvestigationRepository,
   IIncidentRepository,
-  IFeedRepository,
-  ICaseRepository,
-  IApprovalRepository,
-  IShareRepository,
   IFeedItemRepository,
   IApprovalRequestRepository,
   IShareLinkRepository,
@@ -36,13 +30,6 @@ import type {
   IGatewayDashboardStore,
 } from '../stores/interfaces.js';
 
-import { PostgresInvestigationRepository } from './postgres/investigation.js';
-import { PostgresIncidentRepository } from './postgres/incident.js';
-import { PostgresFeedRepository } from './postgres/feed.js';
-import { PostgresCaseRepository } from './postgres/case.js';
-import { PostgresApprovalRepository } from './postgres/approval.js';
-import { PostgresShareRepository } from './postgres/share.js';
-
 import { InvestigationRepository } from './sqlite/investigation.js';
 import { SqliteIncidentRepository } from './sqlite/incident.js';
 import { SqliteFeedItemRepository } from './sqlite/feed.js';
@@ -62,18 +49,6 @@ import { InstanceConfigRepository } from './sqlite/instance-config.js';
 import { DatasourceRepository } from './sqlite/datasource.js';
 import { NotificationChannelRepository } from './sqlite/notification-channel.js';
 import { OpsConnectorRepository } from './sqlite/ops-connector.js';
-
-/**
- * Core repositories (shared across all backends that support them).
- */
-export interface Repositories {
-  investigations: IInvestigationRepository;
-  incidents: IIncidentRepository;
-  feed: IFeedRepository;
-  cases: ICaseRepository;
-  approvals: IApprovalRepository;
-  shares: IShareRepository;
-}
 
 /**
  * Extended repositories available with the SQLite backend.
@@ -107,17 +82,6 @@ export interface SqliteRepositories {
   opsConnectors: IOpsConnectorRepository;
 }
 
-export function createPostgresRepositories(db: DbClient): Repositories {
-  return {
-    investigations: new PostgresInvestigationRepository(db),
-    incidents: new PostgresIncidentRepository(db),
-    feed: new PostgresFeedRepository(db),
-    cases: new PostgresCaseRepository(db),
-    approvals: new PostgresApprovalRepository(db),
-    shares: new PostgresShareRepository(db),
-  };
-}
-
 export function createSqliteRepositories(db: SqliteClient): SqliteRepositories {
   return {
     investigations: new InvestigationRepository(db),
@@ -140,14 +104,4 @@ export function createSqliteRepositories(db: SqliteClient): SqliteRepositories {
     notificationChannels: new NotificationChannelRepository(db),
     opsConnectors: new OpsConnectorRepository(db),
   };
-}
-
-export type RepositoryBackend = 'postgres' | 'sqlite';
-
-export function createRepositories(
-  backend: RepositoryBackend,
-  db: DbClient,
-): Repositories {
-  if (!db) throw new Error('DbClient is required');
-  return createPostgresRepositories(db);
 }

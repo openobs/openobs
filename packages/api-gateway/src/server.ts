@@ -94,6 +94,13 @@ function mountGlobalMiddleware(app: Application): void {
       // Browsers default to no-referrer-when-downgrade; tighten so we never
       // leak query strings to upstream LLM providers.
       referrerPolicy: { policy: 'no-referrer' },
+      frameguard: { action: 'deny' },
+      hsts: isDev
+        ? false
+        : {
+            maxAge: 15552000,
+            includeSubDomains: true,
+          },
     }),
   );
 

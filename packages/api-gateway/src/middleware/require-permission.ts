@@ -47,6 +47,10 @@ export function createRequirePermission(ac: AccessControlSurface) {
       res: Response,
       next: NextFunction,
     ): Promise<void> {
+      if (res.locals['allowBootstrapUnauthenticated'] === true) {
+        next();
+        return;
+      }
       if (!req.auth) {
         res.status(401).json({
           error: { code: 'UNAUTHORIZED', message: 'authentication required' },

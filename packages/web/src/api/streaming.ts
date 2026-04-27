@@ -46,9 +46,9 @@ export async function postStream(
     if (!res.ok || !res.body) {
       if (res.status === 401) {
         // In dev mode the frontend skips login, but the backend still needs
-        // DEV_AUTH_BYPASS=true in .env.  Surface a clear message instead of
+        // a missing or expired backend session. Surface a clear message instead of
         // a cryptic "Network error".
-        throw new Error('Authentication required — add DEV_AUTH_BYPASS=true to .env and restart the server, or log in first.');
+        throw new Error('Authentication required — log in and try again.');
       }
       if (res.status === 403) {
         // Permission gate (HTTP layer or agent Layer 3 RBAC). Try to read

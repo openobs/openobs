@@ -28,7 +28,7 @@ import {
 
 interface DatasourceRow {
   id: string;
-  org_id: string | null;
+  org_id: string;
   type: string;
   name: string;
   url: string;
@@ -71,9 +71,7 @@ export class DatasourceRepository implements IDatasourceRepository {
 
   async list(opts: ListDatasourcesOptions = {}): Promise<InstanceDatasource[]> {
     const wheres: SQL[] = [];
-    if (opts.orgId === null) {
-      wheres.push(sql`org_id IS NULL`);
-    } else if (typeof opts.orgId === 'string') {
+    if (opts.orgId) {
       wheres.push(sql`org_id = ${opts.orgId}`);
     }
     if (opts.type) {
@@ -108,7 +106,7 @@ export class DatasourceRepository implements IDatasourceRepository {
         created_at, updated_at, updated_by
       ) VALUES (
         ${id},
-        ${input.orgId ?? null},
+        ${input.orgId},
         ${input.type},
         ${input.name},
         ${input.url},
@@ -174,19 +172,10 @@ export class DatasourceRepository implements IDatasourceRepository {
     return true;
   }
 
-  async count(orgId?: string | null): Promise<number> {
-    let rows: Array<{ n: number }>;
-    if (orgId === undefined) {
-      rows = this.db.all<{ n: number }>(sql`SELECT COUNT(*) AS n FROM instance_datasources`);
-    } else if (orgId === null) {
-      rows = this.db.all<{ n: number }>(
-        sql`SELECT COUNT(*) AS n FROM instance_datasources WHERE org_id IS NULL`,
-      );
-    } else {
-      rows = this.db.all<{ n: number }>(
-        sql`SELECT COUNT(*) AS n FROM instance_datasources WHERE org_id = ${orgId}`,
-      );
-    }
+  async count(orgId?: string): Promise<number> {
+    const rows = orgId
+      ? this.db.all<{ n: number }>(sql`SELECT COUNT(*) AS n FROM instance_datasources WHERE org_id = ${orgId}`)
+      : this.db.all<{ n: number }>(sql`SELECT COUNT(*) AS n FROM instance_datasources`);
     return rows[0]?.n ?? 0;
   }
 }

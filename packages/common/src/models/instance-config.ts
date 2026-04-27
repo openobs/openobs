@@ -87,7 +87,8 @@ export type DatasourceType =
 
 export interface InstanceDatasource {
   id: string;
-  orgId: string | null;
+  /** Owning org. Always set — datasources are not instance-global. */
+  orgId: string;
   type: DatasourceType;
   name: string;
   url: string;
@@ -105,7 +106,8 @@ export interface InstanceDatasource {
 
 export interface NewInstanceDatasource {
   id?: string;
-  orgId?: string | null;
+  /** Required — datasources are always owned by exactly one org. */
+  orgId: string;
   type: DatasourceType;
   name: string;
   url: string;

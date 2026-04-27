@@ -1,9 +1,17 @@
 import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
+import { sql } from 'drizzle-orm';
 import type { SqliteClient } from '../../db/sqlite-client.js';
 import { createTestDb } from '../../test-support/test-db.js';
 import { InstanceConfigRepository } from './instance-config.js';
 import { DatasourceRepository } from './datasource.js';
 import { NotificationChannelRepository } from './notification-channel.js';
+
+function seedExtraOrg(db: SqliteClient, id: string): void {
+  db.run(sql`
+    INSERT INTO org (id, name, created, updated)
+    VALUES (${id}, ${id}, datetime('now'), datetime('now'))
+  `);
+}
 
 describe('instance-config repositories', () => {
   const prevSecret = process.env['SECRET_KEY'];
@@ -95,6 +103,7 @@ describe('instance-config repositories', () => {
     it('create/get/list round-trip with encrypted password', async () => {
       const repo = new DatasourceRepository(db);
       const ds = await repo.create({
+        orgId: 'org_main',
         type: 'prometheus',
         name: 'prod-prom',
         url: 'https://prom.example.com',
@@ -112,6 +121,7 @@ describe('instance-config repositories', () => {
     it('get({ masked: true }) redacts apiKey and password', async () => {
       const repo = new DatasourceRepository(db);
       const ds = await repo.create({
+        orgId: 'org_main',
         type: 'elasticsearch',
         name: 'logs',
         url: 'https://es.example.com',
@@ -127,6 +137,7 @@ describe('instance-config repositories', () => {
     it('update() changes only patched fields, re-encrypts secrets', async () => {
       const repo = new DatasourceRepository(db);
       const ds = await repo.create({
+        orgId: 'org_main',
         type: 'prometheus',
         name: 'a',
         url: 'https://a.example.com',
@@ -140,35 +151,32 @@ describe('instance-config repositories', () => {
 
     it('delete() removes the row', async () => {
       const repo = new DatasourceRepository(db);
-      const ds = await repo.create({ type: 'prometheus', name: 'tmp', url: 'u' });
+      const ds = await repo.create({ orgId: 'org_main', type: 'prometheus', name: 'tmp', url: 'u' });
       expect(await repo.delete(ds.id)).toBe(true);
       expect(await repo.get(ds.id)).toBeNull();
       expect(await repo.delete(ds.id)).toBe(false);
     });
 
-    it('unique (org_id, name) allows overlap across global and per-org spaces', async () => {
-      // SQLite treats NULLs in a UNIQUE index as distinct (matches Postgres
-      // default). Plan choice: multiple NULL-org rows with the same name
-      // are allowed (e.g. if two wizards ran — a concern that goes away
-      // under the new route consolidation). Per-org rows are still
-      // uniquely constrained against each other.
+    it('unique (org_id, name) is enforced per-org but allows the same name across orgs', async () => {
+      seedExtraOrg(db, 'org_other');
       const repo = new DatasourceRepository(db);
-      await repo.create({ type: 'prometheus', name: 'shared', url: 'u1', orgId: null });
-      await repo.create({ type: 'prometheus', name: 'shared', url: 'u2', orgId: 'org_main' });
-      await repo.create({ type: 'prometheus', name: 'shared', url: 'u3', orgId: null });
-      // BUT: a repeat within the same non-null org_id must collide.
+      await repo.create({ type: 'prometheus', name: 'shared', url: 'u1', orgId: 'org_main' });
+      // Same name in a different org is fine.
+      await repo.create({ type: 'prometheus', name: 'shared', url: 'u2', orgId: 'org_other' });
+      // Repeat within the same org collides.
       await expect(
-        repo.create({ type: 'prometheus', name: 'shared', url: 'u4', orgId: 'org_main' }),
+        repo.create({ type: 'prometheus', name: 'shared', url: 'u3', orgId: 'org_main' }),
       ).rejects.toThrow();
     });
 
     it('count() with org filter', async () => {
+      seedExtraOrg(db, 'org_other');
       const repo = new DatasourceRepository(db);
-      await repo.create({ type: 'prometheus', name: 'g', url: 'u', orgId: null });
-      await repo.create({ type: 'prometheus', name: 'o', url: 'u', orgId: 'org_main' });
+      await repo.create({ type: 'prometheus', name: 'a', url: 'u', orgId: 'org_main' });
+      await repo.create({ type: 'prometheus', name: 'b', url: 'u', orgId: 'org_other' });
       expect(await repo.count()).toBe(2);
-      expect(await repo.count(null)).toBe(1);
       expect(await repo.count('org_main')).toBe(1);
+      expect(await repo.count('org_other')).toBe(1);
     });
   });
 

@@ -22,11 +22,6 @@ export interface LlmConnectionTestResult {
 
 export interface FetchModelsResult {
   models: ModelInfo[];
-  /**
-   * When the provider listModels call failed, callers can surface this as a
-   * UI-visible warning string instead of treating an empty list as success.
-   */
-  errorMessage?: string;
 }
 
 export interface FetchModelsInput {
@@ -37,7 +32,7 @@ export interface FetchModelsInput {
 
 export class SetupLlmServiceError extends Error {
   constructor(
-    public readonly kind: 'invalid_url',
+    public readonly kind: 'invalid_url' | 'unsupported_provider' | 'provider_fetch_failed',
     message: string,
   ) {
     super(message);
@@ -288,9 +283,13 @@ export class SetupLlmService {
           return { models: await provider.listModels() };
         }
         default:
-          return { models: [] };
+          throw new SetupLlmServiceError(
+            'unsupported_provider',
+            `Unsupported provider: ${cfg.provider}`,
+          );
       }
     } catch (err) {
+      if (err instanceof SetupLlmServiceError) throw err;
       log.warn({ err, provider: cfg.provider, baseUrl: cfg.baseUrl }, 'fetchModels failed');
       if (err instanceof ProviderError) {
         const detail =
@@ -301,12 +300,15 @@ export class SetupLlmService {
               : err.kind === 'unsupported'
                 ? 'provider does not expose a model list endpoint'
                 : err.message;
-        return { models: [], errorMessage: `${cfg.provider}: ${detail}` };
+        throw new SetupLlmServiceError(
+          'provider_fetch_failed',
+          `${cfg.provider}: ${detail}`,
+        );
       }
-      return {
-        models: [],
-        errorMessage: `${cfg.provider}: ${err instanceof Error ? err.message : String(err)}`,
-      };
+      throw new SetupLlmServiceError(
+        'provider_fetch_failed',
+        `${cfg.provider}: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 
@@ -321,7 +323,7 @@ export class SetupLlmService {
       });
       if (!res.ok) {
         log.warn({ status: res.status, base }, 'DeepSeek /models returned non-OK');
-        return [];
+        throw new Error(`HTTP ${res.status}`);
       }
       const body = (await res.json()) as { data?: Array<{ id: string; owned_by?: string }> };
       const data = body.data ?? [];
@@ -331,7 +333,7 @@ export class SetupLlmService {
         .map((id) => ({ id, name: id, provider: 'deepseek' }));
     } catch (err) {
       log.warn({ err, base }, 'DeepSeek /models fetch failed');
-      return [];
+      throw err;
     }
   }
 }

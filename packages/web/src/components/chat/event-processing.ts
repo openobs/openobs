@@ -122,6 +122,8 @@ export const USER_VISIBLE_TOOLS = new Set([
   // Web search primitive (both name styles)
   'web_search',
   'web.search',
+  // Ops connector — single entrypoint for kubectl/cluster commands
+  'ops.run_command',
 ]);
 
 /**
@@ -159,6 +161,9 @@ export function phaseOf(tool: string): string {
 
   // Web search
   if (tool === 'web_search' || tool === 'web.search') return 'research';
+
+  // Ops / cluster commands
+  if (tool === 'ops.run_command') return 'ops';
 
   // Legacy composite pipeline phases
   if (tool === 'sample_metrics') return 'discover';
@@ -221,6 +226,8 @@ export const TOOL_LABELS: Record<string, string> = {
   'alert_rule.history': 'Checking alert history',
   // Web search (dotted variant)
   'web.search': 'Researching',
+  // Ops connector (kubectl etc.)
+  'ops.run_command': 'Running ops command',
   // Panel operations
   add_panels: 'Adding panels',
   remove_panels: 'Removing panels',

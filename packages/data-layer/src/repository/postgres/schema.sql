@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS instance_llm_config (
 
 CREATE TABLE IF NOT EXISTS instance_datasources (
   id          TEXT PRIMARY KEY,
-  org_id      TEXT NULL,
+  org_id      TEXT NOT NULL,
   type        TEXT NOT NULL,
   name        TEXT NOT NULL,
   url         TEXT NOT NULL,

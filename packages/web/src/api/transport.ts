@@ -70,9 +70,9 @@ export class ApiClient {
         // returned a fake `{ error: { code: 'UNKNOWN' } }` envelope, which let
         // pages render in a half-broken state. The DEV-only console.warn keeps
         // the local-dev signal that something needs attention (likely a
-        // missing DEV_AUTH_BYPASS in the backend .env).
+        // missing or expired backend session).
         if (import.meta.env.DEV) {
-          console.warn('[api] 401 from', path, '— redirecting to /login (DEV: check DEV_AUTH_BYPASS)');
+          console.warn('[api] 401 from', path, '— redirecting to /login');
         }
         if (typeof window !== 'undefined') window.location.href = '/login';
         return { data: null as T, error: { code: 'UNAUTHORIZED', message: 'Redirecting to login...' } };

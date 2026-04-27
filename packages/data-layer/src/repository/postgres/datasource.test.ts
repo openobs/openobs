@@ -41,6 +41,7 @@ describeIfPg('PostgresDatasourceRepository', () => {
   it('create/get/list round-trip with encrypted password', async () => {
     const repo = new PostgresDatasourceRepository(db);
     const ds = await repo.create({
+      orgId: 'org_main',
       type: 'prometheus',
       name: 'prod-prom',
       url: 'https://prom.example.com',
@@ -58,6 +59,7 @@ describeIfPg('PostgresDatasourceRepository', () => {
   it('get({ masked: true }) redacts apiKey and password', async () => {
     const repo = new PostgresDatasourceRepository(db);
     const ds = await repo.create({
+      orgId: 'org_main',
       type: 'elasticsearch',
       name: 'logs',
       url: 'https://es.example.com',
@@ -72,6 +74,7 @@ describeIfPg('PostgresDatasourceRepository', () => {
   it('update() changes only patched fields', async () => {
     const repo = new PostgresDatasourceRepository(db);
     const ds = await repo.create({
+      orgId: 'org_main',
       type: 'prometheus',
       name: 'a',
       url: 'https://a.example.com',
@@ -85,7 +88,7 @@ describeIfPg('PostgresDatasourceRepository', () => {
 
   it('delete() removes the row', async () => {
     const repo = new PostgresDatasourceRepository(db);
-    const ds = await repo.create({ type: 'prometheus', name: 'tmp', url: 'u' });
+    const ds = await repo.create({ orgId: 'org_main', type: 'prometheus', name: 'tmp', url: 'u' });
     expect(await repo.delete(ds.id)).toBe(true);
     expect(await repo.get(ds.id)).toBeNull();
     expect(await repo.delete(ds.id)).toBe(false);
@@ -93,10 +96,10 @@ describeIfPg('PostgresDatasourceRepository', () => {
 
   it('count() with org filter', async () => {
     const repo = new PostgresDatasourceRepository(db);
-    await repo.create({ type: 'prometheus', name: 'g', url: 'u', orgId: null });
-    await repo.create({ type: 'prometheus', name: 'o', url: 'u', orgId: 'org_main' });
+    await repo.create({ type: 'prometheus', name: 'a', url: 'u', orgId: 'org_main' });
+    await repo.create({ type: 'prometheus', name: 'b', url: 'u', orgId: 'org_other' });
     expect(await repo.count()).toBe(2);
-    expect(await repo.count(null)).toBe(1);
     expect(await repo.count('org_main')).toBe(1);
+    expect(await repo.count('org_other')).toBe(1);
   });
 });
