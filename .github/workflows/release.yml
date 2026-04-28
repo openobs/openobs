@@ -63,7 +63,7 @@ jobs:
               --version ${{ steps.ver.outputs.version }}
             ```
 
-            **Docker**: `ghcr.io/${{ github.repository }}:${{ github.ref_name }}`
+            **Docker**: `ghcr.io/${{ github.repository }}:${{ steps.ver.outputs.version }}`
 
   # ── 2. Build chart + npm tarball once, share via artifact ──────────────
   package:

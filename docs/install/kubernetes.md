@@ -5,11 +5,9 @@ OpenObs includes a first-party Helm chart in this repository at `helm/openobs`.
 ## Basic install
 
 ```bash
-helm upgrade --install openobs ./helm/openobs \
+helm upgrade --install openobs oci://ghcr.io/openobs/charts/openobs \
   --namespace observability \
   --create-namespace \
-  --set image.repository=ghcr.io/your-org/openobs \
-  --set image.tag=latest \
   --set secretEnv.LLM_API_KEY='replace-with-your-provider-key'
 ```
 
@@ -24,11 +22,9 @@ helm upgrade --install openobs ./helm/openobs \
 ## Ingress example
 
 ```bash
-helm upgrade --install openobs ./helm/openobs \
+helm upgrade --install openobs oci://ghcr.io/openobs/charts/openobs \
   --namespace observability \
   --create-namespace \
-  --set image.repository=ghcr.io/your-org/openobs \
-  --set image.tag=latest \
   --set ingress.enabled=true \
   --set ingress.className=nginx \
   --set ingress.hosts[0].host=openobs.example.com \
