@@ -191,6 +191,11 @@ jobs:
         with:
           name: release-artifacts
           path: out/
+
+      - name: Rename npm release asset
+        run: |
+          mv out/npm/openobs-*.tgz "out/npm/openobs-cli-${{ needs.package.outputs.version }}.tgz"
+
       - uses: softprops/action-gh-release@v2
         with:
           files: |
