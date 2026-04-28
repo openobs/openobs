@@ -72,11 +72,13 @@ healthRouter.get('/ready', (_req: Request, res: Response) => {
 
   const checks = { db, redis, llm, proactive };
 
-  // LLM is critical - without it the agent cannot investigate
-  // Proactive pipeline failure is soft - reactive investigation still works
+  // K8s readiness should answer "can this pod receive traffic?", not whether
+  // the setup wizard has completed. Missing LLM config makes investigations
+  // unavailable, but a fresh install must still become reachable so operators
+  // can configure it.
   let status: ReadyResponse['status'];
   if (llm.status === 'fail') {
-    status = 'unhealthy';
+    status = 'degraded';
   }
   else if (proactive.status === 'fail') {
     status = 'degraded';
@@ -85,8 +87,7 @@ healthRouter.get('/ready', (_req: Request, res: Response) => {
     status = 'healthy';
   }
 
-  const httpStatus = status === 'unhealthy' ? 503 : 200;
-  res.status(httpStatus).json({
+  res.status(200).json({
     status,
     checks,
     timestamp: new Date().toISOString(),
