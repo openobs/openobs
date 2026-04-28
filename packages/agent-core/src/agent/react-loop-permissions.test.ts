@@ -243,7 +243,7 @@ describe('Scenario 7 — propose_only agent + dashboard.create', () => {
   it('denies at Layer 2 (permissionMode)', async () => {
     const { agent, audit } = build({
       llmResponses: [
-        asStep('attempt', 'create_alert_rule', { folderUid: 'rules', prompt: 'x' }),
+        asStep('attempt', 'alert_rule.write', { op: 'create', folderUid: 'rules', prompt: 'x' }),
         asReply('Proposal only.'),
       ],
       agentType: 'alert-rule-builder',

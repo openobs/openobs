@@ -125,28 +125,30 @@ export const TOOL_PERMS: Record<string, ToolPermissionBuilder> = {
     ),
 
   // -- Alert rules ---------------------------------------------------------
-  // create: folder-scoped
-  create_alert_rule: (args: Record<string, unknown>) =>
-    ac.eval(
-      'alert.rules:create',
-      `folders:uid:${String(args.folderUid ?? '*')}`,
-    ),
-  // modify/delete: async — look up the rule to derive its folderUid.
-  modify_alert_rule: async (args: Record<string, unknown>, ctx: ActionContext) => {
-    const ruleId = String(args.ruleId ?? '');
-    const folderUid = await lookupAlertRuleFolderUid(ctx, ruleId);
-    return ac.eval(
-      'alert.rules:write',
-      `folders:uid:${folderUid ?? '*'}`,
-    );
-  },
-  delete_alert_rule: async (args: Record<string, unknown>, ctx: ActionContext) => {
-    const ruleId = String(args.ruleId ?? '');
-    const folderUid = await lookupAlertRuleFolderUid(ctx, ruleId);
-    return ac.eval(
-      'alert.rules:delete',
-      `folders:uid:${folderUid ?? '*'}`,
-    );
+  // alert_rule.write is the unified create/update/delete tool. The op
+  // discriminator decides which RBAC action to evaluate:
+  //   - op=create   → alert.rules:create on folders:uid:<folderUid|*>
+  //   - op=update   → alert.rules:write  on folders:uid:<rule's folderUid|*>
+  //   - op=delete   → alert.rules:delete on folders:uid:<rule's folderUid|*>
+  // create folderUid comes straight from the args; update/delete need an
+  // async lookup against the store to resolve the rule's folder.
+  'alert_rule.write': async (args: Record<string, unknown>, ctx: ActionContext) => {
+    const op = typeof args.op === 'string' ? args.op : '';
+    if (op === 'create') {
+      return ac.eval(
+        'alert.rules:create',
+        `folders:uid:${String(args.folderUid ?? '*')}`,
+      );
+    }
+    if (op === 'update' || op === 'delete') {
+      const ruleId = String(args.ruleId ?? '');
+      const folderUid = await lookupAlertRuleFolderUid(ctx, ruleId);
+      const action = op === 'update' ? 'alert.rules:write' : 'alert.rules:delete';
+      return ac.eval(action, `folders:uid:${folderUid ?? '*'}`);
+    }
+    // Unknown op: deny via a sentinel scope no grant covers. The handler also
+    // rejects this case, but the gate runs first — fail closed at the boundary.
+    return ac.eval('alert.rules:write', `op:invalid:${op || 'missing'}`);
   },
   'alert_rule.list': () => ac.eval('alert.rules:read', 'alert.rules:*'),
   'alert_rule.history': (args: Record<string, unknown>) =>
@@ -160,15 +162,10 @@ export const TOOL_PERMS: Record<string, ToolPermissionBuilder> = {
     ac.eval('datasources:query', resolveDatasourceScope(args)),
   'metrics.range_query': (args: Record<string, unknown>) =>
     ac.eval('datasources:query', resolveDatasourceScope(args)),
-  'metrics.labels': (args: Record<string, unknown>) =>
-    ac.eval('datasources:query', resolveDatasourceScope(args)),
-  'metrics.label_values': (args: Record<string, unknown>) =>
-    ac.eval('datasources:query', resolveDatasourceScope(args)),
-  'metrics.series': (args: Record<string, unknown>) =>
-    ac.eval('datasources:query', resolveDatasourceScope(args)),
-  'metrics.metadata': (args: Record<string, unknown>) =>
-    ac.eval('datasources:query', resolveDatasourceScope(args)),
-  'metrics.metric_names': (args: Record<string, unknown>) =>
+  // metrics.discover collapses labels / label_values / series / metadata /
+  // metric_names — they all read against the same datasource scope so the
+  // gate is identical regardless of the `kind` discriminator.
+  'metrics.discover': (args: Record<string, unknown>) =>
     ac.eval('datasources:query', resolveDatasourceScope(args)),
   'metrics.validate': (args: Record<string, unknown>) =>
     ac.eval('datasources:query', resolveDatasourceScope(args)),

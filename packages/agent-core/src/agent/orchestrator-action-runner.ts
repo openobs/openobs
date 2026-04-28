@@ -12,9 +12,7 @@ import {
   handleInvestigationCreate,
   handleInvestigationAddSection,
   handleInvestigationComplete,
-  handleCreateAlertRule,
-  handleModifyAlertRule,
-  handleDeleteAlertRule,
+  handleAlertRuleWrite,
   handleDashboardAddPanels,
   handleDashboardSetTitle,
   handleDashboardRemovePanels,
@@ -26,11 +24,7 @@ import {
   handleDatasourcesUnpin,
   handleMetricsQuery,
   handleMetricsRangeQuery,
-  handleMetricsLabels,
-  handleMetricsLabelValues,
-  handleMetricsSeries,
-  handleMetricsMetadata,
-  handleMetricsMetricNames,
+  handleMetricsDiscover,
   handleMetricsValidate,
   handleLogsQuery,
   handleLogsLabels,
@@ -61,7 +55,8 @@ const MUTATION_ACTIONS = [
   'dashboard.add_panels', 'dashboard.remove_panels', 'dashboard.modify_panel',
   'dashboard.rearrange', 'dashboard.add_variable', 'dashboard.set_title',
   'investigation.create', 'investigation.add_section', 'investigation.complete',
-  'create_alert_rule', 'modify_alert_rule', 'delete_alert_rule',
+  // alert_rule.write covers create / update / delete via the `op` discriminator
+  'alert_rule.write',
 ] as const;
 
 export interface PermissionWrappedActionRunnerDeps {
@@ -165,10 +160,8 @@ async function dispatchAction(
     case 'investigation.list': return handleInvestigationList(ctx, args);
     case 'investigation.add_section': return handleInvestigationAddSection(ctx, args);
     case 'investigation.complete': return handleInvestigationComplete(ctx, args);
-    // Alert rules
-    case 'create_alert_rule': return handleCreateAlertRule(ctx, args);
-    case 'modify_alert_rule': return handleModifyAlertRule(ctx, args);
-    case 'delete_alert_rule': return handleDeleteAlertRule(ctx, args);
+    // Alert rules — alert_rule.write dispatches create/update/delete via `op`
+    case 'alert_rule.write': return handleAlertRuleWrite(ctx, args);
     case 'alert_rule.list': return handleAlertRuleList(ctx, args);
     case 'alert_rule.history': return handleAlertRuleHistory(ctx, args);
     // Folder lifecycle (minimal — organize dashboards)
@@ -181,14 +174,11 @@ async function dispatchAction(
     case 'datasources.suggest': return handleDatasourcesSuggest(ctx, args);
     case 'datasources.pin': return handleDatasourcesPin(ctx, args);
     case 'datasources.unpin': return handleDatasourcesUnpin(ctx, args);
-    // Source-agnostic metrics primitives
+    // Source-agnostic metrics primitives — discover collapses labels /
+    // label_values / series / metadata / metric_names via `kind`
     case 'metrics.query': return handleMetricsQuery(ctx, args);
     case 'metrics.range_query': return handleMetricsRangeQuery(ctx, args);
-    case 'metrics.labels': return handleMetricsLabels(ctx, args);
-    case 'metrics.label_values': return handleMetricsLabelValues(ctx, args);
-    case 'metrics.series': return handleMetricsSeries(ctx, args);
-    case 'metrics.metadata': return handleMetricsMetadata(ctx, args);
-    case 'metrics.metric_names': return handleMetricsMetricNames(ctx, args);
+    case 'metrics.discover': return handleMetricsDiscover(ctx, args);
     case 'metrics.validate': return handleMetricsValidate(ctx, args);
     // Source-agnostic logs primitives
     case 'logs.query': return handleLogsQuery(ctx, args);

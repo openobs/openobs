@@ -136,91 +136,40 @@ export const TOOL_REGISTRY: Record<string, ToolRegistryEntry> = {
       },
     },
   },
-  'metrics.labels': {
+  'metrics.discover': {
     category: 'deferred',
     schema: {
-      name: 'metrics.labels',
+      name: 'metrics.discover',
       description:
-        'List label names for a metric (omit metric for the full set). Use to discover what labels a series carries before crafting selectors.',
+        'Ask a metrics backend what it has — five discovery shapes share one tool. Required: sourceId, kind. The kind selects the activity:\n' +
+        ' - kind="names": list/search metric names; pass `match` to filter (large clusters are sampled without it).\n' +
+        ' - kind="labels": list label keys; pass `metric` to scope to one series, omit for all labels in the backend.\n' +
+        ' - kind="values": list values for one label; required arg `label`.\n' +
+        ' - kind="series": find series matching selectors; required arg `match` (array of e.g. {__name__=~"http.*"}).\n' +
+        ' - kind="metadata": fetch type (counter/gauge/histogram/summary) + help text; pass `metric` for a single lookup or omit to fetch everything.\n' +
+        'Use BEFORE crafting queries — metadata dictates whether to wrap in rate(), labels dictate selector shape.',
       input_schema: {
         type: 'object',
         properties: {
           sourceId: { type: 'string', description: 'Datasource id from datasources.list' },
-          metric: { type: 'string', description: 'Optional metric name to scope labels. Omit for all labels in the backend.' },
-        },
-        required: ['sourceId'],
-      },
-    },
-  },
-  'metrics.label_values': {
-    category: 'deferred',
-    schema: {
-      name: 'metrics.label_values',
-      description: 'List all values for a label (e.g. all values of "handler"). Truncated to 50 with a "more" hint.',
-      input_schema: {
-        type: 'object',
-        properties: {
-          sourceId: { type: 'string', description: 'Datasource id from datasources.list' },
-          label: { type: 'string', description: 'Label name to enumerate values for' },
-        },
-        required: ['sourceId', 'label'],
-      },
-    },
-  },
-  'metrics.series': {
-    category: 'deferred',
-    schema: {
-      name: 'metrics.series',
-      description:
-        'Find series matching one or more selectors, e.g. {__name__=~"http.*"}. Returns series strings. Useful when you know a label pattern but not the exact metric name.',
-      input_schema: {
-        type: 'object',
-        properties: {
-          sourceId: { type: 'string', description: 'Datasource id from datasources.list' },
+          kind: {
+            type: 'string',
+            enum: ['labels', 'values', 'series', 'metadata', 'names'],
+            description: 'Which discovery shape to run. See description for required args per kind.',
+          },
+          metric: { type: 'string', description: 'For kind=labels (optional, scopes labels to one metric) and kind=metadata (optional, single metric lookup).' },
+          label: { type: 'string', description: 'Required for kind=values: the label whose values to enumerate.' },
+          // `match` carries two shapes depending on `kind` — JsonSchemaProperty
+          // doesn't model unions (no oneOf), so we declare the array shape and
+          // call out the string fallback in the description. The handler
+          // accepts both regardless of what the schema says.
           match: {
             type: 'array',
-            description: 'Series selectors, e.g. ["{__name__=~\\"http.*\\"}"]',
+            description: 'For kind=series: array of selectors, e.g. ["{__name__=~\\"http.*\\"}"]. For kind=names: pass a single string (the substring filter) — the handler accepts that shape too.',
             items: { type: 'string' },
           },
         },
-        required: ['sourceId', 'match'],
-      },
-    },
-  },
-  'metrics.metadata': {
-    category: 'deferred',
-    schema: {
-      name: 'metrics.metadata',
-      description:
-        'Get metric type (counter/gauge/histogram/summary) and help text. ESSENTIAL before writing queries — type dictates whether to wrap in rate() and what visualization to pick.',
-      input_schema: {
-        type: 'object',
-        properties: {
-          sourceId: { type: 'string', description: 'Datasource id from datasources.list' },
-          metric: { type: 'string', description: 'Single metric name to look up' },
-          metrics: {
-            type: 'array',
-            description: 'Multiple metric names to look up. Omit both to fetch all metadata the backend exposes.',
-            items: { type: 'string' },
-          },
-        },
-        required: ['sourceId'],
-      },
-    },
-  },
-  'metrics.metric_names': {
-    category: 'deferred',
-    schema: {
-      name: 'metrics.metric_names',
-      description:
-        'Search/list metric names. ALWAYS pass a "match" keyword (e.g. "http", "redis") to filter — without it, large clusters return a sampled list and prompt you to filter.',
-      input_schema: {
-        type: 'object',
-        properties: {
-          sourceId: { type: 'string', description: 'Datasource id from datasources.list' },
-          match: { type: 'string', description: 'Substring filter applied case-insensitively to metric names' },
-        },
-        required: ['sourceId'],
+        required: ['sourceId', 'kind'],
       },
     },
   },
@@ -577,62 +526,43 @@ export const TOOL_REGISTRY: Record<string, ToolRegistryEntry> = {
   // -------------------------------------------------------------------------
   // Alert rules
   // -------------------------------------------------------------------------
-  'create_alert_rule': {
+  'alert_rule.write': {
     category: 'deferred',
     schema: {
-      name: 'create_alert_rule',
+      name: 'alert_rule.write',
       description:
-        'Create an alert rule from a natural-language description. The rule generator produces the PromQL, threshold, severity, and labels. Query the current value first so the threshold is grounded in real data.',
+        'Create, update, or delete an alert rule — three verbs share one tool. Required: op. Per op:\n' +
+        ' - op="create": requires `prompt` (natural-language description). The rule generator produces PromQL, threshold, severity, labels. Query the current metric value first so the threshold is grounded in real data. Optional `dashboardId` reuses that dashboard\'s queries/variables.\n' +
+        ' - op="update": requires `ruleId`. Pass only the fields to change (threshold, operator, severity, forDurationSec, evaluationIntervalSec, query, name). Resolve "it"/"this alert" via Active Alert Rule Context.\n' +
+        ' - op="delete": requires `ruleId`. Irreversible.',
       input_schema: {
         type: 'object',
         properties: {
-          prompt: { type: 'string', description: 'Natural-language description of the alert condition' },
-          dashboardId: { type: 'string', description: 'Optional dashboard id — when set, the generator reuses dashboard queries/variables for consistency' },
-        },
-        required: ['prompt'],
-      },
-    },
-  },
-  'modify_alert_rule': {
-    category: 'deferred',
-    schema: {
-      name: 'modify_alert_rule',
-      description: 'Modify an existing alert rule. Provide ruleId and only the fields to change. Use the Active Alert Rule Context to resolve "it"/"this alert" references.',
-      input_schema: {
-        type: 'object',
-        properties: {
-          ruleId: { type: 'string', description: 'Id of the rule to modify' },
-          threshold: { type: 'number', description: 'New trigger threshold' },
+          op: {
+            type: 'string',
+            enum: ['create', 'update', 'delete'],
+            description: 'Which verb to run. See description for required args per op.',
+          },
+          ruleId: { type: 'string', description: 'Required for op=update / op=delete: id of the rule.' },
+          prompt: { type: 'string', description: 'Required for op=create: natural-language description of the alert condition.' },
+          dashboardId: { type: 'string', description: 'Optional for op=create: when set, the generator reuses dashboard queries/variables for consistency.' },
+          threshold: { type: 'number', description: 'For op=update: new trigger threshold.' },
           operator: {
             type: 'string',
             enum: ['>', '<', '>=', '<=', '=='],
-            description: 'New comparison operator',
+            description: 'For op=update: new comparison operator.',
           },
           severity: {
             type: 'string',
             enum: ['critical', 'high', 'medium', 'low'],
-            description: 'New severity level',
+            description: 'For op=update: new severity level.',
           },
-          forDurationSec: { type: 'number', description: 'How long the condition must hold before firing' },
-          evaluationIntervalSec: { type: 'number', description: 'How often to evaluate the rule' },
-          query: { type: 'string', description: 'New PromQL/MetricsQL expression' },
-          name: { type: 'string', description: 'New rule name' },
+          forDurationSec: { type: 'number', description: 'For op=update: how long the condition must hold before firing.' },
+          evaluationIntervalSec: { type: 'number', description: 'For op=update: how often to evaluate the rule.' },
+          query: { type: 'string', description: 'For op=update: new PromQL/MetricsQL expression.' },
+          name: { type: 'string', description: 'For op=update: new rule name.' },
         },
-        required: ['ruleId'],
-      },
-    },
-  },
-  'delete_alert_rule': {
-    category: 'deferred',
-    schema: {
-      name: 'delete_alert_rule',
-      description: 'Delete an alert rule. Irreversible.',
-      input_schema: {
-        type: 'object',
-        properties: {
-          ruleId: { type: 'string', description: 'Id of the rule to delete' },
-        },
-        required: ['ruleId'],
+        required: ['op'],
       },
     },
   },

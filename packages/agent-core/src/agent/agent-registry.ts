@@ -45,8 +45,7 @@ agentRegistry.register({
     'datasources.list',
     'datasources.suggest', 'datasources.pin', 'datasources.unpin',
     // Source-agnostic metrics primitives (each requires sourceId)
-    'metrics.query', 'metrics.range_query', 'metrics.labels', 'metrics.label_values',
-    'metrics.series', 'metrics.metadata', 'metrics.metric_names', 'metrics.validate',
+    'metrics.query', 'metrics.range_query', 'metrics.discover', 'metrics.validate',
     // Source-agnostic logs primitives (each requires sourceId)
     'logs.query', 'logs.labels', 'logs.label_values',
     // Recent change events
@@ -56,8 +55,7 @@ agentRegistry.register({
     // Knowledge
     'web.search',
     // Alert rules
-    'create_alert_rule', 'modify_alert_rule', 'delete_alert_rule',
-    'alert_rule.list', 'alert_rule.history',
+    'alert_rule.write', 'alert_rule.list', 'alert_rule.history',
     // Navigation
     'navigate',
     // Lazy tool loading — fetches deferred schemas on demand
@@ -72,7 +70,7 @@ agentRegistry.register({
 agentRegistry.register({
   type: 'alert-rule-builder',
   description: 'Generates alert rules from natural language, using dashboard context and metric discovery',
-  allowedTools: ['create_alert_rule', 'metrics.query', 'metrics.labels', 'llm.complete'],
+  allowedTools: ['alert_rule.write', 'metrics.query', 'metrics.discover', 'llm.complete'],
   inputKinds: ['dashboard', 'panel'],
   outputKinds: ['alert_rule'],
   permissionMode: 'propose_only',
