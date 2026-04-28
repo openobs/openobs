@@ -68,7 +68,7 @@ After a successful tag, users can install via any of:
 npx openobs            # or: npm install -g openobs && openobs
 
 # Docker — minimal container
-docker run --rm -p 3000:3000 ghcr.io/openobs/openobs:v0.1.0
+docker run --rm -p 3000:3000 ghcr.io/openobs/openobs:0.1.0
 
 # Helm (Kubernetes) — via OCI, no repo add
 helm install my-openobs \
@@ -80,8 +80,8 @@ helm install my-openobs \
 
 - **Tag format**: `v<semver>`. The leading `v` is stripped for chart and
   npm versions (semver compliance).
-- **Docker tag is `v<semver>`** (kept as-is). Chart appVersion in
-  `Chart.yaml` is stamped to `<semver>` (no `v`).
+- **Docker tag is `<semver>`** (no leading `v`), matching the chart
+  `appVersion` stamped into `Chart.yaml`.
 - **No pre-release channels yet.** `vX.Y.Z-beta.N` tags still publish —
   npm marks them dist-tag `latest` by default. If you want `--tag beta`,
   wire that in release.yml explicitly.

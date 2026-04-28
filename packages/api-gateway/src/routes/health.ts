@@ -23,20 +23,9 @@ interface ReadyResponse {
   checks: {
     db: CheckResult;
     redis: CheckResult;
-    llm: CheckResult;
     proactive: CheckResult;
   };
   timestamp: string;
-}
-
-function checkLlm(): CheckResult {
-  const apiKey
-    = process.env['ANTHROPIC_API_KEY']
-      ?? process.env['OPENAI_API_KEY']
-      ?? process.env['LLM_API_KEY'];
-  if (!apiKey)
-    return { status: 'fail', message: 'No LLM API key configured' };
-  return { status: 'ok', message: 'API key present' };
 }
 
 function checkProactive(): CheckResult {
@@ -67,26 +56,16 @@ healthRouter.get('/ready', (_req: Request, res: Response) => {
   // DB and Redis are not configured in this deployment (in-memory stores)
   const db: CheckResult = { status: 'skip', message: 'No DB configured' };
   const redis: CheckResult = { status: 'skip', message: 'No Redis configured' };
-  const llm = checkLlm();
   const proactive = checkProactive();
 
-  const checks = { db, redis, llm, proactive };
+  const checks = { db, redis, proactive };
 
-  // LLM is critical - without it the agent cannot investigate
-  // Proactive pipeline failure is soft - reactive investigation still works
-  let status: ReadyResponse['status'];
-  if (llm.status === 'fail') {
-    status = 'unhealthy';
-  }
-  else if (proactive.status === 'fail') {
-    status = 'degraded';
-  }
-  else {
-    status = 'healthy';
-  }
+  // K8s readiness should answer "can this pod receive traffic?". LLM setup is
+  // handled by the login/setup flow, not by health checks.
+  const status: ReadyResponse['status']
+    = proactive.status === 'fail' ? 'degraded' : 'healthy';
 
-  const httpStatus = status === 'unhealthy' ? 503 : 200;
-  res.status(httpStatus).json({
+  res.status(200).json({
     status,
     checks,
     timestamp: new Date().toISOString(),

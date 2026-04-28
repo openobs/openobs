@@ -1,8 +1,9 @@
 replicaCount: 1
 
 image:
-  repository: openobs
-  tag: latest
+  repository: ghcr.io/openobs/openobs
+  # Empty defaults to .Chart.AppVersion.
+  tag: ""
   pullPolicy: IfNotPresent
 
 nameOverride: ""
