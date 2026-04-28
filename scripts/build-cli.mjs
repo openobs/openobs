@@ -16,7 +16,7 @@
 
 import { execSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
@@ -91,23 +91,22 @@ await build({
   logLevel: 'info',
 });
 
-// -- 4. Copy SQL migrations --------------------------------------------
+// -- 4. Copy SQL schema files ------------------------------------------
 //
-// The data-layer's migration loader reads *.sql relative to its own module
-// URL. After esbuild, every bundled file collapses into server.mjs, so
-// `import.meta.url` resolves to packages/cli/dist/server.mjs. The loader
-// then reads `packages/cli/dist/*.sql`, so the files must live there.
+// The data-layer's schema loaders read SQL relative to their own module URL.
+// After esbuild, every bundled file collapses into server.mjs, so
+// `import.meta.url` resolves to packages/cli/dist/server.mjs. The loaders
+// then read `packages/cli/dist/*.sql`, so the files must live there.
 
-const migSrc = join(ROOT, 'packages', 'data-layer', 'src', 'migrations');
-const { readdirSync, copyFileSync } = await import('node:fs');
-let copied = 0;
-for (const f of readdirSync(migSrc)) {
-  if (f.endsWith('.sql')) {
-    copyFileSync(join(migSrc, f), join(distDir, f));
-    copied++;
-  }
+const { copyFileSync } = await import('node:fs');
+const schemaFiles = [
+  join(ROOT, 'packages', 'data-layer', 'src', 'db', 'sqlite-schema.sql'),
+  join(ROOT, 'packages', 'data-layer', 'src', 'repository', 'postgres', 'schema.sql'),
+];
+for (const file of schemaFiles) {
+  copyFileSync(file, join(distDir, basename(file)));
 }
-log(`Copied ${copied} SQL migrations → packages/cli/dist/`);
+log(`Copied ${schemaFiles.length} SQL schema files → packages/cli/dist/`);
 
 // -- 5. Copy web static bundle --------------------------------------------
 
