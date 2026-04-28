@@ -128,6 +128,8 @@ export const USER_VISIBLE_TOOLS = new Set([
   'web.search',
   // Ops connector — single entrypoint for kubectl/cluster commands
   'ops.run_command',
+  // Lazy tool loading — surfaces deferred tool schemas on demand
+  'tool_search',
 ]);
 
 /**
@@ -173,6 +175,9 @@ export function phaseOf(tool: string): string {
 
   // Ops / cluster commands
   if (tool === 'ops.run_command') return 'ops';
+
+  // Lazy tool loading
+  if (tool === 'tool_search') return 'discover';
 
   // Legacy composite pipeline phases
   if (tool === 'sample_metrics') return 'discover';
@@ -241,6 +246,8 @@ export const TOOL_LABELS: Record<string, string> = {
   'web.search': 'Researching',
   // Ops connector (kubectl etc.)
   'ops.run_command': 'Running ops command',
+  // Lazy tool loading
+  'tool_search': 'Loading tool',
   // Panel operations
   add_panels: 'Adding panels',
   remove_panels: 'Removing panels',

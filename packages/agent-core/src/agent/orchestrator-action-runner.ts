@@ -123,7 +123,7 @@ export class PermissionWrappedActionRunner {
     try {
       return await dispatchAction(action, args, ctx);
     } catch (err) {
-      const observationText = `Action "${action}" failed: ${getErrorMessage(err)}. Do NOT retry — use "reply" to inform the user.`;
+      const observationText = `Action "${action}" failed: ${getErrorMessage(err)}. Do NOT retry — end your turn with a plain-text reply that tells the user what went wrong.`;
       this.deps.sendEvent({
         type: 'tool_result',
         tool: action,
@@ -200,8 +200,11 @@ async function dispatchAction(
     case 'ops.run_command': return handleOpsRunCommand(ctx, args);
     // Web search
     case 'web.search': return handleWebSearch(ctx, args);
-    // 'finish' is handled as a terminal action in ReActLoop
-    case 'finish': return null;
+    // `tool_search` is intercepted by ReActLoop before dispatch — it
+    // resolves deferred-tool schemas and feeds them back as an observation
+    // without round-tripping through the dispatcher. Listed here as a
+    // no-op fallback so an out-of-loop caller doesn't see it as unknown.
+    case 'tool_search': return null;
     default: return `Unknown action "${action}" - skipping.`;
   }
 }

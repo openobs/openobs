@@ -205,8 +205,11 @@ export const TOOL_PERMS: Record<string, ToolPermissionBuilder> = {
  * Tools deliberately excluded from the RBAC gate.
  *
  *   - `navigate` is a pure-UI action (no server effect).
- *   - `reply` / `finish` / `ask_user` are terminal actions handled inside
- *     ReActLoop — they never reach executeAction.
+ *   - `ask_user` is the only terminal tool left after the reply/finish
+ *     drop; it's handled inside ReActLoop and never reaches executeAction.
+ *   - `tool_search` is a meta-tool that resolves deferred-tool schemas in
+ *     the loop without touching any backend; the per-tool gate still runs
+ *     when the model invokes a deferred tool.
  *   - `llm.complete` is an internal call from specialized agents that don't
  *     hit a user-visible resource; handlers that use it still enforce their
  *     own scoped checks.
@@ -216,9 +219,8 @@ export const TOOL_PERMS: Record<string, ToolPermissionBuilder> = {
  */
 export const UNGATED_TOOLS: ReadonlySet<string> = new Set([
   'navigate',
-  'reply',
-  'finish',
   'ask_user',
+  'tool_search',
   'llm.complete',
   'verifier.run',
   // Discovery is always allowed — the caller needs to see what's configured

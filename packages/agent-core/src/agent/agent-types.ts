@@ -33,7 +33,9 @@ export type AgentToolName =
   | 'datasources.list' | 'datasources.suggest' | 'datasources.pin' | 'datasources.unpin'
   // Knowledge & utility
   | 'web.search' | 'llm.complete'
-  | 'verifier.run';
+  | 'verifier.run'
+  // Lazy tool loading (fetches deferred-tool schemas on demand)
+  | 'tool_search';
 
 export type ArtifactKind =
   | 'dashboard' | 'panel' | 'dashboard_variable'

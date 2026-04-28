@@ -60,6 +60,8 @@ agentRegistry.register({
     'alert_rule.list', 'alert_rule.history',
     // Navigation
     'navigate',
+    // Lazy tool loading — fetches deferred schemas on demand
+    'tool_search',
   ],
   inputKinds: ['dashboard'],
   outputKinds: ['dashboard', 'panel', 'dashboard_variable', 'investigation_report', 'alert_rule'],

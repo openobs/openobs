@@ -29,7 +29,7 @@ const log = createLogger('permission-gate');
  * executeAction and therefore never hit the gate. Listed here for
  * documentation; the loop already handles them before calling us.
  */
-const TERMINAL = new Set(['reply', 'finish', 'ask_user']);
+const TERMINAL = new Set(['ask_user']);
 
 /**
  * Actions that are mutations in the artifact sense. `permissionMode` only
