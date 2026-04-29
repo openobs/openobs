@@ -310,3 +310,32 @@ describe('PlanExecutorService — retryStep', () => {
     await expect(svc.retryStep('org_main', plan.id, 0)).rejects.toThrow(/only failed steps/);
   });
 });
+
+
+describe('PlanExecutorService — audit hook', () => {
+  it('emits one audit row per step on success and failure', async () => {
+    const db = createTestDb();
+    const repo = new SqliteRemediationPlanRepository(db);
+    const calls: Array<{ outcome: string; metadata: Record<string, unknown> }> = [];
+    const audit = {
+      log: async (entry: { outcome: string; metadata: unknown }) => {
+        calls.push({ outcome: entry.outcome, metadata: (entry.metadata ?? {}) as Record<string, unknown> });
+      },
+    } as unknown as import('../auth/audit-writer.js').AuditWriter;
+
+    const plan = await repo.create(basePlan());
+    const adapter = fakeAdapter({ succeed: (argv) => argv[0] !== 'rollout' });
+    const svc = new PlanExecutorService({
+      plans: repo,
+      adapterFor: async () => adapter,
+      audit,
+    });
+    await svc.approve('org_main', plan.id, true, ID);
+    // step 0: scale -> ok; step 1: rollout -> fail
+    expect(calls).toHaveLength(2);
+    expect(calls[0]?.outcome).toBe('success');
+    expect(calls[0]?.metadata['verb']).toBe('scale');
+    expect(calls[1]?.outcome).toBe('failure');
+    expect(calls[1]?.metadata['verb']).toBe('rollout');
+  });
+});
