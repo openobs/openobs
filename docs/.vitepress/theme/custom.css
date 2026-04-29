@@ -1,12 +1,12 @@
 @font-face {
-  font-family: 'Geist';
+  font-family: Geist;
   src: url('https://cdn.jsdelivr.net/gh/nicokempe/Geist-Fonts@main/packages/next/dist/fonts/geist-sans/Geist-Regular.woff2') format('woff2');
   font-weight: 400;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Geist';
+  font-family: Geist;
   src: url('https://cdn.jsdelivr.net/gh/nicokempe/Geist-Fonts@main/packages/next/dist/fonts/geist-sans/Geist-SemiBold.woff2') format('woff2');
   font-weight: 600;
   font-display: swap;
@@ -20,8 +20,8 @@
 }
 
 :root {
-  --vp-font-family-base: 'Geist', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  --vp-font-family-mono: 'Geist Mono', 'SF Mono', Consolas, monospace;
+  --vp-font-family-base: Geist, system-ui, -apple-system, blinkmacsystemfont, sans-serif;
+  --vp-font-family-mono: 'Geist Mono', 'SF Mono', consolas, monospace;
 
   --vp-c-bg: #f7f8f7;
   --vp-c-bg-alt: #eef2f1;
