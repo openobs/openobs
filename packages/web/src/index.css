@@ -18,7 +18,7 @@
   /* Primary */
   --color-primary: #e5e7eb;
   --color-primary-container: #cbd5e1;
-  --color-on-primary-fixed: #ffffff;
+  --color-on-primary-fixed: #0f1216;
 
   /* Secondary */
   --color-secondary: #60a5fa;
@@ -97,6 +97,33 @@
   --color-primary-overlay-strong: rgba(31, 41, 55, 0.35);
 
   /* Glass on light — barely-tinted white */
+  --color-glass: rgba(255, 255, 255, 0.75);
+}
+
+.setup-theme-light {
+  --color-surface-lowest: #f4f5f5;
+  --color-surface: #f4f5f5;
+  --color-surface-low: #ffffff;
+  --color-surface-container: #ffffff;
+  --color-surface-high: #ebebeb;
+  --color-surface-highest: #e4e7eb;
+  --color-surface-bright: #ffffff;
+  --color-surface-variant: #ebebeb;
+  --color-on-surface: #24292f;
+  --color-on-surface-variant: #6b7280;
+  --color-primary: #1f2937;
+  --color-primary-container: #111827;
+  --color-on-primary-fixed: #ffffff;
+  --color-secondary: #1d4ed8;
+  --color-tertiary: #64748b;
+  --color-error: #e02f44;
+  --color-outline: #d0d1d3;
+  --color-outline-variant: #e9edf2;
+  --color-viz-grid: rgba(36, 41, 47, 0.12);
+  --color-surface-tint: #1f2937;
+  --color-cursor: rgba(36, 41, 47, 0.35);
+  --color-primary-overlay: rgba(31, 41, 55, 0.08);
+  --color-primary-overlay-strong: rgba(31, 41, 55, 0.35);
   --color-glass: rgba(255, 255, 255, 0.75);
 }
 

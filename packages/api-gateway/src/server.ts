@@ -137,7 +137,11 @@ export async function createApp(): Promise<Application> {
   // Builds AuthSubsystem + ApiKeyService and binds the global
   // authMiddleware singleton. The 503 shim that used to cover the
   // pre-binding window is no longer reachable from createApp.
-  const bundle = await buildAuthSubsystem(persistence.sqliteDb);
+  const bundle = await buildAuthSubsystem(
+    persistence.db,
+    persistence.authRepos,
+    persistence.rbacRepos.quotas,
+  );
 
   // W2 / T2.4 — instance-config service. Built AFTER the auth subsystem
   // so config-mutation events can be audited via `authSub.audit`.
@@ -156,7 +160,8 @@ export async function createApp(): Promise<Application> {
   // -- Auth routes (setup wizard, login/OAuth, current user, admin) -----
   mountAuthRoutes({
     app,
-    sqliteDb: persistence.sqliteDb,
+    db: persistence.db,
+    quotas: persistence.rbacRepos.quotas,
     bundle,
     setupConfig,
     ac: accessControlHolder,

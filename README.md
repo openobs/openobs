@@ -82,11 +82,12 @@ kubectl -n observability port-forward svc/openobs 3000:80
 Then open **http://127.0.0.1:3000** and complete the setup wizard. For shared
 access, expose OpenObs with Ingress or `service.type=LoadBalancer`.
 
-By default, npm and Helm both use a local SQLite database file. The npm package
-stores it under `~/.openobs/openobs.db`; the Helm chart stores it on the chart's
-PVC at `/var/lib/openobs/openobs.db`. Use an external Postgres database for
-production or multi-replica Kubernetes deployments once full Postgres
-persistence is enabled.
+By default, npm uses a local SQLite database file under
+`~/.openobs/openobs.db`. The Helm chart can also run that way on a PVC at
+`/var/lib/openobs/openobs.db`, but production Kubernetes installs should set
+`secretEnv.DATABASE_URL` before first start so every OpenObs repository uses
+Postgres. Treat the database backend as an install-time choice: changing it
+later does not migrate existing data.
 
 See the [Kubernetes install guide](https://docs.openobs.com/install/kubernetes) for access, storage, and persistence options.
 

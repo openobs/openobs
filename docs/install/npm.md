@@ -57,9 +57,20 @@ By default OpenObs uses an embedded SQLite database stored in:
 
 Override with `DATA_DIR=/path/to/dir` or `SQLITE_PATH=/path/to/openobs.db`.
 
-The npm package is intended for a single local OpenObs process. For
-multi-instance deployments, use Kubernetes and an external database once full
-Postgres persistence is enabled. See [Configuration → Storage settings](/configuration#storage-settings).
+The npm package is intended for a single local OpenObs process and defaults to
+SQLite. If you want npm to use Postgres, set `DATABASE_URL` before the first
+start:
+
+```bash
+export DATABASE_URL='postgresql://openobs:password@localhost:5432/openobs'
+openobs
+```
+
+For multi-instance deployments, use Kubernetes and an external Postgres
+database. See [Configuration → Storage settings](/configuration#storage-settings).
+
+SQLite and Postgres are the supported database backends today. Database
+selection happens before OpenObs starts, not in the setup wizard.
 
 ## Upgrading
 

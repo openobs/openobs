@@ -57,7 +57,7 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
           AI
         </span>
       </div>
-      <h1 className="text-3xl font-bold text-on-surface mb-2">Welcome to AgentObs</h1>
+      <h1 className="text-3xl font-bold text-on-surface mb-2">Welcome to OpenObs</h1>
       <p className="text-lg text-on-surface-variant font-medium mb-2">AI-native observability platform</p>
       <p className="text-on-surface-variant max-w-2xl mx-auto mb-10">
         Automatically investigate incidents, correlate signals, and generate runbooks, powered by LLMs.
@@ -102,7 +102,7 @@ function StepReady({
         ✓
       </div>
       <h2 className="text-2xl font-bold text-on-surface mb-2">You're all set!</h2>
-      <p className="text-on-surface-variant mb-8">AgentObs is configured and ready to investigate.</p>
+      <p className="text-on-surface-variant mb-8">OpenObs is configured and ready to investigate.</p>
 
       <div className="text-left bg-surface-high rounded-xl border border-outline-variant p-4 mb-8 max-w-md mx-auto space-y-3">
         <div className="flex justify-between text-sm">
@@ -182,7 +182,7 @@ export default function SetupWizard() {
   });
 
   return (
-    <div className="min-h-screen bg-surface flex items-center justify-center px-4 py-12">
+    <div className="setup-theme-light min-h-screen bg-surface flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-3xl bg-surface-low border border-outline-variant rounded-2xl p-8">
         <ProgressBar current={step} />
 

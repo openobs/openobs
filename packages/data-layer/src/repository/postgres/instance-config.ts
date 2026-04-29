@@ -5,10 +5,9 @@
  * (see `migrations/001_instance_settings.sql`) and the same encrypt/decrypt
  * helpers, so the wire format for secrets is identical between backends.
  *
- * Query style: raw `sql` templates via `db.execute(sql)`. This mirrors the
- * SQLite side (`db.run(sql)` / `db.all(sql)`) and avoids tying the W2 tables
- * into `db/schema.ts`, which is shared with the W6 repos we're intentionally
- * leaving SQLite-only.
+ * Query style: raw `sql` templates via the shared `QueryClient` boundary. This
+ * mirrors the SQLite side while keeping backend-specific execution details out
+ * of API services.
  */
 
 import { sql } from 'drizzle-orm';

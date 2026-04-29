@@ -43,7 +43,7 @@ import {
   TEAM_MEMBER_PERMISSION_MEMBER,
   TEAM_MEMBER_PERMISSION_ADMIN,
 } from '@agentic-obs/common';
-import type { SqliteClient } from '@agentic-obs/data-layer';
+import type { QueryClient } from '@agentic-obs/data-layer';
 import type { AuditWriter } from '../auth/audit-writer.js';
 
 export class TeamServiceError extends Error {
@@ -89,11 +89,11 @@ export interface TeamServiceDeps {
   teamMembers: ITeamMemberRepository;
   preferences: IPreferencesRepository;
   /**
-   * Raw sqlite client used only to clean up dashboard_acl rows on team
+   * Raw repository database used only to clean up dashboard_acl rows on team
    * deletion — dashboard_acl.team_id has no FK cascade by design (matches
    * Grafana's legacy ACL table).
    */
-  db: SqliteClient;
+  db: QueryClient;
   audit: AuditWriter;
   /**
    * Optional — passed through for tests that want to assert acl cleanup.
@@ -226,7 +226,7 @@ export class TeamService {
     // `preferences` rows already cascade via FK ON DELETE CASCADE.
     const sanitized = id.replace(/'/g, "''");
     try {
-      this.deps.db.run(
+      await this.deps.db.run(
         sql.raw(`DELETE FROM dashboard_acl WHERE team_id = '${sanitized}'`),
       );
     } catch {

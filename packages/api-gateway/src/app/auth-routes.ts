@@ -5,8 +5,9 @@
  * Two phases so the caller can build a SetupConfigService with the
  * resolved AuditWriter between them:
  *
- *   1. `buildAuthSubsystem(sqliteDb)`     → constructs repos, runs the
- *      idempotent auth-to-db migration / seed-admin fallback, builds the
+ *   1. `buildAuthSubsystem(db, repos, quotas)` → uses the selected backend
+ *      repos plus the quota repository; runs the idempotent auth-to-db
+ *      migration / seed-admin fallback, builds the
  *      AuthSubsystem + ApiKeyService + authMw, and registers `authMw` as
  *      the module-level singleton (kills the old 503-shim race window).
  *
@@ -16,18 +17,8 @@
  */
 
 import type { Application, RequestHandler } from 'express';
-import {
-  ApiKeyRepository,
-  AuditLogRepository,
-  OrgRepository,
-  OrgUserRepository,
-  PreferencesRepository,
-  QuotaRepository,
-  UserAuthRepository,
-  UserAuthTokenRepository,
-  UserRepository,
-} from '@agentic-obs/data-layer';
 import { createLogger } from '@agentic-obs/common/logging';
+import type { IQuotaRepository } from '@agentic-obs/common';
 import { createAuthSubsystem } from '../auth/auth-manager.js';
 import type { AuthSubsystem } from '../auth/auth-manager.js';
 import { migrateAuthToDbIfNeeded } from '../migrations/auth-to-db.js';
@@ -45,20 +36,12 @@ import { createOrgContextMiddleware } from '../middleware/org-context.js';
 import { ApiKeyService } from '../services/apikey-service.js';
 import type { SetupConfigService } from '../services/setup-config-service.js';
 import type { AccessControlSurface } from '../services/accesscontrol-holder.js';
-import type { SqliteClient } from './persistence.js';
+import type { AuthRepositoryBundle } from './persistence.js';
+import type { QueryClient } from '@agentic-obs/data-layer';
 
 const log = createLogger('auth-routes');
 
-export interface AuthRepositories {
-  users: UserRepository;
-  userAuth: UserAuthRepository;
-  userAuthTokens: UserAuthTokenRepository;
-  orgs: OrgRepository;
-  orgUsers: OrgUserRepository;
-  auditLog: AuditLogRepository;
-  apiKeys: ApiKeyRepository;
-  preferences: PreferencesRepository;
-}
+export type AuthRepositories = AuthRepositoryBundle;
 
 export interface AuthSubsystemBundle {
   authRepos: AuthRepositories;
@@ -67,27 +50,13 @@ export interface AuthSubsystemBundle {
   authMw: RequestHandler;
 }
 
-/** Build the canonical auth-related repositories from one SQLite client. */
-function createAuthRepositories(db: SqliteClient): AuthRepositories {
-  return {
-    users: new UserRepository(db),
-    userAuth: new UserAuthRepository(db),
-    userAuthTokens: new UserAuthTokenRepository(db),
-    orgs: new OrgRepository(db),
-    orgUsers: new OrgUserRepository(db),
-    auditLog: new AuditLogRepository(db),
-    apiKeys: new ApiKeyRepository(db),
-    preferences: new PreferencesRepository(db),
-  };
-}
-
 /**
  * Idempotent auth-to-db migration with a direct seed-admin fallback.
  * Awaiting this from createApp removes the historical race where a
  * fresh DB could serve auth requests before the seed admin existed.
  */
 async function runAuthMigration(
-  db: SqliteClient,
+  db: QueryClient,
   authRepos: AuthRepositories,
 ): Promise<void> {
   try {
@@ -120,10 +89,11 @@ async function runAuthMigration(
  * in `middleware/auth.ts` is no longer reachable from `createApp`.
  */
 export async function buildAuthSubsystem(
-  sqliteDb: SqliteClient,
+  db: QueryClient,
+  authRepos: AuthRepositories,
+  quotas: IQuotaRepository,
 ): Promise<AuthSubsystemBundle> {
-  const authRepos = createAuthRepositories(sqliteDb);
-  await runAuthMigration(sqliteDb, authRepos);
+  await runAuthMigration(db, authRepos);
 
   const authSub = await createAuthSubsystem(authRepos);
 
@@ -131,7 +101,7 @@ export async function buildAuthSubsystem(
     apiKeys: authRepos.apiKeys,
     users: authRepos.users,
     orgUsers: authRepos.orgUsers,
-    quotas: new QuotaRepository(sqliteDb),
+    quotas,
     audit: authSub.audit,
   });
 
@@ -149,7 +119,8 @@ export async function buildAuthSubsystem(
 
 export interface MountAuthRoutesDeps {
   app: Application;
-  sqliteDb: SqliteClient;
+  db: QueryClient;
+  quotas: IQuotaRepository;
   bundle: AuthSubsystemBundle;
   setupConfig: SetupConfigService;
   ac: AccessControlSurface;
@@ -164,7 +135,7 @@ export interface MountAuthRoutesDeps {
  * config-mutation events get audited).
  */
 export function mountAuthRoutes(deps: MountAuthRoutesDeps): void {
-  const { app, sqliteDb, bundle, setupConfig, ac, userRateLimiter } = deps;
+  const { app, bundle, setupConfig, ac, userRateLimiter } = deps;
   const { authRepos, authSub, authMw } = bundle;
   const defaultOrgId = deps.defaultOrgId ?? 'org_main';
 
@@ -227,7 +198,7 @@ export function mountAuthRoutes(deps: MountAuthRoutesDeps): void {
       auditLog: authRepos.auditLog,
       sessions: authSub.sessions,
       audit: authSub.audit,
-      quotas: new QuotaRepository(sqliteDb),
+      quotas: deps.quotas,
       defaultOrgId,
     }),
   );

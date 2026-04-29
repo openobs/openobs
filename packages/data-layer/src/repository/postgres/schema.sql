@@ -1,13 +1,346 @@
 -- Consolidated Postgres schema for openobs.
---
--- Single source of truth for the Postgres-side schema (instance config +
--- investigations). The W6 stores (dashboards, alert rules, etc.) remain
--- SQLite-only — see ./README.md for the rationale. Applied on startup via
--- `applyPostgresSchema(db)`; every statement is `IF NOT EXISTS` so the call
--- is idempotent.
+-- Generated from the SQLite schema shape so both backends expose the same tables.
 
 -- ============================================================================
--- Instance config
+-- Auth / RBAC
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS org (
+  id            TEXT PRIMARY KEY,
+  version       INTEGER NOT NULL DEFAULT 0,
+  name          TEXT NOT NULL,
+  address1      TEXT NULL,
+  address2      TEXT NULL,
+  city          TEXT NULL,
+  state         TEXT NULL,
+  zip_code      TEXT NULL,
+  country       TEXT NULL,
+  billing_email TEXT NULL,
+  created       TEXT NOT NULL,
+  updated       TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_org_name ON org(name);
+
+INSERT INTO org (id, name, created, updated)
+VALUES ('org_main', 'Main Org', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+ON CONFLICT DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS "user" (
+  id                 TEXT PRIMARY KEY,
+  version            INTEGER NOT NULL DEFAULT 0,
+  email              TEXT NOT NULL,
+  name               TEXT NOT NULL,
+  login              TEXT NOT NULL,
+  password           TEXT NULL,
+  salt               TEXT NULL,
+  rands              TEXT NULL,
+  company            TEXT NULL,
+  org_id             TEXT NOT NULL,
+  is_admin           INTEGER NOT NULL DEFAULT 0,
+  email_verified     INTEGER NOT NULL DEFAULT 0,
+  theme              TEXT NULL,
+  help_flags1        INTEGER NOT NULL DEFAULT 0,
+  is_disabled        INTEGER NOT NULL DEFAULT 0,
+  is_service_account INTEGER NOT NULL DEFAULT 0,
+  created            TEXT NOT NULL,
+  updated            TEXT NOT NULL,
+  last_seen_at       TEXT NULL,
+  FOREIGN KEY (org_id) REFERENCES org(id) ON DELETE RESTRICT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_user_email ON "user"(email);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_user_login ON "user"(login);
+CREATE INDEX IF NOT EXISTS ix_user_org_id ON "user"(org_id);
+CREATE INDEX IF NOT EXISTS ix_user_is_service_account ON "user"(is_service_account);
+
+CREATE TABLE IF NOT EXISTS user_auth (
+  id                   TEXT PRIMARY KEY,
+  user_id              TEXT NOT NULL,
+  auth_module          TEXT NOT NULL,
+  auth_id              TEXT NOT NULL,
+  created              TEXT NOT NULL,
+  o_auth_access_token  TEXT NULL,
+  o_auth_refresh_token TEXT NULL,
+  o_auth_token_type    TEXT NULL,
+  o_auth_expiry        INTEGER NULL,
+  o_auth_id_token      TEXT NULL,
+  FOREIGN KEY (user_id) REFERENCES "user"(id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_user_auth_module_authid ON user_auth(auth_module, auth_id);
+CREATE INDEX IF NOT EXISTS ix_user_auth_user_id ON user_auth(user_id);
+
+CREATE TABLE IF NOT EXISTS user_auth_token (
+  id              TEXT PRIMARY KEY,
+  user_id         TEXT NOT NULL,
+  auth_token      TEXT NOT NULL,
+  prev_auth_token TEXT NOT NULL,
+  user_agent      TEXT NOT NULL,
+  client_ip       TEXT NOT NULL,
+  auth_token_seen INTEGER NOT NULL DEFAULT 0,
+  seen_at         TEXT NULL,
+  rotated_at      TEXT NOT NULL,
+  created_at      TEXT NOT NULL,
+  updated_at      TEXT NOT NULL,
+  revoked_at      TEXT NULL,
+  FOREIGN KEY (user_id) REFERENCES "user"(id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_user_auth_token_authtoken ON user_auth_token(auth_token);
+CREATE INDEX IF NOT EXISTS ix_user_auth_token_user_id ON user_auth_token(user_id);
+CREATE INDEX IF NOT EXISTS ix_user_auth_token_revoked_at ON user_auth_token(revoked_at);
+
+CREATE TABLE IF NOT EXISTS org_user (
+  id      TEXT PRIMARY KEY,
+  org_id  TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  role    TEXT NOT NULL,
+  created TEXT NOT NULL,
+  updated TEXT NOT NULL,
+  FOREIGN KEY (org_id)  REFERENCES org(id)  ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES "user"(id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_org_user_org_user ON org_user(org_id, user_id);
+CREATE INDEX IF NOT EXISTS ix_org_user_user_id ON org_user(user_id);
+
+CREATE TABLE IF NOT EXISTS team (
+  id       TEXT PRIMARY KEY,
+  org_id   TEXT NOT NULL,
+  name     TEXT NOT NULL,
+  email    TEXT NULL,
+  external INTEGER NOT NULL DEFAULT 0,
+  created  TEXT NOT NULL,
+  updated  TEXT NOT NULL,
+  FOREIGN KEY (org_id) REFERENCES org(id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_team_org_name ON team(org_id, name);
+CREATE INDEX IF NOT EXISTS ix_team_org_id ON team(org_id);
+
+CREATE TABLE IF NOT EXISTS team_member (
+  id         TEXT PRIMARY KEY,
+  org_id     TEXT NOT NULL,
+  team_id    TEXT NOT NULL,
+  user_id    TEXT NOT NULL,
+  external   INTEGER NOT NULL DEFAULT 0,
+  permission INTEGER NOT NULL DEFAULT 0,
+  created    TEXT NOT NULL,
+  updated    TEXT NOT NULL,
+  FOREIGN KEY (org_id)  REFERENCES org(id)  ON DELETE CASCADE,
+  FOREIGN KEY (team_id) REFERENCES team(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES "user"(id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_team_member_team_user ON team_member(team_id, user_id);
+CREATE INDEX IF NOT EXISTS ix_team_member_org_id ON team_member(org_id);
+CREATE INDEX IF NOT EXISTS ix_team_member_user_id ON team_member(user_id);
+
+CREATE TABLE IF NOT EXISTS api_key (
+  id                 TEXT PRIMARY KEY,
+  org_id             TEXT NOT NULL,
+  name               TEXT NOT NULL,
+  key                TEXT NOT NULL,
+  role               TEXT NOT NULL,
+  created            TEXT NOT NULL,
+  updated            TEXT NOT NULL,
+  last_used_at       TEXT NULL,
+  expires            TEXT NULL,
+  service_account_id TEXT NULL,
+  owner_user_id      TEXT NULL,
+  is_revoked         INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY (org_id)             REFERENCES org(id)  ON DELETE CASCADE,
+  FOREIGN KEY (service_account_id) REFERENCES "user"(id) ON DELETE CASCADE,
+  FOREIGN KEY (owner_user_id)      REFERENCES "user"(id) ON DELETE SET NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_api_key_key ON api_key(key);
+CREATE INDEX IF NOT EXISTS ix_api_key_org_id ON api_key(org_id);
+CREATE INDEX IF NOT EXISTS ix_api_key_owner_user_id ON api_key(owner_user_id);
+CREATE INDEX IF NOT EXISTS ix_api_key_service_account_id ON api_key(service_account_id);
+
+CREATE TABLE IF NOT EXISTS role (
+  id           TEXT PRIMARY KEY,
+  version      INTEGER NOT NULL DEFAULT 0,
+  org_id       TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  uid          TEXT NOT NULL,
+  display_name TEXT NULL,
+  description  TEXT NULL,
+  group_name   TEXT NULL,
+  hidden       INTEGER NOT NULL DEFAULT 0,
+  created      TEXT NOT NULL,
+  updated      TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_role_org_name ON role(org_id, name);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_role_org_uid ON role(org_id, uid);
+
+CREATE TABLE IF NOT EXISTS permission (
+  id         TEXT PRIMARY KEY,
+  role_id    TEXT NOT NULL,
+  action     TEXT NOT NULL,
+  scope      TEXT NOT NULL,
+  kind       TEXT NOT NULL,
+  attribute  TEXT NOT NULL,
+  identifier TEXT NOT NULL,
+  created    TEXT NOT NULL,
+  updated    TEXT NOT NULL,
+  FOREIGN KEY (role_id) REFERENCES role(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS ix_permission_role_id ON permission(role_id);
+CREATE INDEX IF NOT EXISTS ix_permission_action ON permission(action);
+CREATE INDEX IF NOT EXISTS ix_permission_kind_identifier ON permission(kind, identifier);
+
+CREATE TABLE IF NOT EXISTS builtin_role (
+  id      TEXT PRIMARY KEY,
+  role    TEXT NOT NULL,
+  role_id TEXT NOT NULL,
+  org_id  TEXT NOT NULL,
+  created TEXT NOT NULL,
+  updated TEXT NOT NULL,
+  FOREIGN KEY (role_id) REFERENCES role(id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_builtin_role_role_orgid ON builtin_role(role, org_id, role_id);
+
+CREATE TABLE IF NOT EXISTS user_role (
+  id      TEXT PRIMARY KEY,
+  org_id  TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  role_id TEXT NOT NULL,
+  created TEXT NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES "user"(id) ON DELETE CASCADE,
+  FOREIGN KEY (role_id) REFERENCES role(id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_user_role ON user_role(org_id, user_id, role_id);
+CREATE INDEX IF NOT EXISTS ix_user_role_user_id ON user_role(user_id);
+
+CREATE TABLE IF NOT EXISTS team_role (
+  id      TEXT PRIMARY KEY,
+  org_id  TEXT NOT NULL,
+  team_id TEXT NOT NULL,
+  role_id TEXT NOT NULL,
+  created TEXT NOT NULL,
+  FOREIGN KEY (team_id) REFERENCES team(id) ON DELETE CASCADE,
+  FOREIGN KEY (role_id) REFERENCES role(id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_team_role ON team_role(org_id, team_id, role_id);
+CREATE INDEX IF NOT EXISTS ix_team_role_team_id ON team_role(team_id);
+
+CREATE TABLE IF NOT EXISTS preferences (
+  id                 TEXT PRIMARY KEY,
+  org_id             TEXT NOT NULL,
+  user_id            TEXT NULL,
+  team_id            TEXT NULL,
+  version            INTEGER NOT NULL DEFAULT 0,
+  home_dashboard_uid TEXT NULL,
+  timezone           TEXT NULL,
+  week_start         TEXT NULL,
+  theme              TEXT NULL,
+  locale             TEXT NULL,
+  json_data          TEXT NULL,
+  created            TEXT NOT NULL,
+  updated            TEXT NOT NULL,
+  FOREIGN KEY (org_id)  REFERENCES org(id)  ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES "user"(id) ON DELETE CASCADE,
+  FOREIGN KEY (team_id) REFERENCES team(id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_preferences_org_user_team
+  ON preferences(org_id, COALESCE(user_id, ''), COALESCE(team_id, ''));
+
+CREATE TABLE IF NOT EXISTS quota (
+  id        TEXT PRIMARY KEY,
+  org_id    TEXT NULL,
+  user_id   TEXT NULL,
+  target    TEXT NOT NULL,
+  limit_val INTEGER NOT NULL,
+  created   TEXT NOT NULL,
+  updated   TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_quota_org_target  ON quota(org_id, target)  WHERE user_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_quota_user_target ON quota(user_id, target) WHERE org_id IS NULL;
+
+CREATE TABLE IF NOT EXISTS audit_log (
+  id          TEXT PRIMARY KEY,
+  timestamp   TEXT NOT NULL,
+  action      TEXT NOT NULL,
+  actor_type  TEXT NOT NULL,
+  actor_id    TEXT NULL,
+  actor_name  TEXT NULL,
+  org_id      TEXT NULL,
+  target_type TEXT NULL,
+  target_id   TEXT NULL,
+  target_name TEXT NULL,
+  outcome     TEXT NOT NULL,
+  metadata    TEXT NULL,
+  ip          TEXT NULL,
+  user_agent  TEXT NULL
+);
+
+CREATE INDEX IF NOT EXISTS ix_audit_log_timestamp ON audit_log(timestamp);
+CREATE INDEX IF NOT EXISTS ix_audit_log_action    ON audit_log(action);
+CREATE INDEX IF NOT EXISTS ix_audit_log_actor_id  ON audit_log(actor_id);
+CREATE INDEX IF NOT EXISTS ix_audit_log_target_id ON audit_log(target_id);
+CREATE INDEX IF NOT EXISTS ix_audit_log_org_id    ON audit_log(org_id);
+
+-- ============================================================================
+-- Folders & ACL
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS folder (
+  id          TEXT PRIMARY KEY,
+  uid         TEXT NOT NULL,
+  org_id      TEXT NOT NULL,
+  title       TEXT NOT NULL,
+  description TEXT NULL,
+  parent_uid  TEXT NULL,
+  created     TEXT NOT NULL,
+  updated     TEXT NOT NULL,
+  created_by  TEXT NULL,
+  updated_by  TEXT NULL,
+  FOREIGN KEY (org_id)     REFERENCES org(id)  ON DELETE CASCADE,
+  FOREIGN KEY (created_by) REFERENCES "user"(id) ON DELETE SET NULL,
+  FOREIGN KEY (updated_by) REFERENCES "user"(id) ON DELETE SET NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_folder_org_uid    ON folder(org_id, uid);
+CREATE INDEX        IF NOT EXISTS ix_folder_parent_uid ON folder(org_id, parent_uid);
+
+CREATE TABLE IF NOT EXISTS dashboard_acl (
+  id           TEXT PRIMARY KEY,
+  org_id       TEXT NOT NULL,
+  dashboard_id TEXT NULL,
+  folder_id    TEXT NULL,
+  user_id      TEXT NULL,
+  team_id      TEXT NULL,
+  role         TEXT NULL,
+  permission   INTEGER NOT NULL,
+  created      TEXT NOT NULL,
+  updated      TEXT NOT NULL,
+  FOREIGN KEY (org_id) REFERENCES org(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS ix_dashboard_acl_dashboard_id ON dashboard_acl(dashboard_id);
+CREATE INDEX IF NOT EXISTS ix_dashboard_acl_folder_id    ON dashboard_acl(folder_id);
+
+-- Legacy folders table (separate from `folder` above) — kept because some
+-- v1 paths still write to it. New code targets `folder`.
+CREATE TABLE IF NOT EXISTS folders (
+  id         TEXT PRIMARY KEY,
+  name       TEXT NOT NULL,
+  parent_id  TEXT,
+  created_at TEXT NOT NULL
+);
+
+-- ============================================================================
+-- Instance config (LLM / datasources / notifications / KV)
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS instance_llm_config (
@@ -33,13 +366,14 @@ CREATE TABLE IF NOT EXISTS instance_datasources (
   environment TEXT NULL,
   cluster     TEXT NULL,
   label       TEXT NULL,
-  is_default  BOOLEAN NOT NULL DEFAULT FALSE,
+  is_default  INTEGER NOT NULL DEFAULT 0,
   api_key     TEXT NULL,
   username    TEXT NULL,
   password    TEXT NULL,
   created_at  TEXT NOT NULL,
   updated_at  TEXT NOT NULL,
-  updated_by  TEXT NULL
+  updated_by  TEXT NULL,
+  FOREIGN KEY (org_id) REFERENCES org(id) ON DELETE CASCADE
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_instance_datasources_org_name ON instance_datasources(org_id, name);
@@ -54,7 +388,8 @@ CREATE TABLE IF NOT EXISTS notification_channels (
   config     TEXT NOT NULL,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  updated_by TEXT NULL
+  updated_by TEXT NULL,
+  FOREIGN KEY (org_id) REFERENCES org(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS ix_notification_channels_org_id ON notification_channels(org_id);
@@ -65,60 +400,359 @@ CREATE TABLE IF NOT EXISTS instance_settings (
   value TEXT NOT NULL
 );
 
+-- KV bag for internal markers (auth-bootstrap flag, etc.). Distinct from
+-- `instance_settings` (user-visible) by the `_` prefix convention.
+CREATE TABLE IF NOT EXISTS _runtime_settings (
+  id      TEXT PRIMARY KEY,
+  value   TEXT NOT NULL,
+  updated TEXT NOT NULL
+);
+
 -- ============================================================================
 -- Investigations
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS investigations (
   id                TEXT PRIMARY KEY,
-  tenant_id         TEXT NOT NULL,
-  session_id        TEXT NULL,
-  user_id           TEXT NULL,
+  org_id            TEXT NOT NULL DEFAULT 'org_main',
+  tenant_id         TEXT NOT NULL DEFAULT '',
+  session_id        TEXT,
+  user_id           TEXT,
   intent            TEXT NOT NULL,
-  structured_intent JSONB NULL,
-  plan              JSONB NULL,
+  structured_intent TEXT,
+  plan              TEXT,
   status            TEXT NOT NULL DEFAULT 'pending',
-  hypotheses        JSONB NOT NULL DEFAULT '[]'::jsonb,
-  actions           JSONB NOT NULL DEFAULT '[]'::jsonb,
-  evidence          JSONB NOT NULL DEFAULT '[]'::jsonb,
-  symptoms          JSONB NOT NULL DEFAULT '[]'::jsonb,
-  workspace_id      TEXT NULL,
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  archived_at       TIMESTAMPTZ NULL
+  hypotheses        TEXT NOT NULL DEFAULT '[]',
+  actions           TEXT NOT NULL DEFAULT '[]',
+  evidence          TEXT NOT NULL DEFAULT '[]',
+  symptoms          TEXT NOT NULL DEFAULT '[]',
+  workspace_id      TEXT,
+  archived          INTEGER NOT NULL DEFAULT 0,
+  created_at        TEXT NOT NULL,
+  updated_at        TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS investigations_tenant_idx     ON investigations(tenant_id);
-CREATE INDEX IF NOT EXISTS investigations_session_idx    ON investigations(session_id);
-CREATE INDEX IF NOT EXISTS investigations_status_idx     ON investigations(status);
-CREATE INDEX IF NOT EXISTS investigations_workspace_idx  ON investigations(workspace_id);
-CREATE INDEX IF NOT EXISTS investigations_created_at_idx ON investigations(created_at);
+CREATE INDEX IF NOT EXISTS ix_investigations_org_id ON investigations(org_id);
 
 CREATE TABLE IF NOT EXISTS investigation_follow_ups (
   id               TEXT PRIMARY KEY,
   investigation_id TEXT NOT NULL REFERENCES investigations(id) ON DELETE CASCADE,
   question         TEXT NOT NULL,
-  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at       TEXT NOT NULL
 );
-
-CREATE INDEX IF NOT EXISTS investigation_follow_ups_investigation_idx ON investigation_follow_ups(investigation_id);
-CREATE INDEX IF NOT EXISTS investigation_follow_ups_created_at_idx    ON investigation_follow_ups(created_at);
 
 CREATE TABLE IF NOT EXISTS investigation_feedback (
   id                   TEXT PRIMARY KEY,
   investigation_id     TEXT NOT NULL REFERENCES investigations(id) ON DELETE CASCADE,
-  helpful              BOOLEAN NOT NULL,
-  comment              TEXT NULL,
-  root_cause_verdict   TEXT NULL,
-  hypothesis_feedbacks JSONB NULL,
-  action_feedbacks     JSONB NULL,
-  created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+  helpful              INTEGER NOT NULL,
+  comment              TEXT,
+  root_cause_verdict   TEXT,
+  hypothesis_feedbacks TEXT,
+  action_feedbacks     TEXT,
+  created_at           TEXT NOT NULL
 );
-
-CREATE INDEX IF NOT EXISTS investigation_feedback_investigation_idx ON investigation_feedback(investigation_id);
-CREATE INDEX IF NOT EXISTS investigation_feedback_created_at_idx    ON investigation_feedback(created_at);
 
 CREATE TABLE IF NOT EXISTS investigation_conclusions (
   investigation_id TEXT PRIMARY KEY REFERENCES investigations(id) ON DELETE CASCADE,
-  conclusion       JSONB NOT NULL
+  conclusion       TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS investigation_reports (
+  id           TEXT PRIMARY KEY,
+  org_id       TEXT NOT NULL DEFAULT 'org_main',
+  dashboard_id TEXT NOT NULL,
+  goal         TEXT NOT NULL,
+  summary      TEXT NOT NULL,
+  sections     TEXT NOT NULL,
+  created_at   TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS ix_investigation_reports_org_id ON investigation_reports(org_id);
+
+CREATE TABLE IF NOT EXISTS share_links (
+  token            TEXT PRIMARY KEY,
+  investigation_id TEXT NOT NULL REFERENCES investigations(id) ON DELETE CASCADE,
+  created_by       TEXT NOT NULL,
+  permission       TEXT NOT NULL DEFAULT 'view_only',
+  expires_at       TEXT,
+  created_at       TEXT NOT NULL
+);
+
+-- ============================================================================
+-- Incidents / feed / approvals / post-mortems
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS incidents (
+  id                 TEXT PRIMARY KEY,
+  org_id             TEXT NOT NULL DEFAULT 'org_main',
+  tenant_id          TEXT NOT NULL DEFAULT '',
+  title              TEXT NOT NULL,
+  severity           TEXT NOT NULL,
+  status             TEXT NOT NULL DEFAULT 'open',
+  service_ids        TEXT NOT NULL DEFAULT '[]',
+  investigation_ids  TEXT NOT NULL DEFAULT '[]',
+  timeline           TEXT NOT NULL DEFAULT '[]',
+  assignee           TEXT,
+  workspace_id       TEXT,
+  archived           INTEGER NOT NULL DEFAULT 0,
+  resolved_at        TEXT,
+  created_at         TEXT NOT NULL,
+  updated_at         TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS ix_incidents_org_id ON incidents(org_id);
+
+CREATE TABLE IF NOT EXISTS feed_items (
+  id                  TEXT PRIMARY KEY,
+  org_id              TEXT NOT NULL DEFAULT 'org_main',
+  tenant_id           TEXT NOT NULL DEFAULT '',
+  type                TEXT NOT NULL,
+  title               TEXT NOT NULL,
+  summary             TEXT NOT NULL,
+  severity            TEXT NOT NULL,
+  status              TEXT NOT NULL DEFAULT 'unread',
+  feedback            TEXT,
+  feedback_comment    TEXT,
+  hypothesis_feedback TEXT,
+  action_feedback     TEXT,
+  investigation_id    TEXT,
+  followed_up         INTEGER NOT NULL DEFAULT 0,
+  created_at          TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS ix_feed_items_org_id ON feed_items(org_id);
+
+CREATE TABLE IF NOT EXISTS approvals (
+  id                TEXT PRIMARY KEY,
+  org_id            TEXT NOT NULL DEFAULT 'org_main',
+  action            TEXT NOT NULL,
+  context           TEXT NOT NULL,
+  status            TEXT NOT NULL DEFAULT 'pending',
+  expires_at        TEXT NOT NULL,
+  resolved_at       TEXT,
+  resolved_by       TEXT,
+  resolved_by_roles TEXT,
+  created_at        TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS ix_approvals_org_id ON approvals(org_id);
+
+CREATE TABLE IF NOT EXISTS post_mortems (
+  id              TEXT PRIMARY KEY,
+  org_id          TEXT NOT NULL DEFAULT 'org_main',
+  incident_id     TEXT NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
+  summary         TEXT NOT NULL,
+  impact          TEXT NOT NULL,
+  timeline        TEXT NOT NULL,
+  root_cause      TEXT NOT NULL,
+  actions_taken   TEXT NOT NULL,
+  lessons_learned TEXT NOT NULL,
+  action_items    TEXT NOT NULL,
+  generated_at    TEXT NOT NULL,
+  generated_by    TEXT NOT NULL DEFAULT 'llm'
+);
+
+CREATE INDEX IF NOT EXISTS ix_post_mortems_org_id ON post_mortems(org_id);
+
+-- ============================================================================
+-- Dashboards / chat
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS dashboards (
+  id                   TEXT PRIMARY KEY,
+  org_id               TEXT NOT NULL DEFAULT 'org_main',
+  type                 TEXT NOT NULL DEFAULT 'dashboard',
+  title                TEXT NOT NULL,
+  description          TEXT NOT NULL,
+  prompt               TEXT NOT NULL,
+  user_id              TEXT NOT NULL,
+  status               TEXT NOT NULL DEFAULT 'generating',
+  panels               TEXT NOT NULL DEFAULT '[]',
+  variables            TEXT NOT NULL DEFAULT '[]',
+  refresh_interval_sec INTEGER NOT NULL DEFAULT 30,
+  datasource_ids       TEXT NOT NULL DEFAULT '[]',
+  use_existing_metrics INTEGER NOT NULL DEFAULT 1,
+  folder               TEXT,
+  folder_uid           TEXT NULL,
+  workspace_id         TEXT,
+  session_id           TEXT,
+  version              INTEGER,
+  publish_status       TEXT,
+  error                TEXT,
+  created_at           TEXT NOT NULL,
+  updated_at           TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS ix_dashboards_org_id     ON dashboards(org_id);
+CREATE INDEX IF NOT EXISTS ix_dashboards_folder_uid ON dashboards(org_id, folder_uid);
+
+CREATE TABLE IF NOT EXISTS chat_sessions (
+  id              TEXT PRIMARY KEY,
+  org_id          TEXT NOT NULL DEFAULT 'org_main',
+  title           TEXT NOT NULL DEFAULT '',
+  context_summary TEXT,
+  created_at      TEXT NOT NULL,
+  updated_at      TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS ix_chat_sessions_org_id ON chat_sessions(org_id);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id         TEXT PRIMARY KEY,
+  org_id     TEXT NOT NULL DEFAULT 'org_main',
+  session_id TEXT NOT NULL,
+  role       TEXT NOT NULL,
+  content    TEXT NOT NULL,
+  actions    TEXT,
+  timestamp  TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS ix_chat_messages_org_id ON chat_messages(org_id);
+
+CREATE TABLE IF NOT EXISTS chat_session_events (
+  id         TEXT PRIMARY KEY,
+  org_id     TEXT NOT NULL DEFAULT 'org_main',
+  session_id TEXT NOT NULL,
+  seq        INTEGER NOT NULL,
+  kind       TEXT NOT NULL,
+  payload    TEXT NOT NULL,
+  timestamp  TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS chat_session_events_session_idx ON chat_session_events(session_id);
+CREATE INDEX IF NOT EXISTS chat_session_events_seq_idx     ON chat_session_events(session_id, seq);
+CREATE INDEX IF NOT EXISTS ix_chat_session_events_org_id   ON chat_session_events(org_id);
+
+CREATE TABLE IF NOT EXISTS asset_versions (
+  id          TEXT PRIMARY KEY,
+  asset_type  TEXT NOT NULL,
+  asset_id    TEXT NOT NULL,
+  version     INTEGER NOT NULL,
+  snapshot    TEXT NOT NULL,
+  diff        TEXT,
+  edited_by   TEXT NOT NULL,
+  edit_source TEXT NOT NULL,
+  message     TEXT,
+  created_at  TEXT NOT NULL
+);
+
+-- ============================================================================
+-- Alerting & notifications
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS alert_rules (
+  id                      TEXT PRIMARY KEY,
+  org_id                  TEXT NOT NULL DEFAULT 'org_main',
+  name                    TEXT NOT NULL,
+  description             TEXT NOT NULL,
+  original_prompt         TEXT,
+  condition               TEXT NOT NULL,
+  evaluation_interval_sec INTEGER NOT NULL DEFAULT 60,
+  severity                TEXT NOT NULL,
+  labels                  TEXT,
+  state                   TEXT NOT NULL DEFAULT 'normal',
+  state_changed_at        TEXT NOT NULL,
+  pending_since           TEXT,
+  notification_policy_id  TEXT,
+  investigation_id        TEXT,
+  workspace_id            TEXT,
+  folder_uid              TEXT NULL,
+  created_by              TEXT NOT NULL,
+  last_evaluated_at       TEXT,
+  last_fired_at           TEXT,
+  fire_count              INTEGER NOT NULL DEFAULT 0,
+  created_at              TEXT NOT NULL,
+  updated_at              TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS ix_alert_rules_org_id     ON alert_rules(org_id);
+CREATE INDEX IF NOT EXISTS ix_alert_rules_folder_uid ON alert_rules(org_id, folder_uid);
+
+CREATE TABLE IF NOT EXISTS alert_history (
+  id        TEXT PRIMARY KEY,
+  org_id    TEXT NOT NULL DEFAULT 'org_main',
+  rule_id   TEXT NOT NULL REFERENCES alert_rules(id) ON DELETE CASCADE,
+  rule_name TEXT NOT NULL,
+  from_state TEXT NOT NULL,
+  to_state   TEXT NOT NULL,
+  value      INTEGER NOT NULL DEFAULT 0,
+  threshold  INTEGER NOT NULL DEFAULT 0,
+  timestamp  TEXT NOT NULL,
+  labels     TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS ix_alert_history_org_id ON alert_history(org_id);
+
+CREATE TABLE IF NOT EXISTS alert_silences (
+  id         TEXT PRIMARY KEY,
+  org_id     TEXT NOT NULL DEFAULT 'org_main',
+  matchers   TEXT NOT NULL,
+  starts_at  TEXT NOT NULL,
+  ends_at    TEXT NOT NULL,
+  comment    TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS ix_alert_silences_org_id ON alert_silences(org_id);
+
+CREATE TABLE IF NOT EXISTS notification_policies (
+  id                  TEXT PRIMARY KEY,
+  name                TEXT NOT NULL,
+  matchers            TEXT NOT NULL,
+  channels            TEXT NOT NULL,
+  group_by            TEXT,
+  group_wait_sec      INTEGER,
+  group_interval_sec  INTEGER,
+  repeat_interval_sec INTEGER,
+  created_at          TEXT NOT NULL,
+  updated_at          TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS contact_points (
+  id           TEXT PRIMARY KEY,
+  name         TEXT NOT NULL,
+  integrations TEXT NOT NULL,
+  created_at   TEXT NOT NULL,
+  updated_at   TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS notification_policy_tree (
+  id         TEXT PRIMARY KEY DEFAULT 'root',
+  tree       TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS mute_timings (
+  id             TEXT PRIMARY KEY,
+  name           TEXT NOT NULL,
+  time_intervals TEXT NOT NULL,
+  created_at     TEXT NOT NULL,
+  updated_at     TEXT NOT NULL
+);
+
+-- ============================================================================
+-- Ops connectors (Kubernetes etc.)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS ops_connectors (
+  id                      TEXT PRIMARY KEY,
+  org_id                  TEXT NOT NULL,
+  type                    TEXT NOT NULL CHECK (type = 'kubernetes'),
+  name                    TEXT NOT NULL,
+  environment             TEXT NULL,
+  config_json             TEXT NOT NULL,
+  secret_ref              TEXT NULL,
+  encrypted_secret        TEXT NULL,
+  allowed_namespaces_json TEXT NOT NULL DEFAULT '[]',
+  capabilities_json       TEXT NOT NULL DEFAULT '[]',
+  status                  TEXT NOT NULL DEFAULT 'unknown',
+  last_checked_at         TEXT NULL,
+  created_at              TEXT NOT NULL,
+  updated_at              TEXT NOT NULL,
+  FOREIGN KEY (org_id) REFERENCES org(id) ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_ops_connectors_org_name ON ops_connectors(org_id, name);
+CREATE INDEX        IF NOT EXISTS ix_ops_connectors_org_id   ON ops_connectors(org_id);
+CREATE INDEX        IF NOT EXISTS ix_ops_connectors_org_type ON ops_connectors(org_id, type);

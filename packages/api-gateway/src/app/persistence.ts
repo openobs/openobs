@@ -1,42 +1,90 @@
 /**
- * Persistence wiring extracted from `server.ts::createApp()`.
+ * Persistence backend selection.
  *
- * Returns the configured SqliteRepositories bundle plus the underlying
- * SqliteClient (the auth, RBAC, folder, and instance-config repos all
- * need direct DB access). Two backends:
- *
- *   - SQLite (default) — single-file DB under DATA_DIR / SQLITE_PATH.
- *   - Postgres-hybrid — `DATABASE_URL=postgres(ql)://...` swaps the W2
- *     instance-config repos (LLM, datasources, notification channels) to
- *     Postgres while everything else stays on SQLite. The Postgres schema
- *     is applied awaited (not fire-and-forget) so the gateway never serves
- *     a request against an unbuilt schema.
- *
- * Any non-Postgres `DATABASE_URL` value is logged at warn and ignored —
- * historically that env var gated an in-memory mode that W2 deleted.
+ * The API gateway depends on repository bundles plus a small raw query runner.
+ * SQLite and Postgres are implementations of that boundary; no route or
+ * service should branch on the concrete database.
  */
 
 import {
-  createSqliteClient,
-  createSqliteRepositories,
+  ApiKeyRepository,
+  AuditLogRepository,
+  DashboardAclRepository,
+  FolderRepository,
+  OrgRepository,
+  OrgUserRepository,
+  PermissionRepository,
+  PreferencesRepository,
+  QuotaRepository,
+  RoleRepository,
+  TeamMemberRepository,
+  TeamRepository,
+  TeamRoleRepository,
+  UserAuthRepository,
+  UserAuthTokenRepository,
+  UserRepository,
+  UserRoleRepository,
+  applyPostgresSchema,
   applySchema,
   createDbClient,
-  PostgresInstanceConfigRepository,
-  PostgresDatasourceRepository,
-  PostgresNotificationChannelRepository,
-  applyPostgresSchema,
+  createPostgresRepositories,
+  createSqliteClient,
+  createSqliteRepositories,
+  postgresAuth,
 } from '@agentic-obs/data-layer';
-import type { SqliteRepositories } from '@agentic-obs/data-layer';
-import { createLogger } from '@agentic-obs/common/logging';
+import type { DbClient, QueryClient, SqliteClient, SqliteRepositories } from '@agentic-obs/data-layer';
+import type {
+  IApiKeyRepository,
+  IAuditLogRepository,
+  IDashboardAclRepository,
+  IFolderRepository,
+  IOrgRepository,
+  IOrgUserRepository,
+  IPermissionRepository,
+  IPreferencesRepository,
+  IQuotaRepository,
+  IRoleRepository,
+  ITeamMemberRepository,
+  ITeamRepository,
+  ITeamRoleRepository,
+  IUserAuthRepository,
+  IUserAuthTokenRepository,
+  IUserRepository,
+  IUserRoleRepository,
+} from '@agentic-obs/common';
 import { dbPath } from '../paths.js';
 
-const log = createLogger('persistence');
+export type PersistenceBackend = 'sqlite' | 'postgres';
 
-export type SqliteClient = ReturnType<typeof createSqliteClient>;
+export interface AuthRepositoryBundle {
+  users: IUserRepository;
+  userAuth: IUserAuthRepository;
+  userAuthTokens: IUserAuthTokenRepository;
+  orgs: IOrgRepository;
+  orgUsers: IOrgUserRepository;
+  auditLog: IAuditLogRepository;
+  apiKeys: IApiKeyRepository;
+  preferences: IPreferencesRepository;
+}
+
+export interface RbacRepositoryBundle {
+  roles: IRoleRepository;
+  permissions: IPermissionRepository;
+  userRoles: IUserRoleRepository;
+  teamRoles: ITeamRoleRepository;
+  teamMembers: ITeamMemberRepository;
+  folders: IFolderRepository;
+  dashboardAcl: IDashboardAclRepository;
+  quotas: IQuotaRepository;
+  teams: ITeamRepository;
+}
 
 export interface Persistence {
+  backend: PersistenceBackend;
+  db: QueryClient;
   repos: SqliteRepositories;
-  sqliteDb: SqliteClient;
+  authRepos: AuthRepositoryBundle;
+  rbacRepos: RbacRepositoryBundle;
 }
 
 function isPostgresUrl(
@@ -48,28 +96,87 @@ function isPostgresUrl(
   );
 }
 
-function buildSqlite(): { repos: SqliteRepositories; sqliteDb: SqliteClient } {
-  const sqliteDb = createSqliteClient({ path: dbPath() });
-  applySchema(sqliteDb);
-  return { repos: createSqliteRepositories(sqliteDb), sqliteDb };
+function createSqliteAuthRepositories(db: SqliteClient): AuthRepositoryBundle {
+  return {
+    users: new UserRepository(db),
+    userAuth: new UserAuthRepository(db),
+    userAuthTokens: new UserAuthTokenRepository(db),
+    orgs: new OrgRepository(db),
+    orgUsers: new OrgUserRepository(db),
+    auditLog: new AuditLogRepository(db),
+    apiKeys: new ApiKeyRepository(db),
+    preferences: new PreferencesRepository(db),
+  };
 }
 
-async function buildPostgresHybrid(
-  url: string,
-): Promise<{ repos: SqliteRepositories; sqliteDb: SqliteClient }> {
-  const base = buildSqlite();
-  const pg = createDbClient({ url });
-  // Awaited (was fire-and-forget) — boot must not race instance-config
-  // queries against an unbuilt schema.
-  await applyPostgresSchema(pg);
+function createSqliteRbacRepositories(db: SqliteClient): RbacRepositoryBundle {
   return {
-    sqliteDb: base.sqliteDb,
-    repos: {
-      ...base.repos,
-      instanceConfig: new PostgresInstanceConfigRepository(pg),
-      datasources: new PostgresDatasourceRepository(pg),
-      notificationChannels: new PostgresNotificationChannelRepository(pg),
-    },
+    roles: new RoleRepository(db),
+    permissions: new PermissionRepository(db),
+    userRoles: new UserRoleRepository(db),
+    teamRoles: new TeamRoleRepository(db),
+    teamMembers: new TeamMemberRepository(db),
+    folders: new FolderRepository(db),
+    dashboardAcl: new DashboardAclRepository(db),
+    quotas: new QuotaRepository(db),
+    teams: new TeamRepository(db),
+  };
+}
+
+function createPostgresAuthRepositories(db: DbClient): AuthRepositoryBundle {
+  return {
+    users: new postgresAuth.UserRepository(db),
+    userAuth: new postgresAuth.UserAuthRepository(db),
+    userAuthTokens: new postgresAuth.UserAuthTokenRepository(db),
+    orgs: new postgresAuth.OrgRepository(db),
+    orgUsers: new postgresAuth.OrgUserRepository(db),
+    auditLog: new postgresAuth.AuditLogRepository(db),
+    apiKeys: new postgresAuth.ApiKeyRepository(db),
+    preferences: new postgresAuth.PreferencesRepository(db),
+  };
+}
+
+function createPostgresRbacRepositories(db: DbClient): RbacRepositoryBundle {
+  return {
+    roles: new postgresAuth.RoleRepository(db),
+    permissions: new postgresAuth.PermissionRepository(db),
+    userRoles: new postgresAuth.UserRoleRepository(db),
+    teamRoles: new postgresAuth.TeamRoleRepository(db),
+    teamMembers: new postgresAuth.TeamMemberRepository(db),
+    folders: new postgresAuth.FolderRepository(db),
+    dashboardAcl: new postgresAuth.DashboardAclRepository(db),
+    quotas: new postgresAuth.QuotaRepository(db),
+    teams: new postgresAuth.TeamRepository(db),
+  };
+}
+
+function buildSqlite(): Persistence {
+  const path = dbPath();
+  const db = createSqliteClient({ path });
+  applySchema(db);
+  return {
+    backend: 'sqlite',
+    db,
+    repos: createSqliteRepositories(db),
+    authRepos: createSqliteAuthRepositories(db),
+    rbacRepos: createSqliteRbacRepositories(db),
+  };
+}
+
+async function buildPostgres(url: string): Promise<Persistence> {
+  const poolSize = Number(process.env['DATABASE_POOL_SIZE'] ?? '10');
+  const db = createDbClient({
+    url,
+    poolSize: Number.isFinite(poolSize) && poolSize > 0 ? poolSize : undefined,
+    ssl: process.env['DATABASE_SSL'] === 'true' || process.env['DATABASE_SSL'] === '1',
+  });
+  await applyPostgresSchema(db);
+  return {
+    backend: 'postgres',
+    db,
+    repos: createPostgresRepositories(db),
+    authRepos: createPostgresAuthRepositories(db),
+    rbacRepos: createPostgresRbacRepositories(db),
   };
 }
 
@@ -83,15 +190,16 @@ export async function createPersistence(
 ): Promise<Persistence> {
   const dbUrl = config.databaseUrl ?? process.env['DATABASE_URL'];
 
-  if (dbUrl && !isPostgresUrl(dbUrl)) {
-    log.warn(
-      { dbUrl: dbUrl.slice(0, 12) },
-      'DATABASE_URL is set but does not start with postgres://; falling back to SQLite',
+  if (dbUrl !== undefined && dbUrl !== '' && !isPostgresUrl(dbUrl)) {
+    throw new Error(
+      `DATABASE_URL is set but does not start with postgres:// or postgresql://. ` +
+      `Refusing to silently fall back to SQLite. Unset DATABASE_URL to use ` +
+      `SQLite, or fix the connection string. Got: ${dbUrl.slice(0, 16)}...`,
     );
   }
 
   if (isPostgresUrl(dbUrl)) {
-    return buildPostgresHybrid(dbUrl);
+    return buildPostgres(dbUrl);
   }
   return buildSqlite();
 }

@@ -25,8 +25,8 @@ import {
   EventEmittingAlertRuleRepository,
   EventEmittingApprovalRepository,
   EventEmittingFeedRepository,
-  type FolderRepository,
 } from '@agentic-obs/data-layer';
+import type { IFolderRepository } from '@agentic-obs/common';
 import { healthRouter } from '../routes/health.js';
 import { sessionsRouter } from '../routes/sessions.js';
 import { metricsRouter } from '../routes/metrics.js';
@@ -62,7 +62,7 @@ export interface MountDomainRoutesDeps {
   authSub: AuthSubsystem;
   accessControl: AccessControlService;
   setupConfig: SetupConfigService;
-  sharedFolderRepo: FolderRepository;
+  sharedFolderRepo: IFolderRepository;
   userRateLimiter: RequestHandler;
   queryRateLimiter: RequestHandler;
 }
