@@ -25,13 +25,23 @@ OpenObs is configured through environment variables.
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `DATABASE_URL` | No | Postgres connection string. Leave unset for local SQLite mode. |
+| `DATABASE_URL` | No | Database connection string. Use `postgres://` or `postgresql://` for Postgres. Leave unset for local SQLite mode. |
 | `DATABASE_POOL_SIZE` | No | Pool size for Postgres. |
 | `DATABASE_SSL` | No | Enable Postgres SSL. |
 | `REDIS_URL` | No | Redis connection string. |
 | `REDIS_PREFIX` | No | Redis key prefix. |
 | `DATA_DIR` | No | Local data directory for containerized or SQLite mode. |
 | `SQLITE_PATH` | No | Explicit SQLite file path. Overrides `DATA_DIR`. |
+
+OpenObs selects its database before the server starts. The setup wizard writes
+application settings into the active backend; it does not switch databases.
+
+Supported backends:
+
+| Backend | How to enable | Best for |
+| --- | --- | --- |
+| SQLite | Leave `DATABASE_URL` unset | Local development, npm installs, single-process evaluation |
+| Postgres | Set `DATABASE_URL=postgresql://...` before first start | Production, Kubernetes, multi-replica deployments |
 
 By default, OpenObs uses SQLite:
 
@@ -40,7 +50,10 @@ By default, OpenObs uses SQLite:
 
 When `DATABASE_URL` starts with `postgres://` or `postgresql://`, OpenObs uses
 Postgres for the full repository layer: auth, RBAC, settings, datasources,
-dashboards, investigations, alerts, notifications, chat, and feed data.
+dashboards, investigations, alerts, notifications, chat, and feed data. The
+repository boundary is database-agnostic so additional SQL backends can be added
+without changing product flows, but SQLite and Postgres are the supported
+backends today.
 
 Choose the database backend before first startup. The setup wizard can store
 application settings such as the LLM provider, but it cannot switch databases

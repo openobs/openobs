@@ -120,10 +120,6 @@ export async function buildAuthSubsystem(
 export interface MountAuthRoutesDeps {
   app: Application;
   db: QueryClient;
-  storage: {
-    backend: 'sqlite' | 'postgres';
-    location: string;
-  };
   quotas: IQuotaRepository;
   bundle: AuthSubsystemBundle;
   setupConfig: SetupConfigService;
@@ -147,7 +143,6 @@ export function mountAuthRoutes(deps: MountAuthRoutesDeps): void {
     '/api/setup',
     createSetupRouter({
       setupConfig,
-      storage: deps.storage,
       users: authRepos.users,
       orgs: authRepos.orgs,
       orgUsers: authRepos.orgUsers,

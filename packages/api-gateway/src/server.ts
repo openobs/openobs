@@ -161,7 +161,6 @@ export async function createApp(): Promise<Application> {
   mountAuthRoutes({
     app,
     db: persistence.db,
-    storage: persistence.storage,
     quotas: persistence.rbacRepos.quotas,
     bundle,
     setupConfig,

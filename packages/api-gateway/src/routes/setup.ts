@@ -87,10 +87,6 @@ async function readNotificationsAsDto(service: SetupConfigService): Promise<Noti
 
 export interface SetupRouterDeps {
   setupConfig: SetupConfigService;
-  storage?: {
-    backend: 'sqlite' | 'postgres';
-    location: string;
-  };
   users: IUserRepository;
   orgs: IOrgRepository;
   orgUsers: IOrgUserRepository;
@@ -211,7 +207,6 @@ export function createSetupRouter(deps: SetupRouterDeps): Router {
         hasNotifications: status.hasNotifications,
         bootstrappedAt: status.bootstrappedAt,
         configuredAt,
-        storage: deps.storage,
       });
     } catch (err) {
       log.error({ err }, 'setup status failed');

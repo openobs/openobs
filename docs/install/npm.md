@@ -69,6 +69,9 @@ openobs
 For multi-instance deployments, use Kubernetes and an external Postgres
 database. See [Configuration → Storage settings](/configuration#storage-settings).
 
+SQLite and Postgres are the supported database backends today. Database
+selection happens before OpenObs starts, not in the setup wizard.
+
 ## Upgrading
 
 ```bash

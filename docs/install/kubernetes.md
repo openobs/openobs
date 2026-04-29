@@ -74,7 +74,7 @@ file lives at `/var/lib/openobs/openobs.db` inside the container and is stored o
 the chart's persistent volume claim when `persistence.enabled=true`. Do not run
 multiple OpenObs replicas against the SQLite PVC.
 
-For production Kubernetes and any multi-replica deployment, set
+For production Kubernetes and any multi-replica deployment, use Postgres. Set
 `secretEnv.DATABASE_URL` before the first OpenObs pod starts:
 
 ```bash
@@ -90,6 +90,10 @@ dashboards, investigations, alerts, notifications, chat, and feed data. Choose
 the backend at install time. The setup wizard stores application settings such
 as the LLM provider, but it cannot switch the database because the database must
 exist before the app can boot.
+
+SQLite and Postgres are the supported backends today. The repository layer is
+abstracted so more SQL databases can be added later without changing the setup
+flow.
 
 ## Common overrides
 
