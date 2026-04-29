@@ -84,6 +84,10 @@ export interface RbacRepositoryBundle {
 
 export interface Persistence {
   backend: PersistenceBackend;
+  storage: {
+    backend: PersistenceBackend;
+    location: string;
+  };
   db: QueryClient;
   repos: SqliteRepositories;
   authRepos: AuthRepositoryBundle;
@@ -154,10 +158,15 @@ function createPostgresRbacRepositories(db: QueryClient): RbacRepositoryBundle {
 }
 
 function buildSqlite(): Persistence {
-  const db = createSqliteClient({ path: dbPath() });
+  const path = dbPath();
+  const db = createSqliteClient({ path });
   applySchema(db);
   return {
     backend: 'sqlite',
+    storage: {
+      backend: 'sqlite',
+      location: path,
+    },
     db,
     repos: createSqliteRepositories(db),
     authRepos: createSqliteAuthRepositories(db),
@@ -175,6 +184,10 @@ async function buildPostgres(url: string): Promise<Persistence> {
   await applyPostgresSchema(db);
   return {
     backend: 'postgres',
+    storage: {
+      backend: 'postgres',
+      location: 'DATABASE_URL',
+    },
     db,
     repos: createPostgresRepositories(db),
     authRepos: createPostgresAuthRepositories(db),

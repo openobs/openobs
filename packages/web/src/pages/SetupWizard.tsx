@@ -11,6 +11,11 @@ import {
 } from './setup/index.js';
 import type { LlmConfig, NotificationConfig } from './setup/index.js';
 
+interface SetupStorageInfo {
+  backend: 'sqlite' | 'postgres';
+  location: string;
+}
+
 // Step progress bar
 
 function ProgressBar({ current }: { current: number }) {
@@ -49,7 +54,14 @@ function ProgressBar({ current }: { current: number }) {
 
 // Step 1: Welcome
 
-function StepWelcome({ onNext }: { onNext: () => void }) {
+function StepWelcome({ onNext, storage }: { onNext: () => void; storage?: SetupStorageInfo | null }) {
+  const storageLabel = storage?.backend === 'postgres'
+    ? 'Postgres via DATABASE_URL'
+    : 'SQLite file';
+  const storageLocation = storage?.backend === 'postgres'
+    ? 'Configured before startup'
+    : storage?.location;
+
   return (
     <div className="text-center py-8">
       <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-primary text-on-primary-fixed text-4xl mb-6">
@@ -57,12 +69,26 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
           AI
         </span>
       </div>
-      <h1 className="text-3xl font-bold text-on-surface mb-2">Welcome to AgentObs</h1>
+      <h1 className="text-3xl font-bold text-on-surface mb-2">Welcome to OpenObs</h1>
       <p className="text-lg text-on-surface-variant font-medium mb-2">AI-native observability platform</p>
       <p className="text-on-surface-variant max-w-2xl mx-auto mb-10">
         Automatically investigate incidents, correlate signals, and generate runbooks, powered by LLMs.
       </p>
       <p className="text-sm text-on-surface-variant mb-10">Let's get you set up in 2 minutes.</p>
+      <div className="mx-auto mb-8 max-w-xl rounded-xl border border-outline-variant bg-surface-container px-4 py-3 text-left">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+            Storage
+          </span>
+          <span className="text-sm font-semibold text-on-surface">{storageLabel}</span>
+        </div>
+        {storageLocation && (
+          <p className="mt-1 truncate font-mono text-xs text-on-surface-variant">{storageLocation}</p>
+        )}
+        <p className="mt-2 text-xs text-on-surface-variant">
+          Database backend is selected before OpenObs starts. The setup wizard saves app settings into the active backend.
+        </p>
+      </div>
       <button
         type="button"
         onClick={onNext}
@@ -102,7 +128,7 @@ function StepReady({
         ✓
       </div>
       <h2 className="text-2xl font-bold text-on-surface mb-2">You're all set!</h2>
-      <p className="text-on-surface-variant mb-8">AgentObs is configured and ready to investigate.</p>
+      <p className="text-on-surface-variant mb-8">OpenObs is configured and ready to investigate.</p>
 
       <div className="text-left bg-surface-high rounded-xl border border-outline-variant p-4 mb-8 max-w-md mx-auto space-y-3">
         <div className="flex justify-between text-sm">
@@ -135,6 +161,7 @@ export default function SetupWizard() {
   // When the server already has a user (upgraded install), the admin step
   // is skipped automatically. `/api/setup/status` returns `hasAdmin`.
   const [adminExists, setAdminExists] = useState<boolean | null>(null);
+  const [storage, setStorage] = useState<SetupStorageInfo | null>(null);
 
   const [llm, setLlm] = useState<LlmConfig>({
     provider: 'anthropic',
@@ -159,10 +186,14 @@ export default function SetupWizard() {
 
   useEffect(() => {
     void apiClient
-      .get<{ hasAdmin?: boolean }>('/setup/status')
+      .get<{ hasAdmin?: boolean; storage?: SetupStorageInfo }>('/setup/status')
       .then((res) => {
-        if (!res.error) setAdminExists(!!res.data.hasAdmin);
-        else setAdminExists(false);
+        if (!res.error) {
+          setAdminExists(!!res.data.hasAdmin);
+          setStorage(res.data.storage ?? null);
+        } else {
+          setAdminExists(false);
+        }
       })
       .catch(() => setAdminExists(false));
   }, []);
@@ -182,11 +213,11 @@ export default function SetupWizard() {
   });
 
   return (
-    <div className="min-h-screen bg-surface flex items-center justify-center px-4 py-12">
+    <div className="setup-theme-light min-h-screen bg-surface flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-3xl bg-surface-low border border-outline-variant rounded-2xl p-8">
         <ProgressBar current={step} />
 
-        {step === 0 && <StepWelcome onNext={next} />}
+        {step === 0 && <StepWelcome onNext={next} storage={storage} />}
         {step === 1 && (
           adminExists ? (
             <div className="py-8 text-center">
