@@ -69,6 +69,8 @@ export interface ChatServiceDeps {
   chatEventStore?: IChatSessionEventRepository;
   opsConnectorStore?: IOpsConnectorRepository;
   approvalStore?: IApprovalRequestRepository;
+  /** P4 — when present, the agent can emit `remediation_plan.create` tools. */
+  remediationPlanStore?: import('@agentic-obs/data-layer').IRemediationPlanRepository;
   /** Wave 7 — RBAC surface for the agent permission gate. Required. */
   accessControl: AccessControlSurface;
   /** Audit-log writer. Optional but strongly recommended in production. */
@@ -271,6 +273,9 @@ export class ChatService {
       // datasources.pin/unpin and we read it back across messages.
       sessionDatasourcePins: getSessionDatasourcePins(resolvedSessionId),
       ...(opsCommandRunner ? { opsCommandRunner, opsConnectors } : {}),
+      // P4 — agent can propose remediation plans when these stores are wired.
+      ...(this.deps.remediationPlanStore ? { remediationPlans: this.deps.remediationPlanStore } : {}),
+      ...(this.deps.approvalStore ? { approvalRequests: this.deps.approvalStore } : {}),
       sendEvent: wrappedSendEvent,
       timeRange,
       conversationSummary,

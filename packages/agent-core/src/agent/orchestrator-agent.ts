@@ -68,6 +68,10 @@ export interface OrchestratorDeps {
   sessionDatasourcePins?: Record<string, string>
   opsCommandRunner?: OpsCommandRunner
   opsConnectors?: OpsConnectorConfig[]
+  /** P4 — when present, registers remediation_plan.create + .create_rescue tools. */
+  remediationPlans?: import('@agentic-obs/data-layer').IRemediationPlanRepository
+  /** P4 — used to auto-emit a plan-level ApprovalRequest on plan creation. */
+  approvalRequests?: import('@agentic-obs/data-layer').IApprovalRequestRepository
   sendEvent: (event: DashboardSseEvent) => void
   timeRange?: { start: string; end: string; clientTimezone?: string }
   maxTokenBudget?: number
