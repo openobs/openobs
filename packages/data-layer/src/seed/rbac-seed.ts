@@ -24,12 +24,14 @@
  */
 
 import { sql } from 'drizzle-orm';
-import type { SqliteClient } from '../db/sqlite-client.js';
+import type { QueryClient } from '../db/query-client.js';
 import {
   BASIC_ROLE_DEFINITIONS,
   FIXED_ROLE_DEFINITIONS,
   resolveBasicRolePermissions,
   parseScope,
+  type IPermissionRepository,
+  type IRoleRepository,
   type BasicRoleDefinition,
   type BuiltinPermission,
   type FixedPermission,
@@ -47,6 +49,11 @@ export interface SeedRbacResult {
   builtinMappingsInserted: number;
 }
 
+export interface SeedRbacRepositories {
+  roles: IRoleRepository;
+  permissions: IPermissionRepository;
+}
+
 /**
  * Seed RBAC data for `orgId`. Also seeds global rows (fixed roles +
  * basic:server_admin + its builtin_role row) on the first call.
@@ -54,15 +61,16 @@ export interface SeedRbacResult {
  * Safe to call repeatedly — already-present rows are skipped.
  */
 export async function seedRbacForOrg(
-  db: SqliteClient,
+  db: QueryClient,
   orgId: string,
+  repos?: SeedRbacRepositories,
 ): Promise<SeedRbacResult> {
   if (orgId === '') {
     throw new Error('seedRbacForOrg: orgId must be non-empty (use a real org id)');
   }
 
-  const roleRepo = new RoleRepository(db);
-  const permRepo = new PermissionRepository(db);
+  const roleRepo = repos?.roles ?? new RoleRepository(db as never);
+  const permRepo = repos?.permissions ?? new PermissionRepository(db as never);
 
   const result: SeedRbacResult = {
     rolesInserted: 0,
@@ -191,8 +199,8 @@ function findBasic(name: BasicRoleDefinition['name']): BasicRoleDefinition {
  * Returns the count of rows inserted.
  */
 async function syncPermissions(
-  db: SqliteClient,
-  permRepo: PermissionRepository,
+  db: QueryClient,
+  permRepo: IPermissionRepository,
   roleId: string,
   desired: readonly (BuiltinPermission | FixedPermission)[],
 ): Promise<number> {
@@ -204,7 +212,7 @@ async function syncPermissions(
     const key = `${p.action}|${p.scope}`;
     if (have.has(key)) continue;
     const parsed = parseScope(p.scope);
-    db.run(sql`
+    await db.run(sql`
       INSERT INTO permission (
         id, role_id, action, scope, kind, attribute, identifier, created, updated
       ) VALUES (

@@ -47,6 +47,8 @@ ingress:
   tls: []
 
 persistence:
+  # Used only when secretEnv.DATABASE_URL is empty. For production Kubernetes,
+  # prefer external Postgres and keep this PVC for temporary/local state only.
   enabled: true
   existingClaim: ""
   accessModes:
@@ -90,6 +92,8 @@ secretEnv:
   SECRET_KEY: ""
   LLM_API_KEY: ""
   API_KEYS: ""
+  # Set before first startup to use the full Postgres repository backend.
+  # Leave empty for local SQLite on the persistence PVC.
   DATABASE_URL: ""
   REDIS_URL: ""
   OPENAI_API_KEY: ""

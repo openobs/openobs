@@ -1,5 +1,5 @@
 import { seedRbacForOrg } from '@agentic-obs/data-layer';
-import type { SqliteClient } from '@agentic-obs/data-layer';
+import type { QueryClient } from '@agentic-obs/data-layer';
 import type {
   IPermissionRepository,
   IRoleRepository,
@@ -13,7 +13,7 @@ export interface AccessControlRoleServiceDeps {
   permissionRepo: IPermissionRepository;
   userRoles: IUserRoleRepository;
   teamRoles: ITeamRoleRepository;
-  db?: SqliteClient;
+  db?: QueryClient;
 }
 
 export class AccessControlSeedUnavailableError extends Error {

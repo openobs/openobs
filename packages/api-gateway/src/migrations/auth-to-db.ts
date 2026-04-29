@@ -23,7 +23,7 @@
  */
 
 import { sql } from 'drizzle-orm';
-import type { SqliteClient } from '@agentic-obs/data-layer';
+import type { QueryClient } from '@agentic-obs/data-layer';
 import type {
   IOrgRepository,
   IOrgUserRepository,
@@ -37,7 +37,7 @@ const log = createLogger('auth-migrate');
 const MARKER_KEY = 'auth_migrated_v1';
 
 export interface AuthMigrationDeps {
-  db: SqliteClient;
+  db: QueryClient;
   users: IUserRepository;
   orgs: IOrgRepository;
   orgUsers: IOrgUserRepository;
@@ -57,9 +57,9 @@ function isDryRun(env: NodeJS.ProcessEnv): boolean {
     || env['OPENOBS_AUTH_MIGRATE_DRY_RUN'] === '1';
 }
 
-function readMarker(db: SqliteClient): boolean {
+async function readMarker(db: QueryClient): Promise<boolean> {
   try {
-    const rows = db.all<{ value: string }>(
+    const rows = await db.all<{ value: string }>(
       sql`SELECT value FROM _runtime_settings WHERE id = ${MARKER_KEY} LIMIT 1`,
     );
     return rows[0]?.value === 'true';
@@ -70,9 +70,9 @@ function readMarker(db: SqliteClient): boolean {
   }
 }
 
-function writeMarker(db: SqliteClient): void {
+async function writeMarker(db: QueryClient): Promise<void> {
   const now = new Date().toISOString();
-  db.run(sql`
+  await db.run(sql`
     INSERT INTO _runtime_settings (id, value, updated) VALUES (${MARKER_KEY}, 'true', ${now})
     ON CONFLICT(id) DO UPDATE SET value = 'true', updated = ${now}
   `);
@@ -88,7 +88,7 @@ export async function migrateAuthToDbIfNeeded(
   const env = deps.env ?? process.env;
   const dryRun = isDryRun(env);
 
-  if (readMarker(deps.db)) {
+  if (await readMarker(deps.db)) {
     log.debug('auth migration marker set; skipping');
     return {
       ran: false,
@@ -102,7 +102,7 @@ export async function migrateAuthToDbIfNeeded(
   const existing = await deps.users.list({ limit: 1 });
   if (existing.total > 0) {
     log.info({ userCount: existing.total }, 'users already present; marking migration done');
-    if (!dryRun) writeMarker(deps.db);
+    if (!dryRun) await writeMarker(deps.db);
     return {
       ran: false,
       skipped: true,
@@ -133,7 +133,7 @@ export async function migrateAuthToDbIfNeeded(
       {},
       env,
     );
-    writeMarker(deps.db);
+    await writeMarker(deps.db);
     log.info({ createdUserId }, 'auth migration seeded env admin');
     return {
       ran: true,
@@ -148,7 +148,7 @@ export async function migrateAuthToDbIfNeeded(
   log.warn(
     'Empty auth state and no SEED_ADMIN_* configured. Run the setup wizard to create the first admin.',
   );
-  if (!dryRun) writeMarker(deps.db);
+  if (!dryRun) await writeMarker(deps.db);
   return {
     ran: false,
     skipped: true,

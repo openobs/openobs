@@ -18,7 +18,7 @@ import type { AccessControlService } from '../services/accesscontrol-service.js'
 import { RoleServiceError } from '../services/role-service.js';
 import { AccessControlRoleService, AccessControlSeedUnavailableError } from '../services/access-control-role-service.js';
 import { createRequirePermission } from '../middleware/require-permission.js';
-import type { SqliteClient } from '@agentic-obs/data-layer';
+import type { QueryClient } from '@agentic-obs/data-layer';
 import type {
   IRoleRepository,
   IPermissionRepository,
@@ -32,8 +32,8 @@ export interface AccessControlRouterDeps {
   permissionRepo: IPermissionRepository;
   userRoles: IUserRoleRepository;
   teamRoles: ITeamRoleRepository;
-  /** Raw DB handle — optional seed support for deployments that expose it. */
-  db?: SqliteClient;
+  /** Raw repository database handle — optional seed support for deployments that expose it. */
+  db?: QueryClient;
 }
 
 // Shape the route layer returns — mirrors Grafana's RoleDTO.

@@ -25,7 +25,7 @@ OpenObs is configured through environment variables.
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `DATABASE_URL` | No | Postgres connection string for supported Postgres-backed tables. Leave unset for local SQLite mode. |
+| `DATABASE_URL` | No | Postgres connection string. Leave unset for local SQLite mode. |
 | `DATABASE_POOL_SIZE` | No | Pool size for Postgres. |
 | `DATABASE_SSL` | No | Enable Postgres SSL. |
 | `REDIS_URL` | No | Redis connection string. |
@@ -38,10 +38,15 @@ By default, OpenObs uses SQLite:
 - npm: `~/.openobs/openobs.db`
 - Helm/container: `${DATA_DIR}/openobs.db`, which defaults to `/var/lib/openobs/openobs.db`
 
-`DATABASE_URL` currently enables Postgres-backed instance configuration tables
-such as LLM provider settings, datasources, and notification channels. It does
-not yet move every table off SQLite, so keep Kubernetes deployments at one
-replica unless you are running a build with full Postgres persistence.
+When `DATABASE_URL` starts with `postgres://` or `postgresql://`, OpenObs uses
+Postgres for the full repository layer: auth, RBAC, settings, datasources,
+dashboards, investigations, alerts, notifications, chat, and feed data.
+
+Choose the database backend before first startup. The setup wizard can store
+application settings such as the LLM provider, but it cannot switch databases
+because OpenObs must connect to its database before the wizard can load. Changing
+`DATABASE_URL` later starts OpenObs against a different empty or pre-existing
+database; it does not migrate data from SQLite to Postgres.
 
 ## Docs note
 

@@ -67,24 +67,34 @@ Point DNS for `openobs.example.com` at your Ingress controller.
 
 ## Storage
 
-The Helm chart currently defaults to local SQLite persistence. The database file
-lives at `/var/lib/openobs/openobs.db` inside the container and is stored on the
-chart's persistent volume claim when `persistence.enabled=true`.
+The Helm chart can run with either local SQLite or external Postgres.
 
-This is fine for a single replica, evaluation, and small self-hosted installs.
-For production Kubernetes and any multi-replica deployment, prefer an external
-Postgres database once full Postgres persistence is enabled. SQLite on a
-ReadWriteOnce PVC should not be shared by multiple OpenObs pods.
+SQLite is the default for evaluation and small single-pod installs. The database
+file lives at `/var/lib/openobs/openobs.db` inside the container and is stored on
+the chart's persistent volume claim when `persistence.enabled=true`. Do not run
+multiple OpenObs replicas against the SQLite PVC.
 
-Today, `secretEnv.DATABASE_URL` enables the existing Postgres-backed
-instance-configuration repositories, but it does not yet move every OpenObs
-table off SQLite. Keep `replicaCount=1` unless you are running a build with full
-Postgres persistence.
+For production Kubernetes and any multi-replica deployment, set
+`secretEnv.DATABASE_URL` before the first OpenObs pod starts:
+
+```bash
+helm install openobs oci://ghcr.io/openobs/charts/openobs \
+  --namespace observability --create-namespace \
+  --set secretEnv.DATABASE_URL='postgresql://openobs:password@postgres.example.com:5432/openobs' \
+  --set env.DATABASE_SSL=true
+```
+
+When `DATABASE_URL` starts with `postgres://` or `postgresql://`, OpenObs uses
+Postgres for the full repository layer: auth, RBAC, settings, datasources,
+dashboards, investigations, alerts, notifications, chat, and feed data. Choose
+the backend at install time. The setup wizard stores application settings such
+as the LLM provider, but it cannot switch the database because the database must
+exist before the app can boot.
 
 ## Common overrides
 
 - `secretEnv.JWT_SECRET`: explicit JWT secret
-- `secretEnv.DATABASE_URL`: Postgres connection string for supported Postgres-backed tables
+- `secretEnv.DATABASE_URL`: Postgres connection string; enables the full Postgres repository backend
 - `secretEnv.REDIS_URL`: enable Redis-backed features
 - `persistence.enabled`: keep local state on a PVC
 - `ingress.enabled`: expose the app through an Ingress controller

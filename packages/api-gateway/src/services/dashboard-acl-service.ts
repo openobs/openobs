@@ -24,16 +24,16 @@ import type {
   Identity,
 } from '@agentic-obs/common';
 import { sql } from 'drizzle-orm';
-import type { SqliteClient } from '@agentic-obs/data-layer';
+import type { QueryClient } from '@agentic-obs/data-layer';
 import { PermissionLevel } from '@agentic-obs/common';
 
 export interface DashboardAclServiceDeps {
   dashboardAcl: IDashboardAclRepository;
   folders: IFolderRepository;
   teamMembers: ITeamMemberRepository;
-  /** Raw SQLite — used to look up a dashboard's folder_uid without enlarging
+  /** Raw repository database — used to look up a dashboard's folder_uid without enlarging
    * the dashboards repository interface (out-of-scope for T7). */
-  db: SqliteClient;
+  db: QueryClient;
 }
 
 export interface DashboardAclEntry extends DashboardAcl {
@@ -61,7 +61,7 @@ export class DashboardAclService {
     orgId: string,
     dashboardUid: string,
   ): Promise<DashboardAclEntry[]> {
-    const folderUid = this.folderUidForDashboard(orgId, dashboardUid);
+    const folderUid = await this.folderUidForDashboard(orgId, dashboardUid);
     const out: DashboardAclEntry[] = [];
 
     // Direct rows — the ACL column is `dashboard_id`, and in our model the
@@ -126,8 +126,8 @@ export class DashboardAclService {
   // ── Internal helpers ──────────────────────────────────────────────────────
 
   /** Direct SQL lookup — the dashboards repo doesn't expose folder_uid yet. */
-  private folderUidForDashboard(orgId: string, uid: string): string | null {
-    const rows = this.deps.db.all<{ folder_uid: string | null }>(
+  private async folderUidForDashboard(orgId: string, uid: string): Promise<string | null> {
+    const rows = await this.deps.db.all<{ folder_uid: string | null }>(
       sql`SELECT folder_uid FROM dashboards WHERE org_id = ${orgId} AND id = ${uid} LIMIT 1`,
     );
     return rows[0]?.folder_uid ?? null;

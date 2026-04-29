@@ -1,4 +1,5 @@
 import type { SqliteClient } from '../db/sqlite-client.js';
+import type { DbClient } from '../db/client.js';
 import type {
   IIncidentRepository,
   IFeedItemRepository,
@@ -49,6 +50,25 @@ import { InstanceConfigRepository } from './sqlite/instance-config.js';
 import { DatasourceRepository } from './sqlite/datasource.js';
 import { NotificationChannelRepository } from './sqlite/notification-channel.js';
 import { OpsConnectorRepository } from './sqlite/ops-connector.js';
+import { PostgresInvestigationRepository } from './postgres/investigation.js';
+import { PostgresIncidentRepository } from './postgres/incident.js';
+import { PostgresFeedItemRepository } from './postgres/feed.js';
+import { PostgresApprovalRequestRepository } from './postgres/approval.js';
+import { PostgresShareLinkRepository } from './postgres/share.js';
+import { PostgresDashboardRepository } from './postgres/dashboard.js';
+import { PostgresFolderRepository } from './postgres/folder.js';
+import { PostgresAlertRuleRepository } from './postgres/alert-rule.js';
+import { PostgresNotificationRepository } from './postgres/notification.js';
+import { PostgresVersionRepository } from './postgres/version.js';
+import { PostgresInvestigationReportRepository } from './postgres/investigation-report.js';
+import { PostgresPostMortemRepository } from './postgres/post-mortem.js';
+import { PostgresChatSessionRepository } from './postgres/chat-session.js';
+import { PostgresChatMessageRepository } from './postgres/chat-message.js';
+import { PostgresChatSessionEventRepository } from './postgres/chat-session-event.js';
+import { PostgresInstanceConfigRepository } from './postgres/instance-config.js';
+import { PostgresDatasourceRepository } from './postgres/datasource.js';
+import { PostgresNotificationChannelRepository } from './postgres/notification-channel.js';
+import { PostgresOpsConnectorRepository } from './postgres/ops-connector.js';
 
 /**
  * Extended repositories available with the SQLite backend.
@@ -103,5 +123,29 @@ export function createSqliteRepositories(db: SqliteClient): SqliteRepositories {
     datasources: new DatasourceRepository(db),
     notificationChannels: new NotificationChannelRepository(db),
     opsConnectors: new OpsConnectorRepository(db),
+  };
+}
+
+export function createPostgresRepositories(db: DbClient): SqliteRepositories {
+  return {
+    investigations: new PostgresInvestigationRepository(db) as SqliteRepositories['investigations'],
+    incidents: new PostgresIncidentRepository(db),
+    feedItems: new PostgresFeedItemRepository(db),
+    approvals: new PostgresApprovalRequestRepository(db),
+    shares: new PostgresShareLinkRepository(db),
+    dashboards: new PostgresDashboardRepository(db),
+    folders: new PostgresFolderRepository(db),
+    alertRules: new PostgresAlertRuleRepository(db),
+    notifications: new PostgresNotificationRepository(db),
+    versions: new PostgresVersionRepository(db),
+    investigationReports: new PostgresInvestigationReportRepository(db),
+    postMortems: new PostgresPostMortemRepository(db),
+    chatSessions: new PostgresChatSessionRepository(db),
+    chatMessages: new PostgresChatMessageRepository(db),
+    chatSessionEvents: new PostgresChatSessionEventRepository(db),
+    instanceConfig: new PostgresInstanceConfigRepository(db),
+    datasources: new PostgresDatasourceRepository(db),
+    notificationChannels: new PostgresNotificationChannelRepository(db),
+    opsConnectors: new PostgresOpsConnectorRepository(db),
   };
 }

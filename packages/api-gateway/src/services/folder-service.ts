@@ -24,7 +24,7 @@ import type {
   GrafanaFolderPatch,
 } from '@agentic-obs/common';
 import { FOLDER_MAX_DEPTH } from '@agentic-obs/common';
-import type { SqliteClient } from '@agentic-obs/data-layer';
+import type { QueryClient } from '@agentic-obs/data-layer';
 
 export class FolderServiceError extends Error {
   constructor(
@@ -70,11 +70,11 @@ export interface ListFoldersOpts {
 export interface FolderServiceDeps {
   folders: IFolderRepository;
   /**
-   * Raw SQLite client — used for the cross-table reads (dashboards count,
+   * Raw repository database client — used for the cross-table reads (dashboards count,
    * alert-rule count) that aren't worth a dedicated repository method, and for
    * the cascade delete that walks multiple tables in one transaction.
    */
-  db: SqliteClient;
+  db: QueryClient;
 }
 
 /** Slugify a title into a URL-safe UID. Mirrors Grafana's folder UID rule. */
@@ -266,7 +266,7 @@ export class FolderService {
     for (const d of await this.listDescendantUids(orgId, uid)) allUids.add(d);
 
     // Alert rule dependents gate (unless forceDeleteRules).
-    const ruleCount = this.countAlertRulesInFolders(orgId, [...allUids]);
+    const ruleCount = await this.countAlertRulesInFolders(orgId, [...allUids]);
     if (ruleCount > 0 && !opts.forceDeleteRules) {
       throw new FolderServiceError(
         'has_dependents',
@@ -276,21 +276,21 @@ export class FolderService {
     }
 
     // Cascade delete inside a single transaction.
-    this.deps.db.run(sql.raw('BEGIN TRANSACTION'));
+    await this.deps.db.run(sql.raw('BEGIN TRANSACTION'));
     try {
       const uidList = [...allUids];
       // Delete dashboards inside the folder subtree.
       for (const u of uidList) {
-        this.deps.db.run(
+        await this.deps.db.run(
           sql`DELETE FROM dashboards WHERE org_id = ${orgId} AND folder_uid = ${u}`,
         );
-        this.deps.db.run(
+        await this.deps.db.run(
           sql`DELETE FROM alert_rules WHERE org_id = ${orgId} AND folder_uid = ${u}`,
         );
         // Legacy ACL rows attached to a folder by id.
         const folderRow = await this.deps.folders.findByUid(orgId, u);
         if (folderRow) {
-          this.deps.db.run(
+          await this.deps.db.run(
             sql`DELETE FROM dashboard_acl WHERE org_id = ${orgId} AND folder_id = ${folderRow.id}`,
           );
         }
@@ -301,9 +301,9 @@ export class FolderService {
         const f = await this.deps.folders.findByUid(orgId, u);
         if (f) await this.deps.folders.delete(f.id);
       }
-      this.deps.db.run(sql.raw('COMMIT'));
+      await this.deps.db.run(sql.raw('COMMIT'));
     } catch (err) {
-      this.deps.db.run(sql.raw('ROLLBACK'));
+      await this.deps.db.run(sql.raw('ROLLBACK'));
       throw err;
     }
   }
@@ -327,13 +327,13 @@ export class FolderService {
     if (!existing) {
       throw new FolderServiceError('not_found', `folder not found: ${uid}`, 404);
     }
-    const dashRows = this.deps.db.all<{ n: number }>(
+    const dashRows = await this.deps.db.all<{ n: number }>(
       sql`SELECT COUNT(*) AS n FROM dashboards WHERE org_id = ${orgId} AND folder_uid = ${uid}`,
     );
-    const ruleRows = this.deps.db.all<{ n: number }>(
+    const ruleRows = await this.deps.db.all<{ n: number }>(
       sql`SELECT COUNT(*) AS n FROM alert_rules WHERE org_id = ${orgId} AND folder_uid = ${uid}`,
     );
-    const subRows = this.deps.db.all<{ n: number }>(
+    const subRows = await this.deps.db.all<{ n: number }>(
       sql`SELECT COUNT(*) AS n FROM folder WHERE org_id = ${orgId} AND parent_uid = ${uid}`,
     );
     return {
@@ -378,13 +378,13 @@ export class FolderService {
   }
 
   /** Count alert rules inside any of the given folder UIDs (org-scoped). */
-  private countAlertRulesInFolders(orgId: string, uids: string[]): number {
+  private async countAlertRulesInFolders(orgId: string, uids: string[]): Promise<number> {
     if (uids.length === 0) return 0;
     const placeholders = sql.join(
       uids.map((u) => sql`${u}`),
       sql`, `,
     );
-    const rows = this.deps.db.all<{ n: number }>(sql`
+    const rows = await this.deps.db.all<{ n: number }>(sql`
       SELECT COUNT(*) AS n FROM alert_rules
       WHERE org_id = ${orgId} AND folder_uid IN (${placeholders})
     `);

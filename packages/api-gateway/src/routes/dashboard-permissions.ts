@@ -20,12 +20,12 @@ import {
   ResourcePermissionServiceError,
 } from '../services/resource-permission-service.js';
 import type { ResourcePermissionSetItem } from '@agentic-obs/common';
-import type { SqliteClient } from '@agentic-obs/data-layer';
+import type { QueryClient } from '@agentic-obs/data-layer';
 
 export interface DashboardPermissionsRouterDeps {
   permissionService: ResourcePermissionService;
   ac: AccessControlService;
-  db: SqliteClient;
+  db: QueryClient;
 }
 
 function handleServiceError(err: unknown, res: Response): void {
@@ -48,12 +48,12 @@ function handleServiceError(err: unknown, res: Response): void {
   });
 }
 
-function readDashboardFolderUid(
-  db: SqliteClient,
+async function readDashboardFolderUid(
+  db: QueryClient,
   orgId: string,
   uid: string,
-): string | null {
-  const rows = db.all<{ folder_uid: string | null }>(
+): Promise<string | null> {
+  const rows = await db.all<{ folder_uid: string | null }>(
     sql`SELECT folder_uid FROM dashboards WHERE org_id = ${orgId} AND id = ${uid} LIMIT 1`,
   );
   return rows[0]?.folder_uid ?? null;
@@ -77,7 +77,7 @@ export function createDashboardPermissionsRouter(
     async (req: AuthenticatedRequest, res: Response) => {
       try {
         const uid = req.params['uid']!;
-        const folderUid = readDashboardFolderUid(deps.db, req.auth!.orgId, uid);
+        const folderUid = await readDashboardFolderUid(deps.db, req.auth!.orgId, uid);
         const entries = await deps.permissionService.list(
           req.auth!.orgId,
           'dashboards',

@@ -1,16 +1,16 @@
-# Postgres hybrid repositories
+# Postgres repositories
 
-This directory holds the Postgres-backed portion of the hybrid persistence
-mode. The gateway enables it when `DATABASE_URL` starts with `postgres://` or
-`postgresql://`; otherwise it defaults to local SQLite persistence.
+This directory holds the full Postgres repository backend. The gateway enables
+it when `DATABASE_URL` starts with `postgres://` or `postgresql://`; otherwise it
+uses the SQLite backend.
 
 ## Scope
 
-The instance-config stores (`InstanceConfigRepository`, `DatasourceRepository`,
-`NotificationChannelRepository`) have Postgres siblings here alongside the
-SQLite implementations. Their tables are applied by `schema-applier.ts` from
-`schema.sql`.
+Postgres now has siblings for the same repository bundle that SQLite exposes:
+auth, RBAC, instance settings, datasources, dashboards, investigations, alerts,
+notifications, chat, feed, approvals, shares, and related domain data. The
+schema is applied by `schema-applier.ts` from `schema.sql` during startup.
 
-Domain repositories such as investigations, incidents, feed, cases, approvals,
-and shares are SQLite-only. `DATABASE_URL` does not switch the whole data layer
-to Postgres; it only moves the instance-scoped config repositories above.
+Keep database-specific logic inside this directory and the persistence factory.
+API routes and services should depend on repository interfaces plus the
+`QueryClient` raw query boundary, not on a concrete database client.

@@ -23,18 +23,7 @@
  */
 
 import type { Application, RequestHandler } from 'express';
-import {
-  DashboardAclRepository,
-  FolderRepository,
-  PermissionRepository,
-  RoleRepository,
-  TeamRepository,
-  TeamMemberRepository,
-  TeamRoleRepository,
-  UserRoleRepository,
-  QuotaRepository,
-  seedRbacForOrg,
-} from '@agentic-obs/data-layer';
+import { seedRbacForOrg } from '@agentic-obs/data-layer';
 import { createLogger } from '@agentic-obs/common/logging';
 import { AccessControlService } from '../services/accesscontrol-service.js';
 import { AccessControlHolder } from '../services/accesscontrol-holder.js';
@@ -87,7 +76,7 @@ export interface MountRbacRoutesResult {
   accessControl: AccessControlService;
   /** Shared by chat/dashboard agent tooling so folder.* resolves to the
    * same table the UI uses. */
-  sharedFolderRepo: FolderRepository;
+  sharedFolderRepo: Persistence['rbacRepos']['folders'];
 }
 
 export async function mountRbacRoutes(
@@ -104,18 +93,21 @@ export async function mountRbacRoutes(
     accessControlHolder,
   } = deps;
   const defaultOrgId = deps.defaultOrgId ?? 'org_main';
-  const { sqliteDb, repos } = persistence;
+  const { db, repos, rbacRepos } = persistence;
 
   // Construct RBAC repositories.
-  const rbacRoleRepo = new RoleRepository(sqliteDb);
-  const rbacPermissionRepo = new PermissionRepository(sqliteDb);
-  const rbacUserRoles = new UserRoleRepository(sqliteDb);
-  const rbacTeamRoles = new TeamRoleRepository(sqliteDb);
-  const rbacTeamMembers = new TeamMemberRepository(sqliteDb);
-  const sharedFolderRepo = new FolderRepository(sqliteDb);
+  const rbacRoleRepo = rbacRepos.roles;
+  const rbacPermissionRepo = rbacRepos.permissions;
+  const rbacUserRoles = rbacRepos.userRoles;
+  const rbacTeamRoles = rbacRepos.teamRoles;
+  const rbacTeamMembers = rbacRepos.teamMembers;
+  const sharedFolderRepo = rbacRepos.folders;
 
   try {
-    await seedRbacForOrg(sqliteDb, defaultOrgId);
+    await seedRbacForOrg(db, defaultOrgId, {
+      roles: rbacRoleRepo,
+      permissions: rbacPermissionRepo,
+    });
   } catch (err) {
     log.error(
       { err: err instanceof Error ? err.message : err },
@@ -125,10 +117,10 @@ export async function mountRbacRoutes(
 
   // Legacy dashboard_acl read-only fallback for RBAC evaluation (T7.6).
   const legacyAclService = new DashboardAclService({
-    dashboardAcl: new DashboardAclRepository(sqliteDb),
+    dashboardAcl: rbacRepos.dashboardAcl,
     folders: sharedFolderRepo,
     teamMembers: rbacTeamMembers,
-    db: sqliteDb,
+    db,
   });
 
   const accessControl = new AccessControlService({
@@ -176,19 +168,19 @@ export async function mountRbacRoutes(
       permissionRepo: rbacPermissionRepo,
       userRoles: rbacUserRoles,
       teamRoles: rbacTeamRoles,
-      db: sqliteDb,
+      db,
     }),
   );
 
   // -- Orgs / org membership (W3 / T4.1) ---------------------------------
-  const quotasRepo = new QuotaRepository(sqliteDb);
+  const quotasRepo = rbacRepos.quotas;
   const orgService = new OrgService({
     orgs: authRepos.orgs,
     orgUsers: authRepos.orgUsers,
     users: authRepos.users,
     quotas: quotasRepo,
     audit: authSub.audit,
-    db: sqliteDb,
+    db,
     defaultOrgId,
   });
 
@@ -214,12 +206,12 @@ export async function mountRbacRoutes(
   );
 
   // -- Teams (W4 / T5.1) -------------------------------------------------
-  const teamRepo = new TeamRepository(sqliteDb);
+  const teamRepo = rbacRepos.teams;
   const teamService = new TeamService({
     teams: teamRepo,
     teamMembers: rbacTeamMembers,
     preferences: authRepos.preferences,
-    db: sqliteDb,
+    db,
     audit: authSub.audit,
   });
   app.use(
@@ -273,7 +265,7 @@ export async function mountRbacRoutes(
   // -- Resource permissions: folders + cascade (W4 / T7) -----------------
   const folderService = new FolderService({
     folders: sharedFolderRepo,
-    db: sqliteDb,
+    db,
   });
   const resourcePermissionService = new ResourcePermissionService({
     roles: rbacRoleRepo,
@@ -305,7 +297,7 @@ export async function mountRbacRoutes(
     createDashboardPermissionsRouter({
       permissionService: resourcePermissionService,
       ac: accessControl,
-      db: sqliteDb,
+      db,
     }),
   );
   app.use(

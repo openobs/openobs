@@ -41,7 +41,7 @@ import type {
   OrgUser,
 } from '@agentic-obs/common';
 import { AuditAction, ORG_ROLES } from '@agentic-obs/common';
-import type { SqliteClient } from '@agentic-obs/data-layer';
+import type { QueryClient } from '@agentic-obs/data-layer';
 import { seedRbacForOrg } from '@agentic-obs/data-layer';
 import type { AuditWriter } from '../auth/audit-writer.js';
 
@@ -89,12 +89,12 @@ export interface OrgServiceDeps {
   quotas?: IQuotaRepository;
   audit: AuditWriter;
   /**
-   * Raw sqlite client — needed to seed RBAC into a freshly-created org and
+   * Raw repository database — needed to seed RBAC into a freshly-created org and
    * to clean up org-scoped resource rows on delete (SQLite ALTER-added org_id
    * columns have no FK cascade — see migration 015's `[openobs-deviation]`
    * note).
    */
-  db: SqliteClient;
+  db: QueryClient;
   /** Default fallback org when a user's last org is deleted. */
   defaultOrgId?: string;
   /** Environment overrides for quota defaults. */
@@ -285,7 +285,7 @@ export class OrgService {
     // interpolation is safe.
     for (const table of ORG_SCOPED_TABLES) {
       try {
-        this.deps.db.run(sql.raw(`DELETE FROM ${table} WHERE org_id = '${id.replace(/'/g, "''")}'`));
+        await this.deps.db.run(sql.raw(`DELETE FROM ${table} WHERE org_id = '${id.replace(/'/g, "''")}'`));
       } catch (_err) {
         // Some tables may not exist on older schemas or in mini integration
         // DBs. Best-effort — swallow and continue; the delete() API contract
@@ -334,7 +334,7 @@ export class OrgService {
     ];
     for (const t of cascadeTables) {
       try {
-        this.deps.db.run(sql.raw(`DELETE FROM ${t} WHERE org_id = '${sanitized}'`));
+        await this.deps.db.run(sql.raw(`DELETE FROM ${t} WHERE org_id = '${sanitized}'`));
       } catch (_err) {
         // Tables may not exist in some schemas; best-effort cascade.
       }
