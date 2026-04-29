@@ -32,7 +32,7 @@ import {
   createSqliteRepositories,
   postgresAuth,
 } from '@agentic-obs/data-layer';
-import type { QueryClient, SqliteRepositories } from '@agentic-obs/data-layer';
+import type { DbClient, QueryClient, SqliteClient, SqliteRepositories } from '@agentic-obs/data-layer';
 import type {
   IApiKeyRepository,
   IAuditLogRepository,
@@ -52,10 +52,7 @@ import type {
   IUserRepository,
   IUserRoleRepository,
 } from '@agentic-obs/common';
-import { createLogger } from '@agentic-obs/common/logging';
 import { dbPath } from '../paths.js';
-
-const log = createLogger('persistence');
 
 export type PersistenceBackend = 'sqlite' | 'postgres';
 
@@ -99,57 +96,57 @@ function isPostgresUrl(
   );
 }
 
-function createSqliteAuthRepositories(db: QueryClient): AuthRepositoryBundle {
+function createSqliteAuthRepositories(db: SqliteClient): AuthRepositoryBundle {
   return {
-    users: new UserRepository(db as never),
-    userAuth: new UserAuthRepository(db as never),
-    userAuthTokens: new UserAuthTokenRepository(db as never),
-    orgs: new OrgRepository(db as never),
-    orgUsers: new OrgUserRepository(db as never),
-    auditLog: new AuditLogRepository(db as never),
-    apiKeys: new ApiKeyRepository(db as never),
-    preferences: new PreferencesRepository(db as never),
+    users: new UserRepository(db),
+    userAuth: new UserAuthRepository(db),
+    userAuthTokens: new UserAuthTokenRepository(db),
+    orgs: new OrgRepository(db),
+    orgUsers: new OrgUserRepository(db),
+    auditLog: new AuditLogRepository(db),
+    apiKeys: new ApiKeyRepository(db),
+    preferences: new PreferencesRepository(db),
   };
 }
 
-function createSqliteRbacRepositories(db: QueryClient): RbacRepositoryBundle {
+function createSqliteRbacRepositories(db: SqliteClient): RbacRepositoryBundle {
   return {
-    roles: new RoleRepository(db as never),
-    permissions: new PermissionRepository(db as never),
-    userRoles: new UserRoleRepository(db as never),
-    teamRoles: new TeamRoleRepository(db as never),
-    teamMembers: new TeamMemberRepository(db as never),
-    folders: new FolderRepository(db as never),
-    dashboardAcl: new DashboardAclRepository(db as never),
-    quotas: new QuotaRepository(db as never),
-    teams: new TeamRepository(db as never),
+    roles: new RoleRepository(db),
+    permissions: new PermissionRepository(db),
+    userRoles: new UserRoleRepository(db),
+    teamRoles: new TeamRoleRepository(db),
+    teamMembers: new TeamMemberRepository(db),
+    folders: new FolderRepository(db),
+    dashboardAcl: new DashboardAclRepository(db),
+    quotas: new QuotaRepository(db),
+    teams: new TeamRepository(db),
   };
 }
 
-function createPostgresAuthRepositories(db: QueryClient): AuthRepositoryBundle {
+function createPostgresAuthRepositories(db: DbClient): AuthRepositoryBundle {
   return {
-    users: new postgresAuth.UserRepository(db as never),
-    userAuth: new postgresAuth.UserAuthRepository(db as never),
-    userAuthTokens: new postgresAuth.UserAuthTokenRepository(db as never),
-    orgs: new postgresAuth.OrgRepository(db as never),
-    orgUsers: new postgresAuth.OrgUserRepository(db as never),
-    auditLog: new postgresAuth.AuditLogRepository(db as never),
-    apiKeys: new postgresAuth.ApiKeyRepository(db as never),
-    preferences: new postgresAuth.PreferencesRepository(db as never),
+    users: new postgresAuth.UserRepository(db),
+    userAuth: new postgresAuth.UserAuthRepository(db),
+    userAuthTokens: new postgresAuth.UserAuthTokenRepository(db),
+    orgs: new postgresAuth.OrgRepository(db),
+    orgUsers: new postgresAuth.OrgUserRepository(db),
+    auditLog: new postgresAuth.AuditLogRepository(db),
+    apiKeys: new postgresAuth.ApiKeyRepository(db),
+    preferences: new postgresAuth.PreferencesRepository(db),
   };
 }
 
-function createPostgresRbacRepositories(db: QueryClient): RbacRepositoryBundle {
+function createPostgresRbacRepositories(db: DbClient): RbacRepositoryBundle {
   return {
-    roles: new postgresAuth.RoleRepository(db as never),
-    permissions: new postgresAuth.PermissionRepository(db as never),
-    userRoles: new postgresAuth.UserRoleRepository(db as never),
-    teamRoles: new postgresAuth.TeamRoleRepository(db as never),
-    teamMembers: new postgresAuth.TeamMemberRepository(db as never),
-    folders: new postgresAuth.FolderRepository(db as never),
-    dashboardAcl: new postgresAuth.DashboardAclRepository(db as never),
-    quotas: new postgresAuth.QuotaRepository(db as never),
-    teams: new postgresAuth.TeamRepository(db as never),
+    roles: new postgresAuth.RoleRepository(db),
+    permissions: new postgresAuth.PermissionRepository(db),
+    userRoles: new postgresAuth.UserRoleRepository(db),
+    teamRoles: new postgresAuth.TeamRoleRepository(db),
+    teamMembers: new postgresAuth.TeamMemberRepository(db),
+    folders: new postgresAuth.FolderRepository(db),
+    dashboardAcl: new postgresAuth.DashboardAclRepository(db),
+    quotas: new postgresAuth.QuotaRepository(db),
+    teams: new postgresAuth.TeamRepository(db),
   };
 }
 
@@ -193,10 +190,11 @@ export async function createPersistence(
 ): Promise<Persistence> {
   const dbUrl = config.databaseUrl ?? process.env['DATABASE_URL'];
 
-  if (dbUrl && !isPostgresUrl(dbUrl)) {
-    log.warn(
-      { dbUrl: dbUrl.slice(0, 12) },
-      'DATABASE_URL is set but does not start with postgres://; using SQLite',
+  if (dbUrl !== undefined && dbUrl !== '' && !isPostgresUrl(dbUrl)) {
+    throw new Error(
+      `DATABASE_URL is set but does not start with postgres:// or postgresql://. ` +
+      `Refusing to silently fall back to SQLite. Unset DATABASE_URL to use ` +
+      `SQLite, or fix the connection string. Got: ${dbUrl.slice(0, 16)}...`,
     );
   }
 
