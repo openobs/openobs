@@ -39,6 +39,8 @@ export interface MountPlansDeps {
   approvalEventStore: EventEmittingApprovalRepository;
   connectors: IOpsConnectorRepository;
   ac: AccessControlSurface;
+  /** Optional audit writer; one row per plan-step execution when wired. */
+  audit?: import('../auth/audit-writer.js').AuditWriter;
   /** Override for tests; defaults to env-backed `DefaultOpsSecretRefResolver`. */
   secretResolver?: OpsSecretRefResolver;
 }
@@ -90,6 +92,7 @@ export function mountPlans(deps: MountPlansDeps): void {
     plans: deps.plans,
     approvals: deps.approvals,
     adapterFor,
+    ...(deps.audit ? { audit: deps.audit } : {}),
   });
 
   deps.app.use('/api/plans', createPlansRouter({
@@ -108,6 +111,21 @@ export function mountPlans(deps: MountPlansDeps): void {
     if (approval.action.type !== 'ops.run_command') return;
     void resumeExecutor(executor, approval, deps.plans);
   });
+
+  // Expiry sweeper. Once per minute, mark `pending_approval` plans whose
+  // expires_at has passed as `expired`. PLAN_APPROVAL_TTL_MS controls the
+  // initial expiry stamp at plan creation time (data-layer); this sweeper
+  // is just the GC pass that reflects the timeout in the row's status.
+  const sweepIntervalMs = Number(process.env['PLAN_EXPIRY_SWEEP_MS']) || 60_000;
+  const sweepTimer = setInterval(() => {
+    void deps.plans.expireStale(new Date().toISOString()).then((n) => {
+      if (n > 0) log.info({ expired: n }, 'plan-executor: swept expired plans');
+    }).catch((err) => {
+      log.warn({ err: err instanceof Error ? err.message : String(err) }, 'plan-executor: expireStale threw');
+    });
+  }, sweepIntervalMs);
+  // Don't keep the event loop alive just for this timer.
+  if (typeof sweepTimer.unref === 'function') sweepTimer.unref();
 
   log.info('plan-executor wired and /api/plans mounted');
 }

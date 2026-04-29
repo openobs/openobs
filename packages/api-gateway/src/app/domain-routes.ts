@@ -176,6 +176,7 @@ export function mountDomainRoutes(deps: MountDomainRoutesDeps): void {
     approvalEventStore: eventApprovalStore,
     connectors: repos.opsConnectors,
     ac: accessControl,
+    audit: authSub.audit,
   });
   app.use('/api/notifications', createNotificationsRouter({
     notificationStore: repos.notifications,

@@ -37,6 +37,7 @@ import type { Identity } from '@agentic-obs/common';
 import type {
   ExecutionAdapter,
 } from '@agentic-obs/adapters';
+import type { AuditWriter } from '../auth/audit-writer.js';
 import type {
   IApprovalRequestRepository,
   IRemediationPlanRepository,
@@ -65,6 +66,12 @@ export interface PlanExecutorOptions {
    * error.
    */
   adapterFor: (plan: RemediationPlan, step: RemediationPlanStep) => Promise<ExecutionAdapter>;
+  /**
+   * Optional audit writer. When wired, every step execution emits an
+   * `agent.plan_step` audit row with outcome ok/error and the connector +
+   * verb in metadata. Boot wiring passes `authSub.audit`; tests omit.
+   */
+  audit?: AuditWriter;
 }
 
 export type PlanExecutorOutcome =
@@ -372,6 +379,7 @@ export class PlanExecutorService {
         { planId: plan.id, stepOrdinal: step.ordinal },
         'plan-executor: step done',
       );
+      void this.audit(plan, step, 'ok', undefined, params);
       return;
     }
 
@@ -384,6 +392,7 @@ export class PlanExecutorService {
       { planId: plan.id, stepOrdinal: step.ordinal, err: errMsg },
       'plan-executor: step failed',
     );
+    void this.audit(plan, step, 'error', errMsg, params);
     if (!step.continueOnError) {
       await this.haltPlan(plan.orgId, plan.id, step.ordinal, errMsg);
     }
@@ -415,6 +424,34 @@ export class PlanExecutorService {
    * approval exists and is in `approved` status (callers should have done
    * this; we double-check).
    */
+  private audit(
+    plan: RemediationPlan,
+    step: RemediationPlanStep,
+    outcome: 'ok' | 'error',
+    errMsg: string | undefined,
+    params: OpsRunCommandStepParams,
+  ): void {
+    if (!this.opts.audit) return;
+    const verb = params.argv[0] ?? '';
+    void this.opts.audit.log({
+      action: 'agent.plan_step',
+      actorType: 'service_account',
+      actorId: plan.createdBy,
+      orgId: plan.orgId,
+      targetType: 'remediation_plan_step',
+      targetId: `${plan.id}:${step.ordinal}`,
+      outcome: outcome === 'ok' ? 'success' : 'failure',
+      metadata: {
+        planId: plan.id,
+        stepOrdinal: step.ordinal,
+        kind: step.kind,
+        verb,
+        connectorId: params.connectorId,
+        ...(errMsg ? { error: errMsg.slice(0, 512) } : {}),
+      },
+    });
+  }
+
   private async findStepByApproval(
     orgId: string,
     approvalRequestId: string,
