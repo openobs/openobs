@@ -35,6 +35,7 @@ import { createFeedRouter } from '../routes/feed.js';
 import { createSharedRouter } from '../routes/shared.js';
 import { createMetaRouter } from '../routes/meta.js';
 import { createApprovalRouter } from '../routes/approval.js';
+import { mountPlans } from './plans-boot.js';
 import { createWebhookRouter } from '../routes/webhooks.js';
 import { createDatasourcesRouter } from '../routes/datasources.js';
 import { createQueryRouter } from '../routes/dashboard/query.js';
@@ -164,6 +165,18 @@ export function mountDomainRoutes(deps: MountDomainRoutesDeps): void {
     opsConnectors: repos.opsConnectors,
     ac: accessControl,
   }));
+
+  // P5 — remediation-plan execution. Mounts /api/plans, builds the
+  // PlanExecutorService, and subscribes to per-step ApprovalRequest
+  // resolutions on the same approval bus the approvals router uses.
+  mountPlans({
+    app,
+    plans: repos.remediationPlans,
+    approvals: repos.approvals,
+    approvalEventStore: eventApprovalStore,
+    connectors: repos.opsConnectors,
+    ac: accessControl,
+  });
   app.use('/api/notifications', createNotificationsRouter({
     notificationStore: repos.notifications,
     alertRuleStore: eventAlertRuleStore,
@@ -184,6 +197,7 @@ export function mountDomainRoutes(deps: MountDomainRoutesDeps): void {
     chatEventStore: repos.chatSessionEvents,
     opsConnectorStore: repos.opsConnectors,
     approvalStore: repos.approvals,
+    remediationPlanStore: repos.remediationPlans,
     accessControl,
     auditWriter: authSub.audit,
     folderRepository: sharedFolderRepo,
