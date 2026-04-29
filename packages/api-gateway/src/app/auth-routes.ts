@@ -5,9 +5,9 @@
  * Two phases so the caller can build a SetupConfigService with the
  * resolved AuditWriter between them:
  *
- *   1. `buildAuthSubsystem(db, repos)`    → uses the selected backend repos,
- *      runs the
- *      idempotent auth-to-db migration / seed-admin fallback, builds the
+ *   1. `buildAuthSubsystem(db, repos, quotas)` → uses the selected backend
+ *      repos plus the quota repository; runs the idempotent auth-to-db
+ *      migration / seed-admin fallback, builds the
  *      AuthSubsystem + ApiKeyService + authMw, and registers `authMw` as
  *      the module-level singleton (kills the old 503-shim race window).
  *
