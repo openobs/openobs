@@ -1,5 +1,60 @@
+import { checkKubectl } from '@agentic-obs/adapters';
 import type { ActionContext } from './_context.js';
 import { withToolEventBoundary } from './_shared.js';
+
+/**
+ * Best-effort argv parser for a `kubectl ...` command string.
+ *
+ * The `ops.run_command` tool accepts the command as one user-facing string,
+ * so we don't have a structured argv at the handler boundary. We split
+ * conservatively (whitespace, single+double quotes) to feed the P6
+ * allowlist; any parse failure falls through to the runner, which is
+ * still trusted to validate at its layer.
+ *
+ * Rules:
+ *   - leading "kubectl" is dropped if present
+ *   - "$(...)" / backticks / pipes / redirects are NOT supported and
+ *     produce an empty argv (caller treats that as "couldn't validate"
+ *     and lets the runner reject it).
+ */
+export function parseKubectlCommandString(command: string): string[] {
+  const trimmed = command.trim();
+  if (!trimmed) return [];
+  if (/[`$|;&><]/.test(trimmed)) return [];
+
+  const tokens: string[] = [];
+  let i = 0;
+  while (i < trimmed.length) {
+    const ch = trimmed[i] ?? '';
+    if (ch === ' ' || ch === '\t' || ch === '\n') {
+      i++;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      const quote = ch;
+      let j = i + 1;
+      let buf = '';
+      while (j < trimmed.length && trimmed[j] !== quote) {
+        buf += trimmed[j];
+        j++;
+      }
+      if (j >= trimmed.length) return []; // unterminated quote
+      tokens.push(buf);
+      i = j + 1;
+      continue;
+    }
+    let j = i;
+    let buf = '';
+    while (j < trimmed.length && !/\s/.test(trimmed[j] ?? '')) {
+      buf += trimmed[j];
+      j++;
+    }
+    tokens.push(buf);
+    i = j;
+  }
+  if (tokens[0] === 'kubectl') tokens.shift();
+  return tokens;
+}
 
 export async function handleOpsRunCommand(
   ctx: ActionContext,
@@ -28,13 +83,34 @@ export async function handleOpsRunCommand(
       }
 
       const connectors = ctx.opsConnectors ?? await ctx.opsCommandRunner.listConnectors?.();
-      if (Array.isArray(connectors)) {
-        if (connectors.length === 0) {
+      const connectorList = Array.isArray(connectors) ? connectors : undefined;
+      if (connectorList) {
+        if (connectorList.length === 0) {
           return 'No Ops connectors are configured. Connect a Kubernetes/Ops integration before querying cluster state.';
         }
-        const selected = connectors.find((connector) => connector.id === connectorId);
+        const selected = connectorList.find((connector) => connector.id === connectorId);
         if (!selected) {
-          return `Ops connector "${connectorId}" is not configured. Choose one of: ${connectors.map((connector) => connector.id).join(', ')}.`;
+          return `Ops connector "${connectorId}" is not configured. Choose one of: ${connectorList.map((connector) => connector.id).join(', ')}.`;
+        }
+
+        // Defense-in-depth gate (P2 / T2.3 + T2.5):
+        //
+        // When the agent declares intent="read", the command argv MUST also
+        // be on the P6 read-allowlist. Without this gate, a model could
+        // smuggle a write through with intent="read" and the runner is the
+        // only line of defense — we want a second one at the handler so the
+        // shape of the command can't lie about its effect.
+        //
+        // Best-effort: a parse failure falls through and the runner takes
+        // over. A successful parse that fails the allowlist is rejected.
+        if (intent === 'read') {
+          const argv = parseKubectlCommandString(command);
+          if (argv.length > 0) {
+            const decision = checkKubectl(argv, 'read', selected.namespaces ?? []);
+            if (!decision.allow) {
+              return `ops.run_command rejected: ${decision.reason}. Use intent="propose" for writes, and only on a connector configured for the target namespace.`;
+            }
+          }
         }
       }
 

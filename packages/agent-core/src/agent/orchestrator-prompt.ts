@@ -147,6 +147,9 @@ The report is primarily WRITTEN ANALYSIS — panels are supporting evidence, not
 - Specific numbers inline: not "high", but "120ms vs <50ms baseline".
 - Complete paragraphs, not bullet lists.
 
+### When a cluster connector is attached
+If the \`# Ops Integrations\` section above lists a connector, use \`ops.run_command\` with \`intent="read"\` to inspect cluster state for service-side symptoms — pod status, recent events, logs from suspect pods, etc. Stick to the connector's allowed namespaces. NEVER use \`intent="propose"\` or \`intent="execute_approved"\` from an investigation turn — propose fixes via \`remediation_plan.create\` after the investigation completes.
+
 ### Mechanics
 - Use \`investigation.add_section({type: "text"})\` for prose; \`{type: "evidence"}\` to attach the chart that supports a paragraph. Section order = display order.
 - Choose your own headings (or none). Don't reach for "## Initial Assessment" / "## Hypothesis Testing" by reflex — fit the heading to what you're actually saying.
