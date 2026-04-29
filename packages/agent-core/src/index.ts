@@ -38,3 +38,10 @@ export {
 } from './agent/index.js';
 
 export type { Investigation, InvestigationPlan, InvestigationStatus } from '@agentic-obs/common';
+
+export {
+  runBackgroundAgent,
+  type BackgroundAgentRunInput,
+  type BackgroundRunnerDeps,
+  type ISaTokenResolver,
+} from './agent/background-runner.js';

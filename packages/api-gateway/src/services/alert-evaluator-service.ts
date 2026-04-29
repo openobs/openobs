@@ -29,8 +29,8 @@ import type {
   AlertOperator,
   AlertRule,
   AlertRuleState,
-  IAlertRuleRepository,
 } from '@agentic-obs/common';
+import type { IAlertRuleRepository } from '@agentic-obs/data-layer';
 
 const log = createLogger('alert-evaluator');
 
