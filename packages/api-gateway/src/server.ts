@@ -37,6 +37,7 @@ import { createPersistence } from './app/persistence.js';
 import { buildAuthSubsystem, mountAuthRoutes } from './app/auth-routes.js';
 import { mountRbacRoutes } from './app/rbac-routes.js';
 import { mountDomainRoutes } from './app/domain-routes.js';
+import { startAlerts } from './app/alerts-boot.js';
 import { createShutdownHooks } from './app/lifecycle.js';
 import type { WebSocketGatewayDeps } from './websocket/gateway.js';
 
@@ -191,6 +192,15 @@ export async function createApp(): Promise<Application> {
     sharedFolderRepo,
     userRateLimiter,
     queryRateLimiter,
+  });
+
+  // Start the periodic alert evaluator (Phase 0.5 boot path). Behind
+  // ALERT_EVALUATOR_ENABLED (default true). The handle is parked on
+  // app.locals so a graceful-shutdown caller (or a future AutoInvestigation
+  // dispatcher) can reach the evaluator without rebuilding it.
+  app.locals['alertsHandle'] = await startAlerts({
+    rules: persistence.repos.alertRules,
+    setupConfig,
   });
 
   app.locals['websocketGatewayDeps'] = {
