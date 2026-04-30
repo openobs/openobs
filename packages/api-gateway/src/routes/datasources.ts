@@ -55,15 +55,22 @@ function actorFromReq(req: Request): { userId: string | null } {
 }
 
 /**
- * Resolve the owning org for a datasource. Pre-bootstrap the wizard hits
- * this route unauthenticated (no `req.auth`); we default to `org_main` which
- * is the seeded default org. Once authenticated we trust the caller's org.
- * Body-supplied `orgId` is honored if present (admin tooling).
+ * Resolve the owning org for a datasource. Authenticated requests always use
+ * `req.auth.orgId`; ordinary request bodies cannot switch orgs. Pre-bootstrap
+ * wizard requests are the only unauthenticated route context and may supply an
+ * org id, falling back to the seeded default org.
  */
 function resolveOrgId(req: Request, body: DatasourceBody): string {
-  if (body.orgId) return body.orgId;
   const auth = (req as AuthenticatedRequest).auth;
-  return auth?.orgId ?? 'org_main';
+  if (auth?.orgId) return auth.orgId;
+  if (req.res?.locals['allowBootstrapUnauthenticated'] === true && body.orgId) {
+    return body.orgId;
+  }
+  return 'org_main';
+}
+
+function currentOrgId(req: Request): string {
+  return (req as AuthenticatedRequest).auth?.orgId ?? 'org_main';
 }
 
 export function createDatasourcesRouter(deps: DatasourcesRouterDeps): Router {
@@ -75,8 +82,11 @@ export function createDatasourcesRouter(deps: DatasourcesRouterDeps): Router {
   router.get(
     '/',
     requirePermission(() => ac.eval(ACTIONS.DatasourcesRead, 'datasources:*')),
-    async (_req: Request, res: Response) => {
-      const datasources = await setupConfig.listDatasources({ masked: true });
+    async (req: Request, res: Response) => {
+      const datasources = await setupConfig.listDatasources({
+        orgId: currentOrgId(req),
+        masked: true,
+      });
       res.json({ datasources });
     },
   );
@@ -120,8 +130,9 @@ export function createDatasourcesRouter(deps: DatasourcesRouterDeps): Router {
       return;
     }
     const actor = actorFromReq(req);
+    const orgId = resolveOrgId(req, body);
     // If caller supplies an id that already exists, surface 409.
-    if (body.id && (await setupConfig.getDatasource(body.id))) {
+    if (body.id && (await setupConfig.getDatasource(body.id, { orgId }))) {
       res.status(409).json({
         error: { code: 'CONFLICT', message: `Datasource "${body.id}" already exists` },
       });
@@ -139,7 +150,7 @@ export function createDatasourcesRouter(deps: DatasourcesRouterDeps): Router {
       username: body.username ?? null,
       password: body.password ?? null,
       isDefault: body.isDefault ?? false,
-      orgId: resolveOrgId(req, body),
+      orgId,
     };
     const created = await setupConfig.createDatasource(input, actor);
     res.status(201).json({ datasource: maskForWire(created) });
@@ -154,7 +165,10 @@ export function createDatasourcesRouter(deps: DatasourcesRouterDeps): Router {
     ),
     async (req: Request, res: Response) => {
     const id = req.params['id'] ?? '';
-    const ds = await setupConfig.getDatasource(id, { masked: true });
+    const ds = await setupConfig.getDatasource(id, {
+      orgId: currentOrgId(req),
+      masked: true,
+    });
     if (!ds) {
       res.status(404).json({
         error: { code: 'NOT_FOUND', message: `Datasource "${id}" not found` },
@@ -173,14 +187,15 @@ export function createDatasourcesRouter(deps: DatasourcesRouterDeps): Router {
     ),
     async (req: Request, res: Response) => {
     const id = req.params['id'] ?? '';
-    const existing = await setupConfig.getDatasource(id);
+    const body = req.body as DatasourceBody;
+    const orgId = resolveOrgId(req, body);
+    const existing = await setupConfig.getDatasource(id, { orgId });
     if (!existing) {
       res.status(404).json({
         error: { code: 'NOT_FOUND', message: `Datasource "${id}" not found` },
       });
       return;
     }
-    const body = req.body as DatasourceBody;
     const patch: InstanceDatasourcePatch = {};
     if (body.type !== undefined) patch.type = body.type;
     if (body.name !== undefined) patch.name = body.name;
@@ -192,7 +207,10 @@ export function createDatasourcesRouter(deps: DatasourcesRouterDeps): Router {
     if (body.apiKey !== undefined) patch.apiKey = body.apiKey;
     if (body.username !== undefined) patch.username = body.username;
     if (body.password !== undefined) patch.password = body.password;
-    const updated = await setupConfig.updateDatasource(id, patch, actorFromReq(req));
+    const updated = await setupConfig.updateDatasource(id, patch, {
+      ...actorFromReq(req),
+      orgId,
+    });
     res.json({ datasource: updated ? maskForWire(updated) : null });
   },
   );
@@ -205,7 +223,10 @@ export function createDatasourcesRouter(deps: DatasourcesRouterDeps): Router {
     ),
     async (req: Request, res: Response) => {
     const id = req.params['id'] ?? '';
-    const existed = await setupConfig.deleteDatasource(id, actorFromReq(req));
+    const existed = await setupConfig.deleteDatasource(id, {
+      ...actorFromReq(req),
+      orgId: currentOrgId(req),
+    });
     if (!existed) {
       res.status(404).json({
         error: { code: 'NOT_FOUND', message: `Datasource "${id}" not found` },
@@ -224,7 +245,7 @@ export function createDatasourcesRouter(deps: DatasourcesRouterDeps): Router {
     ),
     async (req: Request, res: Response) => {
     const id = req.params['id'] ?? '';
-    const ds = await setupConfig.getDatasource(id);
+    const ds = await setupConfig.getDatasource(id, { orgId: currentOrgId(req) });
     if (!ds) {
       res.status(404).json({
         error: { code: 'NOT_FOUND', message: `Datasource "${id}" not found` },

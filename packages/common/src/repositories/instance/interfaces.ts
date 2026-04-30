@@ -55,19 +55,21 @@ export interface IInstanceConfigRepository {
 
 // -- DatasourceRepository ---------------------------------------------
 
-export interface ListDatasourcesOptions extends MaskOptions {
-  /** Filter to one org. When undefined, returns all datasources across all orgs. */
-  orgId?: string;
+export interface DatasourceLookupOptions extends MaskOptions {
+  orgId: string;
+}
+
+export interface ListDatasourcesOptions extends DatasourceLookupOptions {
   type?: string;
 }
 
 export interface IDatasourceRepository {
-  list(opts?: ListDatasourcesOptions): Promise<InstanceDatasource[]>;
-  get(id: string, opts?: MaskOptions): Promise<InstanceDatasource | null>;
+  list(opts: ListDatasourcesOptions): Promise<InstanceDatasource[]>;
+  get(id: string, opts: DatasourceLookupOptions): Promise<InstanceDatasource | null>;
   create(input: NewInstanceDatasource): Promise<InstanceDatasource>;
-  update(id: string, patch: InstanceDatasourcePatch): Promise<InstanceDatasource | null>;
-  delete(id: string): Promise<boolean>;
-  count(orgId?: string): Promise<number>;
+  update(id: string, patch: InstanceDatasourcePatch, orgId: string): Promise<InstanceDatasource | null>;
+  delete(id: string, orgId: string): Promise<boolean>;
+  count(orgId: string): Promise<number>;
 }
 
 // -- NotificationChannelRepository ------------------------------------

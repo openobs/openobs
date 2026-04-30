@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { checkKubectl, parseKubectlArgv } from './kubectl-allowlist.js';
+import { checkKubectl, classifyKubectlCommand, parseKubectlArgv } from './kubectl-allowlist.js';
 
 describe('parseKubectlArgv', () => {
   it('extracts verb and namespace from -n', () => {
@@ -32,6 +32,16 @@ describe('checkKubectl — read mode', () => {
   });
   it('allows cluster-scoped reads', () => {
     expect(checkKubectl(['get', 'nodes'], 'read', ['app']).allow).toBe(true);
+  });
+  it('allows historical read-only kubectl subcommands in read mode', () => {
+    expect(checkKubectl(['rollout', 'status', 'deploy/web', '-n', 'app'], 'read', ['app']).allow).toBe(true);
+    expect(checkKubectl(['api-versions'], 'read', ['app']).allow).toBe(true);
+    expect(checkKubectl(['config', 'current-context'], 'read', ['app']).allow).toBe(true);
+  });
+  it('rejects secret reads', () => {
+    const d = checkKubectl(['get', 'secret', 'prod', '-n', 'app'], 'read', ['app']);
+    expect(d.allow).toBe(false);
+    expect(d.reason).toMatch(/secret reads/);
   });
   it('rejects kubectl exec', () => {
     const d = checkKubectl(['exec', '-it', 'web-abc', '--', 'sh'], 'read', ['app']);
@@ -110,5 +120,18 @@ describe('checkKubectl — permanent denies', () => {
   });
   it('blocks cp', () => {
     expect(checkKubectl(['cp', 'web-abc:/etc/passwd', '/tmp/x', '-n', 'app'], 'write', ['app']).allow).toBe(false);
+  });
+});
+
+describe('classifyKubectlCommand', () => {
+  it('classifies reads and writes through the shared allowlist', () => {
+    expect(classifyKubectlCommand('kubectl rollout status deploy/web -n app', ['app']).decision).toBe('read');
+    expect(classifyKubectlCommand('kubectl rollout restart deploy/web -n app', ['app']).decision).toBe('approval_required');
+  });
+
+  it('denies unparseable or disallowed commands before service layers see them', () => {
+    expect(classifyKubectlCommand('ls -la', ['app']).decision).toBe('denied');
+    expect(classifyKubectlCommand('kubectl get secret prod -n app', ['app']).decision).toBe('denied');
+    expect(classifyKubectlCommand('kubectl scale deploy/web -n other --replicas=2', ['app']).decision).toBe('denied');
   });
 });

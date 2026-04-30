@@ -5,7 +5,7 @@ import type {
   IncidentTimelineEntry,
   IncidentTimelineEntryType,
 } from '@agentic-obs/common';
-import { incidents } from '../../db/sqlite-schema.js';
+import { incidents } from '../../db/schema.js';
 import type { IIncidentRepository, IncidentFindAllOptions } from '../interfaces.js';
 
 type IncidentRow = typeof incidents.$inferSelect;

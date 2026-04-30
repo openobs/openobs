@@ -113,3 +113,73 @@ export interface OpsCommandRunner {
     sessionId: string
   }): unknown | Promise<unknown>
 }
+
+export type RemediationPlanStepKind = 'ops.run_command' | string
+
+export interface NewRemediationPlanStep {
+  kind: RemediationPlanStepKind
+  commandText: string
+  paramsJson: Record<string, unknown>
+  dryRunText?: string | null
+  riskNote?: string | null
+  continueOnError?: boolean
+}
+
+export interface AgentRemediationPlan {
+  id: string
+  orgId: string
+  investigationId: string
+  rescueForPlanId: string | null
+  summary: string
+  status: string
+  approvalRequestId: string | null
+  steps: Array<{ id?: string; ordinal?: number; [key: string]: unknown }>
+}
+
+export interface RemediationPlanStore {
+  create(input: {
+    id?: string
+    orgId: string
+    investigationId: string
+    rescueForPlanId?: string | null
+    summary: string
+    status?: string
+    autoEdit?: boolean
+    approvalRequestId?: string | null
+    createdBy: string
+    expiresAt?: string
+    steps: NewRemediationPlanStep[]
+  }): AgentRemediationPlan | Promise<AgentRemediationPlan>
+  findByIdInOrg(orgId: string, id: string): AgentRemediationPlan | Promise<AgentRemediationPlan | null> | null
+  updatePlan(
+    orgId: string,
+    id: string,
+    patch: { status?: string; autoEdit?: boolean; approvalRequestId?: string | null; resolvedAt?: string | null; resolvedBy?: string | null },
+  ): AgentRemediationPlan | Promise<AgentRemediationPlan | null> | null
+}
+
+export interface ApprovalAction {
+  type: string
+  targetService: string
+  params: Record<string, unknown>
+}
+
+export interface ApprovalContext {
+  investigationId?: string
+  requestedBy: string
+  reason: string
+  [key: string]: unknown
+}
+
+export interface ApprovalRequest {
+  id: string
+  action: ApprovalAction
+  context: ApprovalContext
+  status: string
+  createdAt: string
+  expiresAt: string
+}
+
+export interface ApprovalRequestStore {
+  submit(params: { action: ApprovalAction; context: ApprovalContext; ttlMs?: number }): ApprovalRequest | Promise<ApprovalRequest>
+}

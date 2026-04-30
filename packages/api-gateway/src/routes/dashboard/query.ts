@@ -34,11 +34,11 @@ async function resolvePrometheusDatasource(
   datasourceId: string,
 ): Promise<InstanceDatasource | null> {
   if (!datasourceId) return null
-  const ds = await setupConfig.getDatasource(datasourceId)
+  if (!orgId) return null
+  const ds = await setupConfig.getDatasource(datasourceId, { orgId })
   if (!ds) return null
   const isPrometheus = ds.type === 'prometheus' || ds.type === 'victoria-metrics'
-  const belongsToOrg = ds.orgId === orgId
-  return isPrometheus && belongsToOrg ? ds : null
+  return isPrometheus ? ds : null
 }
 
 function buildClientConfig(ds: InstanceDatasource): ConstructorParameters<typeof PrometheusHttpClient>[0] {

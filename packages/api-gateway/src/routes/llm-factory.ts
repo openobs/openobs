@@ -1,6 +1,7 @@
 import {
   AnthropicProvider,
   OpenAIProvider,
+  OpenAICompatibleProvider,
   GeminiProvider,
   OllamaProvider,
   LLMGateway,
@@ -38,15 +39,23 @@ export function createLlmProvider(cfg: LlmFactoryConfig): LLMProvider {
 
   switch (cfg.provider) {
     case 'openai':
+      return createOpenAiProvider(apiKey, apiKeyHelper, cfg.baseUrl);
+
     case 'azure-openai':
-      return new OpenAIProvider({
+      return new OpenAICompatibleProvider({
+        providerId: 'azure-openai',
+        providerName: 'Azure OpenAI',
         apiKey,
-        baseUrl: cfg.baseUrl || undefined,
+        ...(apiKeyHelper ? { apiKeyHelper } : {}),
+        baseUrl: cfg.baseUrl || 'https://api.openai.com/v1',
       });
 
     case 'deepseek':
-      return new OpenAIProvider({
+      return new OpenAICompatibleProvider({
+        providerId: 'deepseek',
+        providerName: 'DeepSeek',
         apiKey,
+        ...(apiKeyHelper ? { apiKeyHelper } : {}),
         baseUrl: cfg.baseUrl || 'https://api.deepseek.com/v1',
       });
 
@@ -71,6 +80,54 @@ export function createLlmProvider(cfg: LlmFactoryConfig): LLMProvider {
   }
 }
 
+function createOpenAiProvider(
+  apiKey: string,
+  apiKeyHelper: string | undefined,
+  baseUrl: string | null | undefined,
+): LLMProvider {
+  if (!baseUrl || isOfficialOpenAiBaseUrl(baseUrl)) {
+    return new OpenAIProvider({
+      apiKey,
+      ...(apiKeyHelper ? { apiKeyHelper } : {}),
+      ...(baseUrl ? { baseUrl } : {}),
+    });
+  }
+  return new OpenAICompatibleProvider({
+    providerId: inferOpenAiCompatibleProviderId(baseUrl),
+    providerName: inferOpenAiCompatibleProviderName(baseUrl),
+    apiKey,
+    ...(apiKeyHelper ? { apiKeyHelper } : {}),
+    baseUrl,
+  });
+}
+
+function isOfficialOpenAiBaseUrl(baseUrl: string): boolean {
+  try {
+    return new URL(baseUrl).hostname === 'api.openai.com';
+  } catch {
+    return false;
+  }
+}
+
+function inferOpenAiCompatibleProviderId(baseUrl: string): string {
+  try {
+    const hostname = new URL(baseUrl).hostname.toLowerCase();
+    if (hostname.includes('openrouter.ai')) return 'openrouter';
+    if (hostname.includes('deepseek.com')) return 'deepseek';
+  } catch {
+    // Fall through to a stable generic id for malformed/custom URLs. URL
+    // safety validation happens at the route/service boundary.
+  }
+  return 'openai-compatible';
+}
+
+function inferOpenAiCompatibleProviderName(baseUrl: string): string {
+  const id = inferOpenAiCompatibleProviderId(baseUrl);
+  if (id === 'openrouter') return 'OpenRouter';
+  if (id === 'deepseek') return 'DeepSeek';
+  return 'OpenAI-compatible';
+}
+
 function createForCorpGateway(
   apiFormat: LlmApiFormat,
   baseUrl: string | null | undefined,
@@ -81,7 +138,13 @@ function createForCorpGateway(
   const helperOpt = apiKeyHelper ? { apiKeyHelper } : {};
   switch (apiFormat) {
     case 'openai':
-      return new OpenAIProvider({ apiKey, baseUrl: base });
+      return new OpenAICompatibleProvider({
+        providerId: 'corporate-gateway',
+        providerName: 'Corporate Gateway',
+        apiKey,
+        ...helperOpt,
+        baseUrl: base ?? 'https://api.openai.com/v1',
+      });
     case 'gemini':
       return new GeminiProvider({ apiKey, baseUrl: base });
     case 'anthropic-bedrock':

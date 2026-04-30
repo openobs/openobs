@@ -15,16 +15,14 @@ import type {
   DatasourceConfig,
   OpsCommandRunner,
   OpsConnectorConfig,
+  ApprovalRequestStore,
   IDashboardAgentStore,
   IAlertRuleStore,
   IConversationStore,
   IInvestigationReportStore,
   IInvestigationStore,
+  RemediationPlanStore,
 } from './types.js';
-import type {
-  IApprovalRequestRepository,
-  IRemediationPlanRepository,
-} from '@agentic-obs/data-layer';
 import type { IAccessControlService } from './types-permissions.js';
 
 export interface OrchestratorActionContextDeps {
@@ -44,9 +42,9 @@ export interface OrchestratorActionContextDeps {
   opsCommandRunner?: OpsCommandRunner;
   opsConnectors?: OpsConnectorConfig[];
   /** P4 — when present, registers `remediation_plan.create` + `.create_rescue` tools. */
-  remediationPlans?: IRemediationPlanRepository;
+  remediationPlans?: RemediationPlanStore;
   /** P4 — used to auto-emit a plan-level ApprovalRequest on plan creation. */
-  approvalRequests?: IApprovalRequestRepository;
+  approvalRequests?: ApprovalRequestStore;
   sendEvent: (event: DashboardSseEvent) => void;
   identity: Identity;
   accessControl: IAccessControlService;

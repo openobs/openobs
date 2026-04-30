@@ -75,9 +75,9 @@ export function createAlertRulesRouter(deps: AlertRulesRouterDeps): Router {
           return;
         }
 
-        const { rule } = await alertRuleService.generateFromPrompt(body.prompt.trim());
-        // Stamp workspace on generated rule
         const workspaceId = resolveOrgId(req);
+        const { rule } = await alertRuleService.generateFromPrompt(body.prompt.trim(), workspaceId);
+        // Keep older stores/tests that derive scope from labels aligned with workspaceId.
         if (workspaceId !== 'default') {
           await store.update(rule.id, { workspaceId, labels: { ...rule.labels, workspaceId } });
         }

@@ -1,5 +1,6 @@
 import type { SqliteClient } from '../db/sqlite-client.js';
 import type { DbClient } from '../db/client.js';
+import type { QueryClient } from '../db/query-client.js';
 import type {
   IIncidentRepository,
   IFeedItemRepository,
@@ -74,7 +75,7 @@ import { PostgresRemediationPlanRepository } from './postgres/remediation-plan.j
 import type { IRemediationPlanRepository } from './types/remediation-plan.js';
 
 /**
- * Extended repositories available with the SQLite backend.
+ * Complete repository bundle available behind every persistence backend.
  * Includes all entity types that were previously only available via in-memory stores.
  *
  * Investigation/incident/approval/share/dashboard/conversation repositories are
@@ -82,7 +83,7 @@ import type { IRemediationPlanRepository } from './types/remediation-plan.js';
  * interface — the SQLite classes implement both shapes so router factories that
  * only want the gateway surface can consume them directly without casts.
  */
-export interface SqliteRepositories {
+export interface RepositoryBundle {
   investigations: SqliteInvestigationRepositoryInterface & IGatewayInvestigationStore;
   incidents: IIncidentRepository & IGatewayIncidentStore;
   feedItems: IFeedItemRepository;
@@ -106,7 +107,7 @@ export interface SqliteRepositories {
   remediationPlans: IRemediationPlanRepository;
 }
 
-export function createSqliteRepositories(db: SqliteClient): SqliteRepositories {
+export function createSqliteRepositories(db: SqliteClient): RepositoryBundle {
   return {
     investigations: new InvestigationRepository(db),
     incidents: new SqliteIncidentRepository(db),
@@ -131,9 +132,10 @@ export function createSqliteRepositories(db: SqliteClient): SqliteRepositories {
   };
 }
 
-export function createPostgresRepositories(db: DbClient): SqliteRepositories {
+export function createPostgresRepositories(db: DbClient): RepositoryBundle {
+  const queryClient = db as QueryClient;
   return {
-    investigations: new PostgresInvestigationRepository(db) as SqliteRepositories['investigations'],
+    investigations: new PostgresInvestigationRepository(queryClient) as RepositoryBundle['investigations'],
     incidents: new PostgresIncidentRepository(db),
     feedItems: new PostgresFeedItemRepository(db),
     approvals: new PostgresApprovalRequestRepository(db),
@@ -148,10 +150,13 @@ export function createPostgresRepositories(db: DbClient): SqliteRepositories {
     chatSessions: new PostgresChatSessionRepository(db),
     chatMessages: new PostgresChatMessageRepository(db),
     chatSessionEvents: new PostgresChatSessionEventRepository(db),
-    instanceConfig: new PostgresInstanceConfigRepository(db),
-    datasources: new PostgresDatasourceRepository(db),
-    notificationChannels: new PostgresNotificationChannelRepository(db),
+    instanceConfig: new PostgresInstanceConfigRepository(queryClient),
+    datasources: new PostgresDatasourceRepository(queryClient),
+    notificationChannels: new PostgresNotificationChannelRepository(queryClient),
     opsConnectors: new PostgresOpsConnectorRepository(db),
     remediationPlans: new PostgresRemediationPlanRepository(db),
   };
 }
+
+/** @deprecated Use RepositoryBundle. */
+export type SqliteRepositories = RepositoryBundle;

@@ -386,6 +386,9 @@ CREATE TABLE IF NOT EXISTS instance_datasources (
 CREATE UNIQUE INDEX IF NOT EXISTS ux_instance_datasources_org_name ON instance_datasources(org_id, name);
 CREATE INDEX        IF NOT EXISTS ix_instance_datasources_org_id   ON instance_datasources(org_id);
 CREATE INDEX        IF NOT EXISTS ix_instance_datasources_type     ON instance_datasources(type);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_instance_datasources_default
+  ON instance_datasources(org_id, type)
+  WHERE is_default = 1;
 
 CREATE TABLE IF NOT EXISTS notification_channels (
   id         TEXT PRIMARY KEY,

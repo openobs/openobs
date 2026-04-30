@@ -34,8 +34,10 @@ function appWith(opts: {
   seenEvaluators?: string[];
 }) {
   const setupConfig = {
-    getDatasource: async (id: string) => opts.datasources.find((d) => d.id === id) ?? null,
-    listDatasources: async () => opts.datasources,
+    getDatasource: async (id: string, lookup?: { orgId?: string }) =>
+      opts.datasources.find((d) => d.id === id && d.orgId === lookup?.orgId) ?? null,
+    listDatasources: async (lookup?: { orgId?: string }) =>
+      opts.datasources.filter((d) => d.orgId === lookup?.orgId),
   } as unknown as SetupConfigService;
   const accessControl: AccessControlSurface = {
     getUserPermissions: async () => [],

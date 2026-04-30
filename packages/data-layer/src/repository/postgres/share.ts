@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
-import { shareLinks } from '../../db/sqlite-schema.js';
+import { shareLinks } from '../../db/schema.js';
 import type { IShareLinkRepository } from '../interfaces.js';
 import type { ShareLink, SharePermission } from '../../stores/share-store.js';
 

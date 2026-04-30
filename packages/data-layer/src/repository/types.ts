@@ -13,6 +13,7 @@ export interface ApprovalContext {
   investigationId?: string;
   requestedBy: string;
   reason: string;
+  [key: string]: unknown;
 }
 
 export interface ApprovalRecord {

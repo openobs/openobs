@@ -11,12 +11,22 @@ import type {
 } from '../types.js';
 import { ProviderError, classifyProviderHttpError } from '../types.js';
 import { getCapabilities } from './capabilities.js';
+import { buildApiKeyResolver } from '../api-key-helper.js';
 
 const log = createLogger('openai-provider');
 
 export interface OpenAIConfig {
   apiKey: string;
+  apiKeyHelper?: string;
   baseUrl?: string;
+}
+
+export interface OpenAICompatibleConfig {
+  apiKey: string;
+  apiKeyHelper?: string;
+  baseUrl: string;
+  providerId: string;
+  providerName?: string;
 }
 
 // -- Tool name normalization --
@@ -85,6 +95,34 @@ interface OpenAIResponseBody {
     completion_tokens: number;
     total_tokens: number;
   };
+}
+
+function parseRetryAfterSec(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds;
+  const dateMs = Date.parse(value);
+  if (!Number.isNaN(dateMs)) {
+    return Math.max(0, Math.ceil((dateMs - Date.now()) / 1000));
+  }
+  return undefined;
+}
+
+function extractUpstreamCode(body: string): string | undefined {
+  try {
+    const parsed = JSON.parse(body) as unknown;
+    if (!parsed || typeof parsed !== 'object') return undefined;
+    const direct = (parsed as { code?: unknown }).code;
+    if (typeof direct === 'string' && direct.trim()) return direct;
+    const nested = (parsed as { error?: unknown }).error;
+    if (nested && typeof nested === 'object') {
+      const code = (nested as { code?: unknown; type?: unknown }).code ?? (nested as { type?: unknown }).type;
+      if (typeof code === 'string' && code.trim()) return code;
+    }
+  } catch {
+    // Upstream bodies are often plain text or HTML; absence of a code is fine.
+  }
+  return undefined;
 }
 
 function translateTools(tools: ToolDefinition[] | undefined): OpenAIToolDef[] | undefined {
@@ -216,7 +254,11 @@ function extractReasoning(message: OpenAIResponseBody['choices'][number]['messag
   return out;
 }
 
-function parseToolCalls(raw: OpenAIToolCall[] | undefined, reasoningContent?: string): ToolCall[] {
+function parseToolCalls(
+  raw: OpenAIToolCall[] | undefined,
+  reasoningContent: string | undefined,
+  providerName: string,
+): ToolCall[] {
   if (!raw || raw.length === 0) return [];
   return raw.map((tc) => {
     const providerMetadata = reasoningContent ? { reasoningContent } : undefined;
@@ -243,7 +285,7 @@ function parseToolCalls(raw: OpenAIToolCall[] | undefined, reasoningContent?: st
         // tool call.
         {
           err,
-          provider: 'openai',
+          provider: providerName,
           toolCallId: tc.id,
           argsLength: argsStr.length,
         },
@@ -266,7 +308,7 @@ function parseToolCalls(raw: OpenAIToolCall[] | undefined, reasoningContent?: st
     }
     log.warn(
       {
-        provider: 'openai',
+        provider: providerName,
         toolCallId: tc.id,
         parsedType: Array.isArray(parsed) ? 'array' : typeof parsed,
       },
@@ -281,14 +323,26 @@ function parseToolCalls(raw: OpenAIToolCall[] | undefined, reasoningContent?: st
   });
 }
 
-export class OpenAIProvider implements LLMProvider {
-  readonly name = 'openai';
-  private readonly apiKey: string;
+abstract class OpenAIChatCompletionsProvider implements LLMProvider {
+  readonly name: string;
+  private readonly displayName: string;
+  private readonly resolveKey: () => Promise<string>;
   private readonly baseUrl: string;
 
-  constructor(config: OpenAIConfig) {
-    this.apiKey = config.apiKey;
-    this.baseUrl = config.baseUrl || 'https://api.openai.com/v1';
+  protected constructor(config: {
+    apiKey: string;
+    apiKeyHelper?: string;
+    baseUrl: string;
+    providerId: string;
+    providerName: string;
+  }) {
+    this.name = config.providerId;
+    this.displayName = config.providerName;
+    this.resolveKey = buildApiKeyResolver({
+      staticKey: config.apiKey,
+      helperCommand: config.apiKeyHelper ?? null,
+    });
+    this.baseUrl = config.baseUrl;
   }
 
   async complete(messages: CompletionMessage[], options: LLMOptions): Promise<LLMResponse> {
@@ -312,20 +366,46 @@ export class OpenAIProvider implements LLMProvider {
       body.reasoning_effort = options.thinking.effort;
     }
 
+    const apiKey = await this.resolveKey();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+
     const fetchInit: RequestInit = {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
-      },
+      headers,
       body: JSON.stringify(body),
     };
     if (options.signal) fetchInit.signal = options.signal;
-    const response = await fetch(`${this.baseUrl}/chat/completions`, fetchInit);
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}/chat/completions`, fetchInit);
+    } catch (err) {
+      const kind = classifyProviderHttpError({ cause: err });
+      throw new ProviderError(
+        `${this.displayName} complete transport failure: ${err instanceof Error ? err.message : String(err)}`,
+        { kind, provider: this.name, cause: err },
+      );
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`OpenAI API error ${response.status}: ${errorText}`);
+      const upstreamBody = errorText.slice(0, 1000);
+      const kind = classifyProviderHttpError({ status: response.status });
+      const retryAfterSec = parseRetryAfterSec(response.headers.get('retry-after'));
+      const upstreamCode = extractUpstreamCode(errorText);
+      throw new ProviderError(
+        `${this.displayName} complete failed: HTTP ${response.status} ${upstreamBody.slice(0, 200)}`,
+        {
+          kind,
+          provider: this.name,
+          status: response.status,
+          ...(retryAfterSec !== undefined ? { retryAfterSec } : {}),
+          ...(upstreamCode ? { upstreamCode } : {}),
+          upstreamBody,
+        },
+      );
     }
 
     const data = (await response.json()) as OpenAIResponseBody;
@@ -340,6 +420,7 @@ export class OpenAIProvider implements LLMProvider {
       toolCalls: parseToolCalls(
         message.tool_calls,
         typeof message.reasoning_content === 'string' ? message.reasoning_content : undefined,
+        this.name,
       ),
       thinkingBlocks: thinkingBlocks.length > 0 ? thinkingBlocks : undefined,
       usage: {
@@ -355,15 +436,18 @@ export class OpenAIProvider implements LLMProvider {
   async listModels(): Promise<ModelInfo[]> {
     let response: Response;
     try {
+      const apiKey = await this.resolveKey();
+      const headers: Record<string, string> = {};
+      if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
       response = await fetch(`${this.baseUrl}/models`, {
-        headers: { Authorization: `Bearer ${this.apiKey}` },
+        headers,
       });
     } catch (err) {
       const kind = classifyProviderHttpError({ cause: err });
-      log.warn({ err, provider: 'openai', baseUrl: this.baseUrl, kind }, 'listModels transport failure');
+      log.warn({ err, provider: this.name, baseUrl: this.baseUrl, kind }, 'listModels transport failure');
       throw new ProviderError(
-        `OpenAI listModels transport failure: ${err instanceof Error ? err.message : String(err)}`,
-        { kind, provider: 'openai', cause: err },
+        `${this.displayName} listModels transport failure: ${err instanceof Error ? err.message : String(err)}`,
+        { kind, provider: this.name, cause: err },
       );
     }
     if (!response.ok) {
@@ -371,7 +455,7 @@ export class OpenAIProvider implements LLMProvider {
       const kind = classifyProviderHttpError({ status: response.status });
       log.warn(
         {
-          provider: 'openai',
+          provider: this.name,
           status: response.status,
           body: body.slice(0, 200),
           baseUrl: this.baseUrl,
@@ -379,10 +463,12 @@ export class OpenAIProvider implements LLMProvider {
         },
         'listModels failed',
       );
-      throw new ProviderError(`OpenAI listModels failed: HTTP ${response.status} ${body.slice(0, 200)}`, {
+      throw new ProviderError(`${this.displayName} listModels failed: HTTP ${response.status} ${body.slice(0, 200)}`, {
         kind,
-        provider: 'openai',
+        provider: this.name,
         status: response.status,
+        upstreamCode: extractUpstreamCode(body),
+        upstreamBody: body.slice(0, 1000),
       });
     }
     const data = (await response.json()) as {
@@ -393,9 +479,33 @@ export class OpenAIProvider implements LLMProvider {
       .map((m) => ({
         id: m.id,
         name: m.id,
-        provider: 'openai',
+        provider: this.name,
       }));
 
     return models;
+  }
+}
+
+export class OpenAIProvider extends OpenAIChatCompletionsProvider {
+  constructor(config: OpenAIConfig) {
+    super({
+      apiKey: config.apiKey,
+      apiKeyHelper: config.apiKeyHelper,
+      baseUrl: config.baseUrl || 'https://api.openai.com/v1',
+      providerId: 'openai',
+      providerName: 'OpenAI',
+    });
+  }
+}
+
+export class OpenAICompatibleProvider extends OpenAIChatCompletionsProvider {
+  constructor(config: OpenAICompatibleConfig) {
+    super({
+      apiKey: config.apiKey,
+      apiKeyHelper: config.apiKeyHelper,
+      baseUrl: config.baseUrl,
+      providerId: config.providerId,
+      providerName: config.providerName ?? config.providerId,
+    });
   }
 }

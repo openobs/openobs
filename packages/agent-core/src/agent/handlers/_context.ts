@@ -24,14 +24,12 @@ import type {
   DatasourceConfig,
   OpsCommandRunner,
   OpsConnectorConfig,
+  ApprovalRequestStore,
+  RemediationPlanStore,
 } from '../types.js';
 import type { ActionExecutor } from '../action-executor.js';
 import type { AlertRuleAgent } from '../alert-rule-agent.js';
 import type { IAccessControlService } from '../types-permissions.js';
-import type {
-  IApprovalRequestRepository,
-  IRemediationPlanRepository,
-} from '@agentic-obs/data-layer';
 
 /** Shared context passed to every action handler. */
 export interface ActionContext {
@@ -72,14 +70,14 @@ export interface ActionContext {
    * setups can omit; the handlers return a clear "store not available"
    * observation if the agent invokes them anyway.
    */
-  remediationPlans?: IRemediationPlanRepository;
+  remediationPlans?: RemediationPlanStore;
   /**
    * Approval-request store. Required for the primary
    * `remediation_plan.create` tool to auto-emit a plan-level approval.
    * If absent, plans persist in `pending_approval` status but no
    * ApprovalRequest is created (the UI's plans page can still show them).
    */
-  approvalRequests?: IApprovalRequestRepository;
+  approvalRequests?: ApprovalRequestStore;
   sendEvent: (event: DashboardSseEvent) => void;
   sessionId: string;
 

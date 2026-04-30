@@ -17,6 +17,8 @@ import type {
   DatasourceConfig,
   OpsCommandRunner,
   OpsConnectorConfig,
+  ApprovalRequestStore,
+  RemediationPlanStore,
 } from './types.js'
 import type { AdapterRegistry, IWebSearchAdapter } from '../adapters/index.js'
 import type { LLMGateway } from '@agentic-obs/llm-gateway'
@@ -69,9 +71,9 @@ export interface OrchestratorDeps {
   opsCommandRunner?: OpsCommandRunner
   opsConnectors?: OpsConnectorConfig[]
   /** P4 — when present, registers remediation_plan.create + .create_rescue tools. */
-  remediationPlans?: import('@agentic-obs/data-layer').IRemediationPlanRepository
+  remediationPlans?: RemediationPlanStore
   /** P4 — used to auto-emit a plan-level ApprovalRequest on plan creation. */
-  approvalRequests?: import('@agentic-obs/data-layer').IApprovalRequestRepository
+  approvalRequests?: ApprovalRequestStore
   sendEvent: (event: DashboardSseEvent) => void
   timeRange?: { start: string; end: string; clientTimezone?: string }
   maxTokenBudget?: number

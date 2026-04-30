@@ -20,12 +20,12 @@ export class AlertRuleService {
    * Generate an alert rule from a natural-language prompt using the LLM.
    * Pure business logic — no HTTP concepts.
    */
-  async generateFromPrompt(prompt: string): Promise<GenerateAlertRuleResult> {
+  async generateFromPrompt(prompt: string, orgId: string): Promise<GenerateAlertRuleResult> {
     const llm = await this.setupConfig.getLlm();
     if (!llm) {
       throw new Error('LLM not configured - complete Setup Wizard first');
     }
-    const datasources = await this.setupConfig.listDatasources();
+    const datasources = await this.setupConfig.listDatasources({ orgId });
 
     const gateway = createLlmGateway(llm);
     const model = llm.model || DEFAULT_LLM_MODEL;
@@ -46,6 +46,7 @@ export class AlertRuleService {
       evaluationIntervalSec: generated.evaluationIntervalSec,
       severity: generated.severity,
       labels: generated.labels,
+      workspaceId: orgId,
       createdBy: 'llm',
       notificationPolicyId: undefined,
     };

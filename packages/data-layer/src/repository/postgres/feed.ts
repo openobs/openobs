@@ -1,6 +1,6 @@
 import { eq, and, sql } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
-import { feedItems } from '../../db/sqlite-schema.js';
+import { feedItems } from '../../db/schema.js';
 import type {
   IFeedItemRepository,
 } from '../interfaces.js';

@@ -36,6 +36,7 @@ import type {
   NotificationChannelPatch,
   MaskOptions,
   ListDatasourcesOptions,
+  DatasourceLookupOptions,
   ListNotificationChannelsOptions,
 } from '@agentic-obs/common';
 import { AuditAction } from '@agentic-obs/common';
@@ -115,11 +116,11 @@ export class SetupConfigService {
 
   // -- Datasources -----------------------------------------------------
 
-  async listDatasources(opts: ListDatasourcesOptions = {}): Promise<InstanceDatasource[]> {
+  async listDatasources(opts: ListDatasourcesOptions): Promise<InstanceDatasource[]> {
     return this.deps.datasources.list(opts);
   }
 
-  async getDatasource(id: string, opts: MaskOptions = {}): Promise<InstanceDatasource | null> {
+  async getDatasource(id: string, opts: DatasourceLookupOptions): Promise<InstanceDatasource | null> {
     return this.deps.datasources.get(id, opts);
   }
 
@@ -143,12 +144,12 @@ export class SetupConfigService {
   async updateDatasource(
     id: string,
     patch: InstanceDatasourcePatch,
-    actor: { userId: string | null },
+    actor: { userId: string | null; orgId: string },
   ): Promise<InstanceDatasource | null> {
     const updated = await this.deps.datasources.update(id, {
       ...patch,
       updatedBy: actor.userId,
-    });
+    }, actor.orgId);
     if (updated) {
       void this.deps.audit.log({
         action: AuditAction.DatasourceUpdated,
@@ -165,9 +166,9 @@ export class SetupConfigService {
 
   async deleteDatasource(
     id: string,
-    actor: { userId: string | null },
+    actor: { userId: string | null; orgId: string },
   ): Promise<boolean> {
-    const removed = await this.deps.datasources.delete(id);
+    const removed = await this.deps.datasources.delete(id, actor.orgId);
     if (removed) {
       void this.deps.audit.log({
         action: AuditAction.DatasourceDeleted,
@@ -181,7 +182,7 @@ export class SetupConfigService {
     return removed;
   }
 
-  async countDatasources(orgId?: string): Promise<number> {
+  async countDatasources(orgId: string): Promise<number> {
     return this.deps.datasources.count(orgId);
   }
 
@@ -311,7 +312,7 @@ export class SetupConfigService {
     const [llm, datasourceCount, channels, bootstrappedAt, configuredAt] =
       await Promise.all([
         this.deps.instanceConfig.getLlm({ masked: true }),
-        this.deps.datasources.count(),
+        this.deps.datasources.count('org_main'),
         this.deps.notificationChannels.list(),
         this.getBootstrappedAt(),
         this.getConfiguredAt(),

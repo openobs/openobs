@@ -36,7 +36,7 @@ describe('classifyOpsCommand', () => {
   });
 
   it('requires approval for mutating commands and denies dangerous commands', () => {
-    expect(classifyOpsCommand('kubectl rollout restart deployment/api').decision).toBe('approval_required');
+    expect(classifyOpsCommand('kubectl rollout restart deployment/api -n default').decision).toBe('approval_required');
     expect(classifyOpsCommand('kubectl exec -it pod/api -- sh').decision).toBe('denied');
     expect(classifyOpsCommand('kubectl get secret prod -o yaml').decision).toBe('denied');
   });

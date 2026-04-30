@@ -30,23 +30,7 @@ function shouldRetryError(error: unknown): { retry: boolean; delayMs?: number } 
     return { retry: false };
   }
 
-  // Provider `complete` methods throw raw `Error` with the
-  // "${Provider} API error ${status}: ${body}" shape. Parse the status so
-  // we can classify here too — the same retry policy applies.
   if (error instanceof Error) {
-    const m = error.message.match(/API error (\d+)\b/i);
-    if (m) {
-      const status = Number(m[1]);
-      if (status === 429) {
-        const result: { retry: boolean; delayMs?: number } = { retry: true };
-        const retryHeader = error.message.match(/retry-after[^0-9]*(\d+)/i);
-        if (retryHeader) result.delayMs = Number(retryHeader[1]) * 1000;
-        return result;
-      }
-      if (status >= 500) return { retry: true };
-      // 4xx (except 429) → don't retry.
-      if (status >= 400) return { retry: false };
-    }
     // Network-style errors raised by fetch (no HTTP status).
     if (/ENOTFOUND|ECONNREFUSED|ETIMEDOUT|ECONNRESET|fetch failed/i.test(error.message)) {
       return { retry: true };

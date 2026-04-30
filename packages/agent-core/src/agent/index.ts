@@ -51,6 +51,14 @@ export type {
   OpsCommandIntent,
   OpsConnectorConfig,
   OpsCommandRunner,
+  ApprovalAction,
+  ApprovalContext,
+  ApprovalRequest,
+  ApprovalRequestStore,
+  AgentRemediationPlan,
+  NewRemediationPlanStep,
+  RemediationPlanStepKind,
+  RemediationPlanStore,
 } from './types.js'
 
 // Context compaction

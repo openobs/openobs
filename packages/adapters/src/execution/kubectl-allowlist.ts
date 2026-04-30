@@ -19,11 +19,18 @@
  */
 
 export type KubectlMode = 'read' | 'write';
+export type KubectlPolicyDecision = 'read' | 'approval_required' | 'denied';
 
 export interface AllowlistDecision {
   allow: boolean;
   /** Set when `allow=false`. Surfaced verbatim to validation errors. */
   reason?: string;
+}
+
+export interface KubectlCommandPolicy {
+  decision: KubectlPolicyDecision;
+  reason: string;
+  argv: string[];
 }
 
 const READ_VERBS: ReadonlySet<string> = new Set([
@@ -34,6 +41,7 @@ const READ_VERBS: ReadonlySet<string> = new Set([
   'events',
   'version',
   'api-resources',
+  'api-versions',
 ]);
 
 const WRITE_VERBS: ReadonlySet<string> = new Set([
@@ -45,6 +53,10 @@ const WRITE_VERBS: ReadonlySet<string> = new Set([
   'label',
   'delete',
 ]);
+
+const ROLLOUT_READ_SUBCOMMANDS: ReadonlySet<string> = new Set(['status', 'history']);
+const ROLLOUT_WRITE_SUBCOMMANDS: ReadonlySet<string> = new Set(['restart', 'undo', 'pause', 'resume']);
+const CONFIG_READ_SUBCOMMANDS: ReadonlySet<string> = new Set(['current-context']);
 
 /** Verbs we never permit, regardless of mode. */
 const PERMANENT_DENY_VERBS: ReadonlySet<string> = new Set([
@@ -163,8 +175,15 @@ export function checkKubectl(
     return { allow: false, reason: 'kubectl auth can-i --as is permanently denied' };
   }
 
-  const isRead = READ_VERBS.has(parsed.verb);
-  const isWrite = WRITE_VERBS.has(parsed.verb);
+  if (isSecretRead(parsed)) {
+    return { allow: false, reason: 'kubectl secret reads are denied because they can expose credentials' };
+  }
+  if (isSecretDelete(parsed)) {
+    return { allow: false, reason: 'kubectl secret delete is denied' };
+  }
+
+  const isRead = isKubectlRead(parsed);
+  const isWrite = isKubectlWrite(parsed);
 
   if (mode === 'read') {
     if (!isRead) {
@@ -236,6 +255,81 @@ export function checkKubectl(
   }
 
   return { allow: true };
+}
+
+function isKubectlRead(parsed: ParsedKubectl): boolean {
+  if (READ_VERBS.has(parsed.verb)) return true;
+  if (parsed.verb === 'rollout' && parsed.subResource && ROLLOUT_READ_SUBCOMMANDS.has(parsed.subResource)) {
+    return true;
+  }
+  if (parsed.verb === 'config' && parsed.subResource && CONFIG_READ_SUBCOMMANDS.has(parsed.subResource)) {
+    return true;
+  }
+  return false;
+}
+
+function isKubectlWrite(parsed: ParsedKubectl): boolean {
+  if (WRITE_VERBS.has(parsed.verb) && parsed.verb !== 'rollout') return true;
+  if (parsed.verb === 'rollout' && parsed.subResource && ROLLOUT_WRITE_SUBCOMMANDS.has(parsed.subResource)) {
+    return true;
+  }
+  return false;
+}
+
+function isSecretResource(resource: string | null): boolean {
+  return resource === 'secret' || resource === 'secrets';
+}
+
+function isSecretRead(parsed: ParsedKubectl): boolean {
+  return (parsed.verb === 'get' || parsed.verb === 'describe') && isSecretResource(parsed.subResource);
+}
+
+function isSecretDelete(parsed: ParsedKubectl): boolean {
+  return parsed.verb === 'delete' && isSecretResource(parsed.subResource);
+}
+
+/**
+ * Authoritative kubectl command policy for higher layers.
+ *
+ * It delegates the actual allow/deny decision to `checkKubectl`, keeping API
+ * services and execution adapters on the same read/write semantics.
+ */
+export function classifyKubectlCommand(
+  command: string,
+  allowedNamespaces: readonly string[] = [],
+): KubectlCommandPolicy {
+  const trimmed = command.trim();
+  if (!trimmed) {
+    return { decision: 'denied', reason: 'empty kubectl command', argv: [] };
+  }
+  if (!trimmed.toLowerCase().startsWith('kubectl ')) {
+    return {
+      decision: 'denied',
+      reason: 'only kubectl commands are supported for Kubernetes connectors',
+      argv: [],
+    };
+  }
+
+  const argv = parseKubectlCommandString(trimmed);
+  if (argv.length === 0) {
+    return { decision: 'denied', reason: 'kubectl command could not be parsed safely', argv: [] };
+  }
+
+  const readDecision = checkKubectl(argv, 'read', allowedNamespaces);
+  if (readDecision.allow) {
+    return { decision: 'read', reason: 'read-only inspection command', argv };
+  }
+
+  const writeDecision = checkKubectl(argv, 'write', allowedNamespaces);
+  if (writeDecision.allow) {
+    return { decision: 'approval_required', reason: 'mutating cluster command', argv };
+  }
+
+  return {
+    decision: 'denied',
+    reason: writeDecision.reason ?? readDecision.reason ?? 'kubectl command rejected',
+    argv,
+  };
 }
 
 // Exposed for tests + future inspection (the design doc lists these explicitly).

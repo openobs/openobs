@@ -1,6 +1,6 @@
 import { eq, and, like, sql } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
-import { cases } from '../../db/sqlite-schema.js';
+import { cases } from '../../db/schema.js';
 import type { ICaseRepository, CaseFindAllOptions } from '../interfaces.js';
 import type { Case } from '../types.js';
 

@@ -1,6 +1,6 @@
 /**
- * Tests for the P2 P6-allowlist gate inside `ops.run_command`. The runner
- * is mocked; the assertion is on what the handler refuses BEFORE reaching it.
+ * Tests for `ops.run_command` parsing helpers and the handler boundary. The
+ * runner owns kubectl policy; the handler only validates connector selection.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -54,7 +54,7 @@ describe('parseKubectlCommandString', () => {
   });
 });
 
-describe('handleOpsRunCommand allowlist gate (intent=read)', () => {
+describe('handleOpsRunCommand runner boundary', () => {
   function mkRunner(): ActionContext['opsCommandRunner'] {
     return {
       runCommand: vi.fn().mockResolvedValue({ observation: 'ran', decision: 'executed' }),
@@ -62,7 +62,7 @@ describe('handleOpsRunCommand allowlist gate (intent=read)', () => {
     } as unknown as ActionContext['opsCommandRunner'];
   }
 
-  it('rejects intent=read for a write-shaped command before reaching the runner', async () => {
+  it('forwards intent=read write-shaped commands to the runner policy', async () => {
     const runner = mkRunner();
     const ctx = makeCtx({
       opsCommandRunner: runner,
@@ -73,12 +73,13 @@ describe('handleOpsRunCommand allowlist gate (intent=read)', () => {
       command: 'kubectl scale deploy/web -n app --replicas=3',
       intent: 'read',
     });
-    expect(r).toMatch(/rejected/);
-    expect(r).toMatch(/read-allowlist/);
-    expect((runner as unknown as { runCommand: ReturnType<typeof vi.fn> }).runCommand).not.toHaveBeenCalled();
+    expect(r).toBe('ran');
+    expect((runner as unknown as { runCommand: ReturnType<typeof vi.fn> }).runCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ connectorId: 'k8s-prod', command: 'kubectl scale deploy/web -n app --replicas=3', intent: 'read' }),
+    );
   });
 
-  it('rejects intent=read for kubectl exec', async () => {
+  it('forwards denied command shapes to the runner policy', async () => {
     const runner = mkRunner();
     const ctx = makeCtx({
       opsCommandRunner: runner,
@@ -89,11 +90,11 @@ describe('handleOpsRunCommand allowlist gate (intent=read)', () => {
       command: 'kubectl exec web -n app -- sh',
       intent: 'read',
     });
-    expect(r).toMatch(/permanently denied/);
-    expect((runner as unknown as { runCommand: ReturnType<typeof vi.fn> }).runCommand).not.toHaveBeenCalled();
+    expect(r).toBe('ran');
+    expect((runner as unknown as { runCommand: ReturnType<typeof vi.fn> }).runCommand).toHaveBeenCalledTimes(1);
   });
 
-  it('rejects intent=read targeting a namespace outside the connector allowlist', async () => {
+  it('forwards namespace policy decisions to the runner policy', async () => {
     const runner = mkRunner();
     const ctx = makeCtx({
       opsCommandRunner: runner,
@@ -104,8 +105,8 @@ describe('handleOpsRunCommand allowlist gate (intent=read)', () => {
       command: 'kubectl get pods -n kube-system',
       intent: 'read',
     });
-    expect(r).toMatch(/not in the connector/);
-    expect((runner as unknown as { runCommand: ReturnType<typeof vi.fn> }).runCommand).not.toHaveBeenCalled();
+    expect(r).toBe('ran');
+    expect((runner as unknown as { runCommand: ReturnType<typeof vi.fn> }).runCommand).toHaveBeenCalledTimes(1);
   });
 
   it('passes through intent=read for kubectl get on an allowlisted namespace', async () => {
@@ -138,10 +139,7 @@ describe('handleOpsRunCommand allowlist gate (intent=read)', () => {
     expect((runner as unknown as { runCommand: ReturnType<typeof vi.fn> }).runCommand).toHaveBeenCalledTimes(1);
   });
 
-  it('falls through (no gate) when the command string contains shell metacharacters', async () => {
-    // Parse fails -> we bail to the runner; defense-in-depth is still there
-    // because the runner has its own validation. Keeps unparseable shapes
-    // from being silently allowed by us.
+  it('forwards unparseable command strings to the runner policy', async () => {
     const runner = mkRunner();
     const ctx = makeCtx({
       opsCommandRunner: runner,

@@ -204,11 +204,29 @@ export class AnthropicProvider implements LLMProvider {
       body: JSON.stringify(requestBody),
     };
     if (options.signal) fetchInit.signal = options.signal;
-    const response = await fetch(url, fetchInit);
+    let response: Response;
+    try {
+      response = await fetch(url, fetchInit);
+    } catch (err) {
+      const kind = classifyProviderHttpError({ cause: err });
+      throw new ProviderError(
+        `Anthropic complete transport failure: ${err instanceof Error ? err.message : String(err)}`,
+        { kind, provider: this.name, cause: err },
+      );
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Anthropic API error ${response.status}: ${errorText}`);
+      const kind = classifyProviderHttpError({ status: response.status });
+      throw new ProviderError(
+        `Anthropic complete failed: HTTP ${response.status} ${errorText.slice(0, 200)}`,
+        {
+          kind,
+          provider: this.name,
+          status: response.status,
+          upstreamBody: errorText.slice(0, 1000),
+        },
+      );
     }
 
     const data = (await response.json()) as AnthropicResponseBody;
