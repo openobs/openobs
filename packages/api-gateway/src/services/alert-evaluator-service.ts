@@ -168,6 +168,7 @@ export class AlertEvaluatorService extends EventEmitter {
   private leaderTimer?: NodeJS.Timeout;
   private refreshTimer?: NodeJS.Timeout;
   private debounceTimer?: NodeJS.Timeout;
+  private readonly inFlightRules = new Set<string>();
   private isLeader = false;
   private running = false;
 
@@ -357,35 +358,44 @@ export class AlertEvaluatorService extends EventEmitter {
    *   predicates leave state alone.
    */
   async tickRule(ruleId: AlertRule | string): Promise<void> {
-    const fresh =
-      typeof ruleId === 'string' ? await this.rules.findById(ruleId) : await this.rules.findById(ruleId.id);
-    if (!fresh || fresh.state === 'disabled') return;
+    const id = typeof ruleId === 'string' ? ruleId : ruleId.id;
+    if (this.inFlightRules.has(id)) {
+      log.debug({ ruleId: id }, 'skipping overlapping alert evaluation tick');
+      return;
+    }
+    this.inFlightRules.add(id);
+    try {
+      const fresh = await this.rules.findById(id);
+      if (!fresh || fresh.state === 'disabled') return;
 
-    const value = await this.query(fresh);
-    if (value === null) return;
+      const value = await this.query(fresh);
+      if (value === null) return;
 
-    const predicate = evaluatePredicate(
-      fresh.condition.operator,
-      value,
-      fresh.condition.threshold,
-    );
-
-    const now = this.clock();
-    const next = decideTransition(fresh, predicate, now);
-    if (next === null || next === fresh.state) return;
-
-    const updated = await this.rules.transition(fresh.id, next, value);
-    if (next === 'firing' && updated) {
-      this.emit('alert.fired', {
-        ruleId: updated.id,
-        ruleName: updated.name,
-        severity: updated.severity,
+      const predicate = evaluatePredicate(
+        fresh.condition.operator,
         value,
-        threshold: updated.condition.threshold,
-        operator: updated.condition.operator,
-        labels: updated.labels ?? {},
-        firedAt: now.toISOString(),
-      } satisfies AlertFiredPayload);
+        fresh.condition.threshold,
+      );
+
+      const now = this.clock();
+      const next = decideTransition(fresh, predicate, now);
+      if (next === null || next === fresh.state) return;
+
+      const updated = await this.rules.transition(fresh.id, next, value);
+      if (next === 'firing' && updated) {
+        this.emit('alert.fired', {
+          ruleId: updated.id,
+          ruleName: updated.name,
+          severity: updated.severity,
+          value,
+          threshold: updated.condition.threshold,
+          operator: updated.condition.operator,
+          labels: updated.labels ?? {},
+          firedAt: now.toISOString(),
+        } satisfies AlertFiredPayload);
+      }
+    } finally {
+      this.inFlightRules.delete(id);
     }
   }
 
@@ -428,4 +438,3 @@ export class AlertEvaluatorService extends EventEmitter {
     }
   }
 }
-

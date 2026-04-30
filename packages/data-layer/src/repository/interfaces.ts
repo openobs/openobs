@@ -377,11 +377,11 @@ export interface IPostMortemRepository {
 // — ChatSession
 
 export interface IChatSessionRepository {
-  create(session: { id: string; title?: string }): MaybeAsync<ChatSession>;
-  findById(id: string): MaybeAsync<ChatSession | undefined>;
-  findAll(limit?: number): MaybeAsync<ChatSession[]>;
-  updateTitle(id: string, title: string): MaybeAsync<ChatSession | undefined>;
-  updateContextSummary(id: string, summary: string): MaybeAsync<ChatSession | undefined>;
+  create(session: { id: string; title?: string; orgId?: string }): MaybeAsync<ChatSession>;
+  findById(id: string, scope?: { orgId?: string }): MaybeAsync<ChatSession | undefined>;
+  findAll(limit?: number, scope?: { orgId?: string }): MaybeAsync<ChatSession[]>;
+  updateTitle(id: string, title: string, scope?: { orgId?: string }): MaybeAsync<ChatSession | undefined>;
+  updateContextSummary(id: string, summary: string, scope?: { orgId?: string }): MaybeAsync<ChatSession | undefined>;
   delete(id: string): MaybeAsync<boolean>;
 }
 

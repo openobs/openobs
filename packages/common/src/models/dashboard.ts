@@ -247,6 +247,7 @@ export interface Dashboard {
 export interface ChatSession {
   id: string;
   title: string;
+  orgId?: string;
   createdAt: string;
   updatedAt: string;
   /** LLM-generated summary of older conversation turns for context compaction */

@@ -128,6 +128,7 @@ export function createNotificationsRouter(deps: NotificationsRouterDeps): Router
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(payload),
+              signal: AbortSignal.timeout(10_000),
             });
 
             results.push({
@@ -329,4 +330,3 @@ export function createNotificationsRouter(deps: NotificationsRouterDeps): Router
 
   return router;
 }
-
