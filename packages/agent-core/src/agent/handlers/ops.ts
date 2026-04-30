@@ -13,7 +13,7 @@ export async function handleOpsRunCommand(
 
   return withToolEventBoundary(
     ctx.sendEvent,
-    'ops.run_command',
+    'ops_run_command',
     { connectorId, command, intent },
     connectorId ? `Running ops command on ${connectorId}` : 'Running ops command',
     async () => {
@@ -21,10 +21,10 @@ export async function handleOpsRunCommand(
         return 'Ops command runner is not configured. Connect a Kubernetes/Ops integration before querying cluster state.';
       }
       if (!connectorId) {
-        return 'ops.run_command requires connectorId. List configured Ops connectors in Settings and choose one before running a command.';
+        return 'ops_run_command requires connectorId. List configured Ops connectors in Settings and choose one before running a command.';
       }
       if (!command) {
-        return 'ops.run_command requires a command.';
+        return 'ops_run_command requires a command.';
       }
 
       const connectors = ctx.opsConnectors ?? await ctx.opsCommandRunner.listConnectors?.();
