@@ -15,6 +15,20 @@ function sendSseEvent(res: Response, event: DashboardSseEvent): void {
   res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
 }
 
+function orgIdFromReq(req: Request): string | undefined {
+  return (req as AuthenticatedRequest).auth?.orgId;
+}
+
+async function ensureSessionInOrg(
+  deps: ChatServiceDeps,
+  sessionId: string,
+  orgId: string | undefined,
+): Promise<boolean> {
+  if (!orgId || !deps.chatSessionStore) return false;
+  const session = await deps.chatSessionStore.findById(sessionId, { orgId });
+  return Boolean(session);
+}
+
 /**
  * Handle a chat message via SSE — extracted as a standalone function
  * (same pattern as dashboard chat-handler.ts which works correctly).
@@ -121,6 +135,10 @@ export function createChatRouter(deps: ChatServiceDeps): ExpressRouter {
         ? body.sessionId.trim()
         : undefined;
       const pageContext = body.pageContext ?? undefined;
+      if (sessionId && !await ensureSessionInOrg(deps, sessionId, orgIdFromReq(req))) {
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Chat session not found' } });
+        return;
+      }
 
       await handleChatStream(req, res, message, sessionId, pageContext, deps);
     } catch (err) {
@@ -135,8 +153,13 @@ export function createChatRouter(deps: ChatServiceDeps): ExpressRouter {
         res.json({ sessions: [] });
         return;
       }
+      const orgId = orgIdFromReq(req);
+      if (!orgId) {
+        res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'authentication required' } });
+        return;
+      }
       const limit = Math.min(Number(req.query['limit']) || 50, 200);
-      const sessions = await deps.chatSessionStore.findAll(limit);
+      const sessions = await deps.chatSessionStore.findAll(limit, { orgId });
       res.json({ sessions });
     } catch (err) {
       next(err);
@@ -152,6 +175,11 @@ export function createChatRouter(deps: ChatServiceDeps): ExpressRouter {
       const sessionId = req.params['id'] ?? '';
       if (!sessionId) {
         res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'session id is required' } });
+        return;
+      }
+      const orgId = orgIdFromReq(req);
+      if (!await ensureSessionInOrg(deps, sessionId, orgId)) {
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Chat session not found' } });
         return;
       }
 
@@ -171,6 +199,11 @@ export function createChatRouter(deps: ChatServiceDeps): ExpressRouter {
       const sessionId = req.params['sessionId'] ?? '';
       if (!sessionId) {
         res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'sessionId is required' } });
+        return;
+      }
+      const orgId = orgIdFromReq(req);
+      if (!await ensureSessionInOrg(deps, sessionId, orgId)) {
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Chat session not found' } });
         return;
       }
 

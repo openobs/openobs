@@ -140,9 +140,17 @@ export class ChatService {
 
     // Ensure a chat_sessions record exists for this session
     if (this.deps.chatSessionStore) {
-      const existing = await this.deps.chatSessionStore.findById(resolvedSessionId);
+      const existing = await this.deps.chatSessionStore.findById(resolvedSessionId, {
+        orgId: identity.orgId,
+      });
+      if (sessionId && !existing) {
+        throw new Error('Chat session not found');
+      }
       if (!existing) {
-        await this.deps.chatSessionStore.create({ id: resolvedSessionId });
+        await this.deps.chatSessionStore.create({
+          id: resolvedSessionId,
+          orgId: identity.orgId,
+        });
       }
     }
 
@@ -222,7 +230,9 @@ export class ChatService {
     // Load existing summary from session, then check if we need to compact further
     let conversationSummary: string | undefined;
     if (this.deps.chatSessionStore) {
-      const session = await this.deps.chatSessionStore.findById(resolvedSessionId);
+      const session = await this.deps.chatSessionStore.findById(resolvedSessionId, {
+        orgId: identity.orgId,
+      });
       conversationSummary = session?.contextSummary || undefined;
     }
 
@@ -243,7 +253,11 @@ export class ChatService {
 
         // Persist summary for reuse in future turns
         if (conversationSummary && this.deps.chatSessionStore) {
-          await this.deps.chatSessionStore.updateContextSummary(resolvedSessionId, conversationSummary);
+          await this.deps.chatSessionStore.updateContextSummary(
+            resolvedSessionId,
+            conversationSummary,
+            { orgId: identity.orgId },
+          );
         }
       }
     }
@@ -319,11 +333,15 @@ export class ChatService {
 
     // Update session title from first assistant message if title is empty
     if (this.deps.chatSessionStore) {
-      const session = await this.deps.chatSessionStore.findById(resolvedSessionId);
+      const session = await this.deps.chatSessionStore.findById(resolvedSessionId, {
+        orgId: identity.orgId,
+      });
       if (session && !session.title) {
         // Use first ~60 chars of user message as title
         const autoTitle = message.length > 60 ? message.slice(0, 57) + '...' : message;
-        await this.deps.chatSessionStore.updateTitle(resolvedSessionId, autoTitle);
+        await this.deps.chatSessionStore.updateTitle(resolvedSessionId, autoTitle, {
+          orgId: identity.orgId,
+        });
       }
     }
 

@@ -8,6 +8,7 @@ import {
   type LLMProvider,
 } from '@agentic-obs/llm-gateway';
 import type { InstanceLlmConfig, LlmApiFormat } from '@agentic-obs/common';
+import { llmCallsTotal, llmLatency, llmTokensTotal } from '../metrics.js';
 
 /**
  * Minimal shape accepted by the factory. The repository-shaped
@@ -168,5 +169,20 @@ function createForCorpGateway(
  * Create an LLMGateway from the user's setup config.
  */
 export function createLlmGateway(cfg: LlmFactoryConfig, maxRetries = 2): LLMGateway {
-  return new LLMGateway({ primary: createLlmProvider(cfg), maxRetries });
+  return new LLMGateway({
+    primary: createLlmProvider(cfg),
+    maxRetries,
+    metricsObserver: {
+      recordSuccess(event) {
+        llmCallsTotal.inc({ provider: event.provider, model: event.model, status: 'success' });
+        llmLatency.observe({ provider: event.provider, model: event.model }, event.latencyMs / 1000);
+        llmTokensTotal.inc({ provider: event.provider, type: 'prompt' }, event.promptTokens);
+        llmTokensTotal.inc({ provider: event.provider, type: 'completion' }, event.completionTokens);
+      },
+      recordFailure(event) {
+        llmCallsTotal.inc({ provider: event.provider, model: event.model, status: 'error' });
+        llmLatency.observe({ provider: event.provider, model: event.model }, event.latencyMs / 1000);
+      },
+    },
+  });
 }

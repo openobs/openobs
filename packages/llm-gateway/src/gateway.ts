@@ -46,6 +46,8 @@ export interface GatewayConfig {
   maxRetries?: number;
   /** Base delay for exponential backoff in ms. Default: 200 */
   retryDelayMs?: number;
+  /** Optional observer for process-local metrics. */
+  metricsObserver?: LLMGatewayMetricsObserver;
 }
 
 export interface TokenMetrics {
@@ -55,11 +57,29 @@ export interface TokenMetrics {
   callCount: number;
 }
 
+export interface LLMGatewayMetricsObserver {
+  recordSuccess?(event: {
+    provider: string;
+    model: string;
+    latencyMs: number;
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  }): void;
+  recordFailure?(event: {
+    provider: string;
+    model: string;
+    latencyMs: number;
+    error: string;
+  }): void;
+}
+
 export class LLMGateway {
   private readonly primary: LLMProvider;
   private readonly fallback: LLMProvider | undefined;
   private readonly maxRetries: number;
   private readonly retryDelayMs: number;
+  private readonly metricsObserver: LLMGatewayMetricsObserver | undefined;
   private metrics: TokenMetrics;
   private readonly audit = new AuditLogger();
 
@@ -68,6 +88,7 @@ export class LLMGateway {
     this.fallback = config.fallback;
     this.maxRetries = config.maxRetries ?? 3;
     this.retryDelayMs = config.retryDelayMs ?? 200;
+    this.metricsObserver = config.metricsObserver;
     this.metrics = {
       totalPromptTokens: 0,
       totalCompletionTokens: 0,
@@ -184,6 +205,14 @@ export class LLMGateway {
       latencyMs,
       success: true,
     });
+    this.metricsObserver?.recordSuccess?.({
+      provider: providerName,
+      model: response.model,
+      latencyMs,
+      promptTokens: response.usage.promptTokens,
+      completionTokens: response.usage.completionTokens,
+      totalTokens: response.usage.totalTokens,
+    });
   }
 
   private recordFailure(
@@ -193,6 +222,7 @@ export class LLMGateway {
     error: unknown,
   ): void {
     const latencyMs = Date.now() - startTime;
+    const message = getErrorMessage(error);
     this.audit.record({
       id: randomUUID(),
       timestamp: new Date(),
@@ -204,7 +234,13 @@ export class LLMGateway {
       totalTokens: 0,
       latencyMs,
       success: false,
-      error: getErrorMessage(error),
+      error: message,
+    });
+    this.metricsObserver?.recordFailure?.({
+      provider: providerName,
+      model: 'unknown',
+      latencyMs,
+      error: message,
     });
   }
 
