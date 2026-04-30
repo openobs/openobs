@@ -1,5 +1,5 @@
 import { asc, eq, max } from 'drizzle-orm';
-import { chatSessionEvents } from '../../db/sqlite-schema.js';
+import { chatSessionEvents } from '../../db/schema.js';
 import type {
   ChatSessionEventRecord,
   IChatSessionEventRepository,

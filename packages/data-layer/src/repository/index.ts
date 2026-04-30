@@ -70,4 +70,4 @@ export * from './postgres/index.js';
 export * from './sqlite/index.js';
 export * from './event-wrappers/index.js';
 export { createPostgresRepositories, createSqliteRepositories } from './factory.js';
-export type { SqliteRepositories } from './factory.js';
+export type { RepositoryBundle, SqliteRepositories } from './factory.js';

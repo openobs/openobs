@@ -12,7 +12,7 @@ import {
   contactPoints,
   notificationPolicyTree,
   muteTimings,
-} from '../../db/sqlite-schema.js';
+} from '../../db/schema.js';
 import type { INotificationRepository } from '../interfaces.js';
 import { isMutedByTimings, routeIntoTree } from '../../stores/notification-dispatch.js';
 

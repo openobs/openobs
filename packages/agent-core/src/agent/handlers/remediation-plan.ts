@@ -23,7 +23,7 @@ import { checkKubectl } from '@agentic-obs/adapters';
 import type {
   NewRemediationPlanStep,
   RemediationPlanStepKind,
-} from '@agentic-obs/data-layer';
+} from '../types.js';
 import type { ActionContext } from './_context.js';
 import { withToolEventBoundary } from './_shared.js';
 

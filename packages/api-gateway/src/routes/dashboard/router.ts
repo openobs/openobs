@@ -282,7 +282,8 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
       }
 
       const body = req.body as { datasourceId?: string } | undefined
-      const allDs = await setupConfig.listDatasources()
+      const orgId = resolveOrgId(req)
+      const allDs = await setupConfig.listDatasources({ orgId })
       const datasourceId = body?.datasourceId
 
       const promDs = allDs.find((d) =>
@@ -302,7 +303,7 @@ export function createDashboardRouter(deps: DashboardRouterDeps): ExpressRouter 
         }
       }
 
-      const resolver = new VariableResolver(prometheusUrl, headers, setupConfig)
+      const resolver = new VariableResolver(prometheusUrl, headers, setupConfig, orgId)
       const resolved: Record<string, string[]> = {}
       await Promise.all(
         dashboard.variables.map(async (v) => {

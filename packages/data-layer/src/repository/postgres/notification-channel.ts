@@ -8,7 +8,7 @@
  */
 
 import { sql, type SQL } from 'drizzle-orm';
-import type { DbClient } from '../../db/client.js';
+import type { QueryClient } from '../../db/query-client.js';
 import type {
   INotificationChannelRepository,
   NotificationChannel,
@@ -114,7 +114,7 @@ function rowToChannel(r: ChannelRow, masked: boolean): NotificationChannel {
 export class PostgresNotificationChannelRepository
   implements INotificationChannelRepository
 {
-  constructor(private readonly db: DbClient) {}
+  constructor(private readonly db: QueryClient) {}
 
   async list(
     opts: ListNotificationChannelsOptions = {},
@@ -131,20 +131,18 @@ export class PostgresNotificationChannelRepository
     const whereClause = wheres.length
       ? sql.join([sql`WHERE`, sql.join(wheres, sql` AND `)], sql` `)
       : sql``;
-    const result = await this.db.execute(sql`
+    const rows = await this.db.all<ChannelRow>(sql`
       SELECT * FROM notification_channels ${whereClause}
       ORDER BY name
     `);
-    const rows = result.rows as unknown as ChannelRow[];
     const masked = opts.masked ?? false;
     return rows.map((r) => rowToChannel(r, masked));
   }
 
   async get(id: string, opts: MaskOptions = {}): Promise<NotificationChannel | null> {
-    const result = await this.db.execute(
+    const rows = await this.db.all<ChannelRow>(
       sql`SELECT * FROM notification_channels WHERE id = ${id}`,
     );
-    const rows = result.rows as unknown as ChannelRow[];
     if (rows.length === 0) return null;
     return rowToChannel(rows[0]!, opts.masked ?? false);
   }
@@ -153,7 +151,7 @@ export class PostgresNotificationChannelRepository
     const id = input.id ?? `${input.type}-${uid()}`;
     const now = nowIso();
     const stored = encryptConfig(input.config);
-    await this.db.execute(sql`
+    await this.db.run(sql`
       INSERT INTO notification_channels (
         id, org_id, type, name, config,
         created_at, updated_at, updated_by
@@ -184,7 +182,7 @@ export class PostgresNotificationChannelRepository
     const stored = encryptConfig(mergedConfig);
     const mergedUpdatedBy =
       patch.updatedBy !== undefined ? patch.updatedBy : existing.updatedBy;
-    await this.db.execute(sql`
+    await this.db.run(sql`
       UPDATE notification_channels SET
         name       = ${mergedName},
         config     = ${JSON.stringify(stored)},
@@ -198,7 +196,7 @@ export class PostgresNotificationChannelRepository
   async delete(id: string): Promise<boolean> {
     const before = await this.get(id);
     if (!before) return false;
-    await this.db.execute(sql`DELETE FROM notification_channels WHERE id = ${id}`);
+    await this.db.run(sql`DELETE FROM notification_channels WHERE id = ${id}`);
     return true;
   }
 }

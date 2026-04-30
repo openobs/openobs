@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { OllamaProvider } from '../ollama.js';
 import { ProviderCapabilityError } from '../capabilities.js';
-import type { CompletionMessage, LLMOptions, ToolDefinition } from '../../types.js';
+import { ProviderError, type CompletionMessage, type LLMOptions, type ToolDefinition } from '../../types.js';
 
 // -- Mock fetch helpers --
 
@@ -354,5 +354,23 @@ describe('OllamaProvider response parsing', () => {
     const provider = new OllamaProvider();
     const res = await provider.complete(MESSAGES, OPTS);
     expect(res.toolCalls[0]!.input).toEqual({ nested: { key: 'val' }, n: 7 });
+  });
+
+  it('throws typed ProviderError on non-2xx chat responses', async () => {
+    setupFetchQueue([
+      makeResponse(TOOL_CAPABLE_SHOW),
+      makeBadResponse(503, 'model overloaded'),
+    ]);
+    const provider = new OllamaProvider();
+
+    const promise = provider.complete(MESSAGES, OPTS);
+    await expect(promise).rejects.toMatchObject({
+      name: 'ProviderError',
+      kind: 'network',
+      provider: 'ollama',
+      status: 503,
+      upstreamBody: 'model overloaded',
+    });
+    await expect(promise).rejects.toBeInstanceOf(ProviderError);
   });
 });

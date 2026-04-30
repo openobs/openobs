@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { OpenAIProvider } from '../openai.js';
-import type { ToolDefinition, CompletionMessage } from '../../types.js';
+import { OpenAICompatibleProvider, OpenAIProvider } from '../openai.js';
+import { _resetApiKeyHelperCacheForTests } from '../../api-key-helper.js';
+import { ProviderError, type ToolDefinition, type CompletionMessage } from '../../types.js';
 
 interface CapturedRequest {
   url: string;
@@ -12,6 +13,7 @@ interface FetchMockOptions {
   response?: unknown;
   status?: number;
   statusText?: string;
+  headers?: Record<string, string>;
 }
 
 function installFetchMock(opts: FetchMockOptions = {}): {
@@ -38,6 +40,9 @@ function installFetchMock(opts: FetchMockOptions = {}): {
       ok,
       status,
       statusText: opts.statusText ?? 'OK',
+      headers: {
+        get: (name: string) => opts.headers?.[name.toLowerCase()] ?? opts.headers?.[name] ?? null,
+      },
       json: async () => responseBody,
       text: async () => (typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody)),
     } as Response;
@@ -411,16 +416,59 @@ describe('OpenAIProvider — response parsing', () => {
     });
   });
 
-  it('throws on non-2xx', async () => {
+  it('throws typed ProviderError on non-2xx complete responses', async () => {
     const m = installFetchMock({
       status: 500,
       statusText: 'Internal Server Error',
-      response: 'boom',
+      response: { error: { code: 'server_error', message: 'boom' } },
     });
     restore = m.restore;
     const provider = new OpenAIProvider({ apiKey: 'sk-test' });
 
-    await expect(provider.complete(messages, { model: 'gpt-4o' })).rejects.toThrow(/OpenAI API error 500/);
+    await expect(provider.complete(messages, { model: 'gpt-4o' })).rejects.toMatchObject({
+      name: 'ProviderError',
+      kind: 'network',
+      provider: 'openai',
+      status: 500,
+      upstreamCode: 'server_error',
+    });
+  });
+
+  it('preserves Retry-After metadata on rate limits', async () => {
+    const m = installFetchMock({
+      status: 429,
+      response: { error: { type: 'rate_limit_exceeded' } },
+      headers: { 'retry-after': '7' },
+    });
+    restore = m.restore;
+    const provider = new OpenAIProvider({ apiKey: 'sk-test' });
+
+    await expect(provider.complete(messages, { model: 'gpt-4o' })).rejects.toMatchObject({
+      kind: 'network',
+      status: 429,
+      retryAfterSec: 7,
+      upstreamCode: 'rate_limit_exceeded',
+    });
+  });
+
+  it('classifies complete transport failures as ProviderError', async () => {
+    const original = globalThis.fetch;
+    const err = new Error('fetch failed');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).fetch = vi.fn(async () => {
+      throw err;
+    });
+    restore = () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (globalThis as any).fetch = original;
+    };
+    const provider = new OpenAIProvider({ apiKey: 'sk-test' });
+
+    await expect(provider.complete(messages, { model: 'gpt-4o' })).rejects.toBeInstanceOf(ProviderError);
+    await expect(provider.complete(messages, { model: 'gpt-4o' })).rejects.toMatchObject({
+      kind: 'network',
+      provider: 'openai',
+    });
   });
 });
 
@@ -576,13 +624,31 @@ describe('OpenAIProvider — config', () => {
     await provider.complete(messages, { model: 'gpt-4o' });
     expect(m.capture[0]!.url).toBe('https://example.test/openai/chat/completions');
   });
+
+  it('uses apiKeyHelper output for OpenAI-compatible requests', async () => {
+    const m = installFetchMock();
+    restore = m.restore;
+    const provider = new OpenAICompatibleProvider({
+      providerId: 'openrouter',
+      providerName: 'OpenRouter',
+      apiKey: 'static-key',
+      apiKeyHelper: "node -e \"console.log('helper-key')\"",
+      baseUrl: 'https://openrouter.ai/api/v1',
+    });
+
+    await provider.complete(messages, { model: 'openrouter/auto' });
+
+    expect(provider.name).toBe('openrouter');
+    expect(m.capture[0]!.url).toBe('https://openrouter.ai/api/v1/chat/completions');
+    expect(m.capture[0]!.headers.Authorization).toBe('Bearer helper-key');
+  });
 });
 
 describe('OpenAIProvider — listModels', () => {
   let restore: () => void;
   afterEach(() => restore?.());
 
-  it('keeps every model id returned by OpenAI-compatible endpoints', async () => {
+  it('keeps every model id returned by OpenAI-compatible endpoints with the compatible provider id', async () => {
     const m = installFetchMock({
       response: {
         data: [
@@ -594,20 +660,23 @@ describe('OpenAIProvider — listModels', () => {
       },
     });
     restore = m.restore;
-    const provider = new OpenAIProvider({
+    const provider = new OpenAICompatibleProvider({
+      providerId: 'deepseek',
+      providerName: 'DeepSeek',
       apiKey: 'sk-test',
       baseUrl: 'https://api.deepseek.com/v1',
     });
 
     await expect(provider.listModels()).resolves.toEqual([
-      { id: 'claude-sonnet-4-5', name: 'claude-sonnet-4-5', provider: 'openai' },
-      { id: 'deepseek-chat', name: 'deepseek-chat', provider: 'openai' },
-      { id: 'deepseek-reasoner', name: 'deepseek-reasoner', provider: 'openai' },
-      { id: 'qwen3-coder', name: 'qwen3-coder', provider: 'openai' },
+      { id: 'claude-sonnet-4-5', name: 'claude-sonnet-4-5', provider: 'deepseek' },
+      { id: 'deepseek-chat', name: 'deepseek-chat', provider: 'deepseek' },
+      { id: 'deepseek-reasoner', name: 'deepseek-reasoner', provider: 'deepseek' },
+      { id: 'qwen3-coder', name: 'qwen3-coder', provider: 'deepseek' },
     ]);
   });
 });
 
 beforeEach(() => {
   vi.restoreAllMocks();
+  _resetApiKeyHelperCacheForTests();
 });

@@ -11,7 +11,7 @@
  */
 
 import { sql } from 'drizzle-orm';
-import type { DbClient } from '../../db/client.js';
+import type { QueryClient } from '../../db/query-client.js';
 import type {
   IInstanceConfigRepository,
   InstanceLlmConfig,
@@ -58,15 +58,14 @@ function rowToLlmConfig(r: LlmRow, masked: boolean): InstanceLlmConfig {
 }
 
 export class PostgresInstanceConfigRepository implements IInstanceConfigRepository {
-  constructor(private readonly db: DbClient) {}
+  constructor(private readonly db: QueryClient) {}
 
   async getLlm(opts: MaskOptions = {}): Promise<InstanceLlmConfig | null> {
-    const result = await this.db.execute(
+    const rows = await this.db.all<LlmRow>(
       sql`SELECT id, provider, api_key, model, base_url, auth_type, region,
               api_key_helper, api_format, updated_at, updated_by
           FROM instance_llm_config WHERE id = ${SINGLETON_ID}`,
     );
-    const rows = result.rows as unknown as LlmRow[];
     if (rows.length === 0) return null;
     return rowToLlmConfig(rows[0]!, opts.masked ?? false);
   }
@@ -74,7 +73,7 @@ export class PostgresInstanceConfigRepository implements IInstanceConfigReposito
   async setLlm(input: NewInstanceLlmConfig): Promise<InstanceLlmConfig> {
     const now = nowIso();
     const encryptedApiKey = encryptSecret(input.apiKey ?? null);
-    await this.db.execute(sql`
+    await this.db.run(sql`
       INSERT INTO instance_llm_config (
         id, provider, api_key, model, base_url, auth_type, region,
         api_key_helper, api_format,
@@ -112,20 +111,19 @@ export class PostgresInstanceConfigRepository implements IInstanceConfigReposito
   async clearLlm(): Promise<boolean> {
     const before = await this.getLlm();
     if (!before) return false;
-    await this.db.execute(sql`DELETE FROM instance_llm_config WHERE id = ${SINGLETON_ID}`);
+    await this.db.run(sql`DELETE FROM instance_llm_config WHERE id = ${SINGLETON_ID}`);
     return true;
   }
 
   async getSetting(key: string): Promise<string | null> {
-    const result = await this.db.execute(
+    const rows = await this.db.all<Array<{ value: string }>[number]>(
       sql`SELECT value FROM instance_settings WHERE key = ${key} LIMIT 1`,
     );
-    const rows = result.rows as unknown as Array<{ value: string }>;
     return rows[0]?.value ?? null;
   }
 
   async setSetting(key: string, value: string): Promise<void> {
-    await this.db.execute(sql`
+    await this.db.run(sql`
       INSERT INTO instance_settings (key, value) VALUES (${key}, ${value})
       ON CONFLICT(key) DO UPDATE SET value = excluded.value
     `);
@@ -134,7 +132,7 @@ export class PostgresInstanceConfigRepository implements IInstanceConfigReposito
   async deleteSetting(key: string): Promise<boolean> {
     const before = await this.getSetting(key);
     if (before === null) return false;
-    await this.db.execute(sql`DELETE FROM instance_settings WHERE key = ${key}`);
+    await this.db.run(sql`DELETE FROM instance_settings WHERE key = ${key}`);
     return true;
   }
 }

@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import type { PostMortemReport } from '@agentic-obs/common';
-import { postMortems } from '../../db/sqlite-schema.js';
+import { postMortems } from '../../db/schema.js';
 import type { IPostMortemRepository } from '../interfaces.js';
 
 type PostMortemRow = typeof postMortems.$inferSelect;

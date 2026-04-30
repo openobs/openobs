@@ -68,7 +68,7 @@ function envFlag(name: string, defaultValue: boolean): boolean {
  */
 export function buildMetricQueryFn(setupConfig: SetupConfigService): MetricQueryFn {
   return async (rule) => {
-    const datasources = await setupConfig.listDatasources();
+    const datasources = await setupConfig.listDatasources({ orgId: rule.workspaceId ?? 'org_main' });
     const prom: PrometheusDatasource | undefined = resolvePrometheusDatasource(datasources);
     if (!prom) {
       log.debug({ ruleId: rule.id }, 'no Prometheus datasource configured; skipping evaluation');

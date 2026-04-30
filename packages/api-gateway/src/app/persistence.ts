@@ -32,7 +32,7 @@ import {
   createSqliteRepositories,
   postgresAuth,
 } from '@agentic-obs/data-layer';
-import type { DbClient, QueryClient, SqliteClient, SqliteRepositories } from '@agentic-obs/data-layer';
+import type { DbClient, QueryClient, RepositoryBundle, SqliteClient } from '@agentic-obs/data-layer';
 import type {
   IApiKeyRepository,
   IAuditLogRepository,
@@ -82,7 +82,7 @@ export interface RbacRepositoryBundle {
 export interface Persistence {
   backend: PersistenceBackend;
   db: QueryClient;
-  repos: SqliteRepositories;
+  repos: RepositoryBundle;
   authRepos: AuthRepositoryBundle;
   rbacRepos: RbacRepositoryBundle;
 }

@@ -1,6 +1,6 @@
 import { eq, and, sql } from 'drizzle-orm';
 import type { AssetType, AssetVersion, EditSource } from '@agentic-obs/common';
-import { assetVersions } from '../../db/sqlite-schema.js';
+import { assetVersions } from '../../db/schema.js';
 import type { IVersionRepository } from '../interfaces.js';
 
 type VersionRow = typeof assetVersions.$inferSelect;

@@ -1,6 +1,6 @@
 import { eq, desc } from 'drizzle-orm';
 import type { ChatSession } from '@agentic-obs/common';
-import { chatSessions } from '../../db/sqlite-schema.js';
+import { chatSessions } from '../../db/schema.js';
 import type { IChatSessionRepository } from '../interfaces.js';
 
 type DbRow = typeof chatSessions.$inferSelect;

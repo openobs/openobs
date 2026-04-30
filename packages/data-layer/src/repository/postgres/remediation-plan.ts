@@ -9,7 +9,7 @@
 
 import { sql, type SQL } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
-import type { DbClient } from '../../db/client.js';
+import type { QueryClient } from '../../db/query-client.js';
 import { pgAll, pgRun } from './pg-helpers.js';
 import type {
   IRemediationPlanRepository,
@@ -113,7 +113,7 @@ function rowToPlan(row: PlanRow, steps: RemediationPlanStep[]): RemediationPlan 
 }
 
 export class PostgresRemediationPlanRepository implements IRemediationPlanRepository {
-  constructor(private readonly db: DbClient) {}
+  constructor(private readonly db: QueryClient) {}
 
   async create(input: NewRemediationPlan): Promise<RemediationPlan> {
     const id = input.id ?? `plan-${randomUUID()}`;
@@ -190,10 +190,33 @@ export class PostgresRemediationPlanRepository implements IRemediationPlanReposi
     const rows = await pgAll<PlanRow>(this.db, sql`
       SELECT * FROM remediation_plan WHERE org_id = ${orgId} AND id = ${id}
     `);
+    return this.planFromRows(rows);
+  }
+
+  async findById(id: string): Promise<RemediationPlan | null> {
+    const rows = await pgAll<PlanRow>(this.db, sql`
+      SELECT * FROM remediation_plan WHERE id = ${id}
+    `);
+    return this.planFromRows(rows);
+  }
+
+  async findByApprovalRequestId(approvalRequestId: string): Promise<RemediationPlan | null> {
+    const rows = await pgAll<PlanRow>(this.db, sql`
+      SELECT DISTINCT p.*
+      FROM remediation_plan p
+      LEFT JOIN remediation_plan_step s ON s.plan_id = p.id
+      WHERE p.approval_request_id = ${approvalRequestId}
+         OR s.approval_request_id = ${approvalRequestId}
+      LIMIT 1
+    `);
+    return this.planFromRows(rows);
+  }
+
+  private async planFromRows(rows: PlanRow[]): Promise<RemediationPlan | null> {
     const row = rows[0];
     if (!row) return null;
     const stepRows = await pgAll<StepRow>(this.db, sql`
-      SELECT * FROM remediation_plan_step WHERE plan_id = ${id} ORDER BY ordinal
+      SELECT * FROM remediation_plan_step WHERE plan_id = ${row.id} ORDER BY ordinal
     `);
     return rowToPlan(row, stepRows.map(rowToStep));
   }

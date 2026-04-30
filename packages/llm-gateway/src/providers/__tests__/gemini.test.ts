@@ -13,7 +13,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { GeminiProvider } from '../gemini.js';
-import type { ToolDefinition } from '../../types.js';
+import { ProviderError, type ToolDefinition } from '../../types.js';
 
 type FetchArgs = [url: string, init?: RequestInit];
 
@@ -339,7 +339,7 @@ describe('GeminiProvider', () => {
       ]);
     });
 
-    it('throws on non-2xx with status + body in message', async () => {
+    it('throws typed ProviderError on non-2xx with status + body metadata', async () => {
       mockFetch(async () =>
         new Response('quota exceeded', {
           status: 429,
@@ -349,7 +349,16 @@ describe('GeminiProvider', () => {
 
       await expect(
         provider.complete([{ role: 'user', content: 'hi' }], { model: 'gemini-2.5-flash' }),
-      ).rejects.toThrow(/Gemini API error 429/);
+      ).rejects.toMatchObject({
+        name: 'ProviderError',
+        kind: 'network',
+        provider: 'gemini',
+        status: 429,
+        upstreamBody: 'quota exceeded',
+      });
+      await expect(
+        provider.complete([{ role: 'user', content: 'hi' }], { model: 'gemini-2.5-flash' }),
+      ).rejects.toBeInstanceOf(ProviderError);
     });
   });
 

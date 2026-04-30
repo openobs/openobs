@@ -188,10 +188,33 @@ export class SqliteRemediationPlanRepository implements IRemediationPlanReposito
     const rows = this.db.all<PlanRow>(sql`
       SELECT * FROM remediation_plan WHERE org_id = ${orgId} AND id = ${id}
     `);
+    return this.planFromRows(rows);
+  }
+
+  async findById(id: string): Promise<RemediationPlan | null> {
+    const rows = this.db.all<PlanRow>(sql`
+      SELECT * FROM remediation_plan WHERE id = ${id}
+    `);
+    return this.planFromRows(rows);
+  }
+
+  async findByApprovalRequestId(approvalRequestId: string): Promise<RemediationPlan | null> {
+    const rows = this.db.all<PlanRow>(sql`
+      SELECT DISTINCT p.*
+      FROM remediation_plan p
+      LEFT JOIN remediation_plan_step s ON s.plan_id = p.id
+      WHERE p.approval_request_id = ${approvalRequestId}
+         OR s.approval_request_id = ${approvalRequestId}
+      LIMIT 1
+    `);
+    return this.planFromRows(rows);
+  }
+
+  private planFromRows(rows: PlanRow[]): RemediationPlan | null {
     const row = rows[0];
     if (!row) return null;
     const stepRows = this.db.all<StepRow>(sql`
-      SELECT * FROM remediation_plan_step WHERE plan_id = ${id} ORDER BY ordinal
+      SELECT * FROM remediation_plan_step WHERE plan_id = ${row.id} ORDER BY ordinal
     `);
     return rowToPlan(row, stepRows.map(rowToStep));
   }

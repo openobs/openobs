@@ -33,6 +33,7 @@ export type RemediationPlanStepStatus =
 export type RemediationPlanStepKind = 'ops.run_command' | string;
 
 export interface RemediationPlanStep {
+  [key: string]: unknown;
   id: string;
   planId: string;
   ordinal: number;
@@ -139,6 +140,12 @@ export interface IRemediationPlanRepository {
 
   /** Lookup a plan + its steps. NULL if not found or not in the org. */
   findByIdInOrg(orgId: string, id: string): Promise<RemediationPlan | null>;
+
+  /** Lookup by globally unique plan id. Used by cross-org approval resume paths. */
+  findById(id: string): Promise<RemediationPlan | null>;
+
+  /** Lookup the plan gated by a plan-level or step-level approval request. */
+  findByApprovalRequestId(approvalRequestId: string): Promise<RemediationPlan | null>;
 
   listByOrg(orgId: string, opts?: ListRemediationPlansOptions): Promise<RemediationPlan[]>;
 

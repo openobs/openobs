@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { toJsonColumn } from '../json-column.js';
-import { approvals } from '../../db/sqlite-schema.js';
+import { approvals } from '../../db/schema.js';
 import type { IApprovalRequestRepository } from '../interfaces.js';
 import type { ApprovalAction, ApprovalContext, ApprovalRequest } from '../../stores/approval-store.js';
 

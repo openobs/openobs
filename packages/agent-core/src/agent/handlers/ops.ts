@@ -1,4 +1,3 @@
-import { checkKubectl, parseKubectlCommandString } from '@agentic-obs/adapters';
 import type { ActionContext } from './_context.js';
 import { withToolEventBoundary } from './_shared.js';
 
@@ -39,25 +38,9 @@ export async function handleOpsRunCommand(
           return `Ops connector "${connectorId}" is not configured. Choose one of: ${connectorList.map((connector) => connector.id).join(', ')}.`;
         }
 
-        // Defense-in-depth gate (P2 / T2.3 + T2.5):
-        //
-        // When the agent declares intent="read", the command argv MUST also
-        // be on the P6 read-allowlist. Without this gate, a model could
-        // smuggle a write through with intent="read" and the runner is the
-        // only line of defense — we want a second one at the handler so the
-        // shape of the command can't lie about its effect.
-        //
-        // Best-effort: a parse failure falls through and the runner takes
-        // over. A successful parse that fails the allowlist is rejected.
-        if (intent === 'read') {
-          const argv = parseKubectlCommandString(command);
-          if (argv.length > 0) {
-            const decision = checkKubectl(argv, 'read', selected.namespaces ?? []);
-            if (!decision.allow) {
-              return `ops_run_command rejected: ${decision.reason}. Use intent="propose" for writes, and only on a connector configured for the target namespace.`;
-            }
-          }
-        }
+        // Command safety policy is owned by the injected runner/connector
+        // service. The agent layer only validates that the requested connector
+        // exists so it can produce a helpful model-facing error.
       }
 
       const result = await ctx.opsCommandRunner.runCommand({

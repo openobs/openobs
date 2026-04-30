@@ -9,6 +9,7 @@ export type {
 
 export {
   checkKubectl,
+  classifyKubectlCommand,
   parseKubectlArgv,
   parseKubectlCommandString,
   KUBECTL_READ_VERBS,
@@ -16,7 +17,13 @@ export {
   KUBECTL_PERMANENT_DENY_VERBS,
   KUBECTL_PERMANENT_DENY_NAMESPACES,
 } from './kubectl-allowlist.js';
-export type { KubectlMode, AllowlistDecision, ParsedKubectl } from './kubectl-allowlist.js';
+export type {
+  KubectlMode,
+  KubectlPolicyDecision,
+  KubectlCommandPolicy,
+  AllowlistDecision,
+  ParsedKubectl,
+} from './kubectl-allowlist.js';
 
 export { KubectlExecutionAdapter } from './kubectl-adapter.js';
 export type {

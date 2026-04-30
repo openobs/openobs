@@ -16,6 +16,7 @@ export interface ApprovalContext {
   requestedBy: string;
   /** Human-readable reason the action is being requested */
   reason: string;
+  [key: string]: unknown;
 }
 
 export interface ApprovalRequest {

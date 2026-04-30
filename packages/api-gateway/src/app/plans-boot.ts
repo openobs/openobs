@@ -138,21 +138,16 @@ async function resumeExecutor(
   const ctx = approval.context as { planId?: string };
   // Look up the plan to recover orgId; the executor needs it.
   if (typeof ctx.planId !== 'string') return;
-  let orgId: string | undefined;
-  for (const candidate of await plans.listByOrg('org_main')) {
-    if (candidate.id === ctx.planId) { orgId = candidate.orgId; break; }
-  }
-  // org_main is the default; multi-tenant deployments will need a
-  // smarter lookup (issue tracked in P5 follow-up).
-  if (!orgId) {
+  const plan = await plans.findById(ctx.planId);
+  if (!plan) {
     log.warn({ approvalId: approval.id, planId: ctx.planId }, 'approval resumed but plan not found');
     return;
   }
   try {
     if (approval.status === 'approved') {
-      await executor.onStepApproved(orgId, approval.id);
+      await executor.onStepApproved(plan.orgId, approval.id);
     } else if (approval.status === 'rejected') {
-      await executor.onStepRejected(orgId, approval.id);
+      await executor.onStepRejected(plan.orgId, approval.id);
     }
   } catch (err) {
     log.error(

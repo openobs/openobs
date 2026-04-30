@@ -15,6 +15,7 @@ export class VariableResolver {
     private readonly prometheusUrl: string,
     private readonly headers: Record<string, string> = {},
     private readonly setupConfig?: SetupConfigService,
+    private readonly orgId?: string,
   ) {}
 
   async resolve(variable: DashboardVariable): Promise<string[]> {
@@ -112,8 +113,8 @@ export class VariableResolver {
    * returned — useful for "$prom_env" filtered to `/^prom-/`.
    */
   private async resolveDatasources(filterPattern?: string): Promise<string[]> {
-    if (!this.setupConfig) return []
-    const datasources = await this.setupConfig.listDatasources()
+    if (!this.setupConfig || !this.orgId) return []
+    const datasources = await this.setupConfig.listDatasources({ orgId: this.orgId })
     const metrics = datasources.filter(
       (d) => d.type === 'prometheus' || d.type === 'victoria-metrics',
     )

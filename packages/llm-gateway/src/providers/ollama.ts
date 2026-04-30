@@ -209,11 +209,29 @@ export class OllamaProvider implements LLMProvider {
       body: JSON.stringify(body),
     };
     if (options.signal) fetchInit.signal = options.signal;
-    const response = await fetch(`${this.baseUrl}/api/chat`, fetchInit);
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}/api/chat`, fetchInit);
+    } catch (err) {
+      const kind = classifyProviderHttpError({ cause: err });
+      throw new ProviderError(
+        `Ollama complete transport failure: ${err instanceof Error ? err.message : String(err)}`,
+        { kind, provider: this.name, cause: err },
+      );
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Ollama API error ${response.status}: ${errorText}`);
+      const kind = classifyProviderHttpError({ status: response.status });
+      throw new ProviderError(
+        `Ollama complete failed: HTTP ${response.status} ${errorText.slice(0, 200)}`,
+        {
+          kind,
+          provider: this.name,
+          status: response.status,
+          upstreamBody: errorText.slice(0, 1000),
+        },
+      );
     }
 
     const data = (await response.json()) as OllamaChatResponse;

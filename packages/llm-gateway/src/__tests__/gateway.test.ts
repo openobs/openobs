@@ -81,7 +81,7 @@ describe('LLMGateway', () => {
     expect(primary.callCount).toBe(1);
   });
 
-  it('retries on raw 5xx-shaped Error from provider', async () => {
+  it('does NOT retry raw HTTP-shaped Error from provider', async () => {
     const primary = new MockProvider({
       name: 'primary',
       shouldFail: true,
@@ -93,23 +93,23 @@ describe('LLMGateway', () => {
       gateway.complete([{ role: 'user', content: 'Hello' }], { model: 'test' }),
     ).rejects.toThrow('503');
 
-    // 5xx → retried.
-    expect(primary.callCount).toBe(3);
+    // Providers must throw typed ProviderError for HTTP retry semantics.
+    expect(primary.callCount).toBe(1);
   });
 
-  it('does NOT retry raw 4xx-shaped Error from provider', async () => {
+  it('retries raw network-style Error from provider', async () => {
     const primary = new MockProvider({
       name: 'primary',
       shouldFail: true,
-      failMessage: 'OpenAI API error 400: bad request',
+      failMessage: 'fetch failed: ECONNRESET',
     });
     const gateway = new LLMGateway({ primary, maxRetries: 3, retryDelayMs: 1 });
 
     await expect(
       gateway.complete([{ role: 'user', content: 'Hello' }], { model: 'test' }),
-    ).rejects.toThrow('400');
+    ).rejects.toThrow('ECONNRESET');
 
-    expect(primary.callCount).toBe(1);
+    expect(primary.callCount).toBe(3);
   });
 
   it('should track metrics', async () => {

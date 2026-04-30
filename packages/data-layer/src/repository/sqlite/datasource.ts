@@ -14,7 +14,7 @@ import type {
   NewInstanceDatasource,
   InstanceDatasourcePatch,
   ListDatasourcesOptions,
-  MaskOptions,
+  DatasourceLookupOptions,
 } from '@agentic-obs/common';
 import {
   uid,
@@ -69,11 +69,8 @@ function rowToDatasource(r: DatasourceRow, masked: boolean): InstanceDatasource 
 export class DatasourceRepository implements IDatasourceRepository {
   constructor(private readonly db: SqliteClient) {}
 
-  async list(opts: ListDatasourcesOptions = {}): Promise<InstanceDatasource[]> {
-    const wheres: SQL[] = [];
-    if (opts.orgId) {
-      wheres.push(sql`org_id = ${opts.orgId}`);
-    }
+  async list(opts: ListDatasourcesOptions): Promise<InstanceDatasource[]> {
+    const wheres: SQL[] = [sql`org_id = ${opts.orgId}`];
     if (opts.type) {
       wheres.push(sql`type = ${opts.type}`);
     }
@@ -88,9 +85,9 @@ export class DatasourceRepository implements IDatasourceRepository {
     return rows.map((r) => rowToDatasource(r, masked));
   }
 
-  async get(id: string, opts: MaskOptions = {}): Promise<InstanceDatasource | null> {
+  async get(id: string, opts: DatasourceLookupOptions): Promise<InstanceDatasource | null> {
     const rows = this.db.all<DatasourceRow>(
-      sql`SELECT * FROM instance_datasources WHERE id = ${id}`,
+      sql`SELECT * FROM instance_datasources WHERE id = ${id} AND org_id = ${opts.orgId}`,
     );
     if (rows.length === 0) return null;
     return rowToDatasource(rows[0]!, opts.masked ?? false);
@@ -99,29 +96,40 @@ export class DatasourceRepository implements IDatasourceRepository {
   async create(input: NewInstanceDatasource): Promise<InstanceDatasource> {
     const id = input.id ?? `${input.type}-${uid()}`;
     const now = nowIso();
-    this.db.run(sql`
-      INSERT INTO instance_datasources (
-        id, org_id, type, name, url, environment, cluster, label,
-        is_default, api_key, username, password,
-        created_at, updated_at, updated_by
-      ) VALUES (
-        ${id},
-        ${input.orgId},
-        ${input.type},
-        ${input.name},
-        ${input.url},
-        ${input.environment ?? null},
-        ${input.cluster ?? null},
-        ${input.label ?? null},
-        ${fromBool(input.isDefault)},
-        ${encryptSecret(input.apiKey ?? null)},
-        ${input.username ?? null},
-        ${encryptSecret(input.password ?? null)},
-        ${now}, ${now},
-        ${input.updatedBy ?? null}
-      )
-    `);
-    const saved = await this.get(id);
+    await this.db.withTransaction(async (tx) => {
+      if (input.isDefault) {
+        await tx.run(sql`
+          UPDATE instance_datasources
+          SET is_default = 0
+          WHERE org_id = ${input.orgId}
+            AND type = ${input.type}
+            AND is_default = 1
+        `);
+      }
+      await tx.run(sql`
+        INSERT INTO instance_datasources (
+          id, org_id, type, name, url, environment, cluster, label,
+          is_default, api_key, username, password,
+          created_at, updated_at, updated_by
+        ) VALUES (
+          ${id},
+          ${input.orgId},
+          ${input.type},
+          ${input.name},
+          ${input.url},
+          ${input.environment ?? null},
+          ${input.cluster ?? null},
+          ${input.label ?? null},
+          ${fromBool(input.isDefault)},
+          ${encryptSecret(input.apiKey ?? null)},
+          ${input.username ?? null},
+          ${encryptSecret(input.password ?? null)},
+          ${now}, ${now},
+          ${input.updatedBy ?? null}
+        )
+      `);
+    });
+    const saved = await this.get(id, { orgId: input.orgId });
     if (!saved) throw new Error(`[DatasourceRepository] create: row ${id} not found after insert`);
     return saved;
   }
@@ -129,8 +137,9 @@ export class DatasourceRepository implements IDatasourceRepository {
   async update(
     id: string,
     patch: InstanceDatasourcePatch,
+    orgId: string,
   ): Promise<InstanceDatasource | null> {
-    const existing = await this.get(id);
+    const existing = await this.get(id, { orgId });
     if (!existing) return null;
     const now = nowIso();
     const merged = {
@@ -146,51 +155,48 @@ export class DatasourceRepository implements IDatasourceRepository {
       password: patch.password !== undefined ? patch.password : existing.password,
       updatedBy: patch.updatedBy !== undefined ? patch.updatedBy : existing.updatedBy,
     };
-    this.db.run(sql`
-      UPDATE instance_datasources SET
-        type        = ${merged.type},
-        name        = ${merged.name},
-        url         = ${merged.url},
-        environment = ${merged.environment},
-        cluster     = ${merged.cluster},
-        label       = ${merged.label},
-        is_default  = ${fromBool(merged.isDefault)},
-        api_key     = ${encryptSecret(merged.apiKey ?? null)},
-        username    = ${merged.username},
-        password    = ${encryptSecret(merged.password ?? null)},
-        updated_at  = ${now},
-        updated_by  = ${merged.updatedBy}
-      WHERE id = ${id}
-    `);
-    // Single-default invariant per (org, type): when this row was just
-    // promoted to default, demote every sibling of the same type in the
-    // same org. Settings UI's "set as default" star relies on this — without
-    // it two rows could both render as default and the resolver fallback
-    // would still be ambiguous.
-    if (merged.isDefault && !existing.isDefault) {
-      this.db.run(sql`
-        UPDATE instance_datasources
-        SET is_default = 0
-        WHERE org_id = ${existing.orgId}
-          AND type   = ${merged.type}
-          AND id    != ${id}
-          AND is_default = 1
+    await this.db.withTransaction(async (tx) => {
+      if (merged.isDefault) {
+        await tx.run(sql`
+          UPDATE instance_datasources
+          SET is_default = 0
+          WHERE org_id = ${existing.orgId}
+            AND type   = ${merged.type}
+            AND id    != ${id}
+            AND is_default = 1
+        `);
+      }
+      await tx.run(sql`
+        UPDATE instance_datasources SET
+          type        = ${merged.type},
+          name        = ${merged.name},
+          url         = ${merged.url},
+          environment = ${merged.environment},
+          cluster     = ${merged.cluster},
+          label       = ${merged.label},
+          is_default  = ${fromBool(merged.isDefault)},
+          api_key     = ${encryptSecret(merged.apiKey ?? null)},
+          username    = ${merged.username},
+          password    = ${encryptSecret(merged.password ?? null)},
+          updated_at  = ${now},
+          updated_by  = ${merged.updatedBy}
+        WHERE id = ${id} AND org_id = ${orgId}
       `);
-    }
-    return this.get(id);
+    });
+    return this.get(id, { orgId });
   }
 
-  async delete(id: string): Promise<boolean> {
-    const before = await this.get(id);
+  async delete(id: string, orgId: string): Promise<boolean> {
+    const before = await this.get(id, { orgId });
     if (!before) return false;
-    this.db.run(sql`DELETE FROM instance_datasources WHERE id = ${id}`);
+    this.db.run(sql`DELETE FROM instance_datasources WHERE id = ${id} AND org_id = ${orgId}`);
     return true;
   }
 
-  async count(orgId?: string): Promise<number> {
-    const rows = orgId
-      ? this.db.all<{ n: number }>(sql`SELECT COUNT(*) AS n FROM instance_datasources WHERE org_id = ${orgId}`)
-      : this.db.all<{ n: number }>(sql`SELECT COUNT(*) AS n FROM instance_datasources`);
+  async count(orgId: string): Promise<number> {
+    const rows = this.db.all<{ n: number }>(
+      sql`SELECT COUNT(*) AS n FROM instance_datasources WHERE org_id = ${orgId}`,
+    );
     return rows[0]?.n ?? 0;
   }
 }

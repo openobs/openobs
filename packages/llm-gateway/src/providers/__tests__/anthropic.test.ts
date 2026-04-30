@@ -12,7 +12,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { AnthropicProvider } from '../anthropic.js';
-import type { ToolDefinition } from '../../types.js';
+import { ProviderError, type ToolDefinition } from '../../types.js';
 
 type FetchArgs = [url: string, init?: RequestInit];
 
@@ -354,7 +354,7 @@ describe('AnthropicProvider — response parsing', () => {
     expect(res.toolCalls).toEqual([]);
   });
 
-  it('throws on non-2xx response with API error text', async () => {
+  it('throws typed ProviderError on non-2xx response with API error text', async () => {
     mockFetch(async () =>
       new Response('overloaded', {
         status: 529,
@@ -367,6 +367,17 @@ describe('AnthropicProvider — response parsing', () => {
       provider.complete([{ role: 'user', content: 'hi' }], {
         model: 'claude-3-5-sonnet-latest',
       }),
-    ).rejects.toThrow(/Anthropic API error 529/);
+    ).rejects.toMatchObject({
+      name: 'ProviderError',
+      kind: 'network',
+      provider: 'anthropic',
+      status: 529,
+      upstreamBody: 'overloaded',
+    });
+    await expect(
+      provider.complete([{ role: 'user', content: 'hi' }], {
+        model: 'claude-3-5-sonnet-latest',
+      }),
+    ).rejects.toBeInstanceOf(ProviderError);
   });
 });

@@ -1,6 +1,6 @@
 import { eq, count } from 'drizzle-orm';
 import type { ChatMessage, DashboardAction } from '@agentic-obs/common';
-import { chatMessages } from '../../db/sqlite-schema.js';
+import { chatMessages } from '../../db/schema.js';
 import type { IChatMessageRepository } from '../interfaces.js';
 
 type DbRow = typeof chatMessages.$inferSelect;

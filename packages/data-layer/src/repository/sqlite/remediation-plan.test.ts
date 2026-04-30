@@ -74,6 +74,19 @@ describe('SqliteRemediationPlanRepository', () => {
     expect(await repo.findByIdInOrg('org_a', 'plan-missing')).toBeNull();
   });
 
+  it('findById and findByApprovalRequestId support cross-org approval resume', async () => {
+    const plan = await repo.create(basePlan({
+      orgId: 'org_resume',
+      approvalRequestId: 'approval-plan',
+    }));
+    await repo.updateStep(plan.id, 1, { approvalRequestId: 'approval-step' });
+
+    expect((await repo.findById(plan.id))?.orgId).toBe('org_resume');
+    expect((await repo.findByApprovalRequestId('approval-plan'))?.id).toBe(plan.id);
+    expect((await repo.findByApprovalRequestId('approval-step'))?.id).toBe(plan.id);
+    expect(await repo.findByApprovalRequestId('approval-missing')).toBeNull();
+  });
+
   it('listByOrg filters by status, investigationId, rescueForPlanId', async () => {
     const a = await repo.create(basePlan({ summary: 'a', investigationId: 'inv-1' }));
     const b = await repo.create(basePlan({ summary: 'b', investigationId: 'inv-2' }));

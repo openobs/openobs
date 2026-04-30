@@ -268,7 +268,7 @@ export function createSetupRouter(deps: SetupRouterDeps): Router {
     try {
       const [llm, datasources, notifications] = await Promise.all([
         setupConfig.getLlm({ masked: true }),
-        setupConfig.listDatasources({ masked: true }),
+        setupConfig.listDatasources({ orgId: 'org_main', masked: true }),
         readNotificationsAsDto(setupConfig),
       ]);
       res.json({
@@ -348,9 +348,9 @@ export function createSetupRouter(deps: SetupRouterDeps): Router {
     requirePermission(() => ac.eval(ACTIONS.InstanceConfigWrite)),
     async (_req: Request, res: Response) => {
       await setupConfig.clearLlm({ userId: null });
-      const datasources = await setupConfig.listDatasources();
+      const datasources = await setupConfig.listDatasources({ orgId: 'org_main' });
       for (const ds of datasources) {
-        await setupConfig.deleteDatasource(ds.id, { userId: null });
+        await setupConfig.deleteDatasource(ds.id, { userId: null, orgId: ds.orgId });
       }
       const channels = await setupConfig.listNotificationChannels();
       for (const c of channels) {

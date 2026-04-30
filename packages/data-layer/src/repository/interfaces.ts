@@ -173,12 +173,12 @@ export interface IApprovalRepository extends IRepository<ApprovalRecord> {
 // — Approval (gateway-level, matches ApprovalRequest shape)
 
 export interface IApprovalRequestRepository {
-  findById(id: string): MaybeAsync<ApprovalRequest | undefined>;
-  submit(params: { action: ApprovalAction; context: ApprovalContext; ttlMs?: number }): MaybeAsync<ApprovalRequest>;
-  listPending(): MaybeAsync<ApprovalRequest[]>;
-  approve(id: string, by: string, roles?: string[]): MaybeAsync<ApprovalRequest | undefined>;
-  reject(id: string, by: string, roles?: string[]): MaybeAsync<ApprovalRequest | undefined>;
-  override(id: string, by: string, roles?: string[]): MaybeAsync<ApprovalRequest | undefined>;
+  findById(id: string): Promise<ApprovalRequest | undefined>;
+  submit(params: { action: ApprovalAction; context: ApprovalContext; ttlMs?: number }): Promise<ApprovalRequest>;
+  listPending(): Promise<ApprovalRequest[]>;
+  approve(id: string, by: string, roles?: string[]): Promise<ApprovalRequest | undefined>;
+  reject(id: string, by: string, roles?: string[]): Promise<ApprovalRequest | undefined>;
+  override(id: string, by: string, roles?: string[]): Promise<ApprovalRequest | undefined>;
 }
 
 // — ShareLink

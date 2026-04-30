@@ -77,7 +77,7 @@ export function buildBackgroundOrchestratorFactory(
     if (!llm) {
       throw new Error('LLM not configured — complete the Setup Wizard before running background investigations');
     }
-    const datasources = await deps.setupConfig.listDatasources();
+    const datasources = await deps.setupConfig.listDatasources({ orgId: identity.orgId });
     const gateway = createLlmGateway(llm);
     const adapters = buildAdapterRegistry(datasources);
 

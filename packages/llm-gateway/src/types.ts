@@ -150,6 +150,10 @@ export class ProviderError extends Error {
   public override readonly cause?: unknown;
   /** Seconds the upstream asked us to wait (Retry-After header). */
   public readonly retryAfterSec?: number;
+  /** Provider-specific error code, when the upstream body exposes one. */
+  public readonly upstreamCode?: string;
+  /** Truncated upstream response body for diagnostics. Never assume it is safe to show to end users. */
+  public readonly upstreamBody?: string;
 
   constructor(
     message: string,
@@ -159,6 +163,8 @@ export class ProviderError extends Error {
       status?: number;
       cause?: unknown;
       retryAfterSec?: number;
+      upstreamCode?: string;
+      upstreamBody?: string;
     },
   ) {
     super(message);
@@ -168,6 +174,8 @@ export class ProviderError extends Error {
     if (opts.status !== undefined) this.status = opts.status;
     if (opts.cause !== undefined) this.cause = opts.cause;
     if (opts.retryAfterSec !== undefined) this.retryAfterSec = opts.retryAfterSec;
+    if (opts.upstreamCode !== undefined) this.upstreamCode = opts.upstreamCode;
+    if (opts.upstreamBody !== undefined) this.upstreamBody = opts.upstreamBody;
   }
 }
 
@@ -203,6 +211,7 @@ export function classifyProviderHttpError(opts: {
     return 'network';
   }
   if (cause instanceof Error && cause.name === 'AbortError') return 'network';
+  if (cause instanceof Error && /fetch failed|network|timeout|connection/i.test(cause.message)) return 'network';
   return 'unknown';
 }
 

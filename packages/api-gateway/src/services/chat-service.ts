@@ -134,7 +134,7 @@ export class ChatService {
     if (!llm) {
       throw new Error('LLM not configured - please complete the Setup Wizard first.');
     }
-    const datasources = await this.deps.setupConfig.listDatasources();
+    const datasources = await this.deps.setupConfig.listDatasources({ orgId: identity.orgId });
 
     const resolvedSessionId = sessionId ?? randomUUID();
 

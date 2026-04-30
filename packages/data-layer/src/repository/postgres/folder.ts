@@ -1,5 +1,5 @@
 import { eq, isNull } from 'drizzle-orm';
-import { folders } from '../../db/sqlite-schema.js';
+import { folders } from '../../db/schema.js';
 import type { IFolderRepository } from '../interfaces.js';
 import type { Folder } from '../../stores/folder-store.js';
 

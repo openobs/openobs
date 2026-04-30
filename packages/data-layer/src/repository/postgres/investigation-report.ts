@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import type { SavedInvestigationReport, InvestigationReportSection } from '@agentic-obs/common';
 import { toJsonColumn } from '../json-column.js';
-import { investigationReports } from '../../db/sqlite-schema.js';
+import { investigationReports } from '../../db/schema.js';
 import type { IInvestigationReportRepository } from '../interfaces.js';
 
 type DbRow = typeof investigationReports.$inferSelect;

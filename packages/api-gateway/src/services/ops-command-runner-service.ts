@@ -1,5 +1,10 @@
 import type { Identity } from '@agentic-obs/common';
-import { KubectlExecutionAdapter, parseKubectlCommandString } from '@agentic-obs/adapters';
+import {
+  classifyKubectlCommand,
+  KubectlExecutionAdapter,
+  parseKubectlCommandString,
+  type KubectlMode,
+} from '@agentic-obs/adapters';
 import type {
   IApprovalRequestRepository,
   IOpsConnectorRepository,
@@ -56,7 +61,7 @@ export class OpsCommandRunnerService {
       };
     }
 
-    const policy = classifyOpsCommand(params.command);
+    const policy = classifyOpsCommand(params.command, connector.allowedNamespaces);
     if (policy.decision === 'denied') {
       return {
         decision: 'denied',
@@ -104,7 +109,7 @@ export class OpsCommandRunnerService {
       };
     }
 
-    return this.runKubectlCommand(connector, params.command);
+    return this.runKubectlCommand(connector, params.command, 'read');
   }
 
   async executeApprovedApproval(
@@ -164,7 +169,7 @@ export class OpsCommandRunnerService {
       };
     }
 
-    const policy = classifyOpsCommand(command);
+    const policy = classifyOpsCommand(command, connector.allowedNamespaces);
     if (policy.decision === 'denied') {
       return {
         approvalId,
@@ -173,7 +178,7 @@ export class OpsCommandRunnerService {
       };
     }
 
-    const result = await this.runKubectlCommand(connector, command);
+    const result = await this.runKubectlCommand(connector, command, 'write');
     return {
       approvalId,
       decision: result.decision === 'denied' ? 'denied' : 'executed',
@@ -184,26 +189,16 @@ export class OpsCommandRunnerService {
   private async runKubectlCommand(
     connector: OpsConnector,
     command: string,
+    mode: KubectlMode,
   ): Promise<{ observation: string; decision: OpsCommandDecision }> {
     const argv = parseKubectlCommandString(command);
     if (argv.length === 0) {
       return { decision: 'denied', observation: 'empty kubectl command' };
     }
 
-    // Use the shared P6 KubectlExecutionAdapter for the actual spawn.
-    // It handles: kubeconfig mktemp/0600/cleanup (also on throw),
-    // KUBECONFIG env wiring, 60s timeout, stdout/stderr cap, and the
-    // permanent-deny + namespace-allowlist gates.
-    //
-    // We pass mode='write' here even though this code path only handles
-    // reads — classifyOpsCommand has already filtered to read intent
-    // upstream, and P6's read-allowlist is narrower than what the
-    // OpsCommandRunner historically permits (`rollout status`,
-    // `api-versions`, `config current-context` etc.). 'write' mode in
-    // the adapter is the union of read+write verbs, so all
-    // historically-allowed reads pass through; the permanent-deny list
-    // (`exec`, `cp`, `port-forward`, ...) still applies as defense in
-    // depth.
+    // The adapter owns the final policy check before spawn. The service only
+    // chooses the semantic mode: read paths cannot execute write verbs; approved
+    // execution paths can.
     const adapter = new KubectlExecutionAdapter({
       resolveKubeconfig: async () => {
         const k = await this.resolveKubeconfig(connector);
@@ -211,7 +206,7 @@ export class OpsCommandRunnerService {
         return k.value;
       },
       allowedNamespaces: connector.allowedNamespaces,
-      mode: 'write',
+      mode,
     });
 
     const validation = await adapter.validate({
@@ -242,13 +237,13 @@ export class OpsCommandRunnerService {
       };
     }
 
-    return {
-      decision: 'read',
-      observation: formatKubectlObservation(command, {
-        exitCode: result.success ? 0 : 1,
-        stdout: typeof result.output === 'string' ? result.output : '',
-        stderr: result.error ?? '',
-      }),
+	    return {
+	      decision: mode === 'read' ? 'read' : 'executed',
+	      observation: formatKubectlObservation(mode, command, {
+	        exitCode: result.success ? 0 : 1,
+	        stdout: typeof result.output === 'string' ? result.output : '',
+	        stderr: result.error ?? '',
+	      }),
     };
   }
 
@@ -274,66 +269,28 @@ export class OpsCommandRunnerService {
   }
 }
 
-export function classifyOpsCommand(command: string): { decision: OpsCommandDecision; reason: string } {
-  const normalized = command.trim().replace(/\s+/g, ' ');
-  const lower = normalized.toLowerCase();
-
-  if (!lower.startsWith('kubectl ')) {
-    return { decision: 'denied', reason: 'only kubectl commands are supported for Kubernetes connectors' };
-  }
-
-  const deniedPatterns = [
-    /^kubectl\s+exec\b/,
-    /^kubectl\s+cp\b/,
-    /^kubectl\s+port-forward\b/,
-    /^kubectl\s+proxy\b/,
-    /^kubectl\s+edit\b/,
-    /^kubectl\s+(get|describe)\s+secrets?\b/,
-    /^kubectl\s+delete\s+secrets?\b/,
-  ];
-  if (deniedPatterns.some((pattern) => pattern.test(lower))) {
-    return { decision: 'denied', reason: 'command can expose secrets or open an interactive/network tunnel' };
-  }
-
-  const readPatterns = [
-    /^kubectl\s+get\b/,
-    /^kubectl\s+describe\b/,
-    /^kubectl\s+logs\b/,
-    /^kubectl\s+top\b/,
-    /^kubectl\s+rollout\s+(status|history)\b/,
-    /^kubectl\s+events\b/,
-    /^kubectl\s+api-(resources|versions)\b/,
-    /^kubectl\s+version\b/,
-    /^kubectl\s+config\s+current-context\b/,
-  ];
-  if (readPatterns.some((pattern) => pattern.test(lower))) {
-    return { decision: 'read', reason: 'read-only inspection command' };
-  }
-
-  const mutatingPatterns = [
-    /^kubectl\s+(apply|patch|scale|create|delete|replace|set|annotate|label)\b/,
-    /^kubectl\s+rollout\s+(restart|undo|pause|resume)\b/,
-    /^kubectl\s+(cordon|uncordon|drain|taint)\b/,
-  ];
-  if (mutatingPatterns.some((pattern) => pattern.test(lower))) {
-    return { decision: 'approval_required', reason: 'mutating cluster command' };
-  }
-
-  return { decision: 'approval_required', reason: 'unclassified kubectl command must be reviewed' };
+export function classifyOpsCommand(
+  command: string,
+  allowedNamespaces: readonly string[] = [],
+): { decision: OpsCommandDecision; reason: string } {
+  const policy = classifyKubectlCommand(command, allowedNamespaces);
+  return { decision: policy.decision, reason: policy.reason };
 }
 
 function formatKubectlObservation(
+  mode: KubectlMode,
   command: string,
   result: { exitCode: number; stdout: string; stderr: string },
 ): string {
   const stdout = truncate(result.stdout.trim(), 12_000);
   const stderr = truncate(result.stderr.trim(), 4_000);
+  const label = mode === 'read' ? 'read' : 'approved command';
   if (result.exitCode === 0) {
     return stdout
-      ? `kubectl read command succeeded: ${command}\n\n${stdout}`
-      : `kubectl read command succeeded: ${command}\n\n(no output)`;
+      ? `kubectl ${label} succeeded: ${command}\n\n${stdout}`
+      : `kubectl ${label} succeeded: ${command}\n\n(no output)`;
   }
-  return `kubectl read command failed with exit code ${result.exitCode}: ${command}\n\n${stderr || stdout || 'no output'}`;
+  return `kubectl ${label} failed with exit code ${result.exitCode}: ${command}\n\n${stderr || stdout || 'no output'}`;
 }
 
 function truncate(value: string, max: number): string {
