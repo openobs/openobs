@@ -38,7 +38,7 @@ import { ApiKeyService } from '../services/apikey-service.js';
 import { RoleService } from '../services/role-service.js';
 import type { SetupConfigService } from '../services/setup-config-service.js';
 import type { AccessControlSurface } from '../services/accesscontrol-holder.js';
-import type { AuthRepositoryBundle } from './persistence.js';
+import type { AuthRepositoryBundle, RbacRepositoryBundle } from './persistence.js';
 import type { QueryClient } from '@agentic-obs/data-layer';
 
 const log = createLogger('auth-routes');
@@ -60,6 +60,7 @@ export interface AuthSubsystemBundle {
 async function runAuthMigration(
   db: QueryClient,
   authRepos: AuthRepositories,
+  rbacRepos: RbacRepositoryBundle,
 ): Promise<void> {
   try {
     await migrateAuthToDbIfNeeded({
@@ -89,10 +90,10 @@ async function runAuthMigration(
   // separately gated by AUTO_INVESTIGATION_SA_TOKEN at boot.
   try {
     const roleService = new RoleService(
-      authRepos.roles,
-      authRepos.permissions,
-      authRepos.userRoles,
-      authRepos.teamRoles,
+      rbacRepos.roles,
+      rbacRepos.permissions,
+      rbacRepos.userRoles,
+      rbacRepos.teamRoles,
     );
     await seedAutoInvestigationSaIfNeeded({
       users: authRepos.users,
@@ -116,9 +117,10 @@ async function runAuthMigration(
 export async function buildAuthSubsystem(
   db: QueryClient,
   authRepos: AuthRepositories,
+  rbacRepos: RbacRepositoryBundle,
   quotas: IQuotaRepository,
 ): Promise<AuthSubsystemBundle> {
-  await runAuthMigration(db, authRepos);
+  await runAuthMigration(db, authRepos, rbacRepos);
 
   const authSub = await createAuthSubsystem(authRepos);
 
