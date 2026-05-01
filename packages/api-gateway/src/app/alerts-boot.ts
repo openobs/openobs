@@ -127,6 +127,14 @@ export interface MountAlertsDeps {
    */
   subscribeRuleChanges?: (cb: () => void) => void;
   /**
+   * Investigation repository. When provided, AutoInvestigationDispatcher
+   * uses it to finalize the row created by the agent's
+   * `investigation_create` tool — flipping status to `completed` /
+   * `failed` if the model didn't call `investigation_complete`, and
+   * linking the investigation back to the alert rule.
+   */
+  investigations?: import('@agentic-obs/data-layer').IInvestigationRepository;
+  /**
    * QueryClient used to back the leader lock. When provided AND
    * `ALERT_EVALUATOR_HA=true`, the evaluator only runs while it holds
    * the lock. Multi-replica deploys should pass this so two api-gateway
@@ -228,6 +236,8 @@ export async function startAlerts(deps: MountAlertsDeps): Promise<{
         alertEvents: evaluator,
         runner: deps.runner,
         resolveSaIdentity,
+        ...(deps.investigations ? { investigations: deps.investigations } : {}),
+        alertRules: deps.rules,
       });
       dispatcher.subscribe();
       log.info('auto-investigation dispatcher subscribed to alert.fired');
