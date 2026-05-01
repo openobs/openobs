@@ -19,17 +19,32 @@
  */
 
 import type { EventEmitter } from 'node:events';
-import type { Identity } from '@agentic-obs/common';
+import type { Identity, Investigation, InvestigationStatus } from '@agentic-obs/common';
 import { createLogger } from '@agentic-obs/common/logging';
 import {
   runBackgroundAgent,
   type BackgroundRunnerDeps,
 } from '@agentic-obs/agent-core';
-import type {
-  IAlertRuleRepository,
-  IInvestigationRepository,
-} from '@agentic-obs/data-layer';
 import type { AlertFiredPayload } from './alert-evaluator-service.js';
+
+/**
+ * Minimum surface the dispatcher needs to finalize an investigation
+ * row. Wider repository interfaces (sqlite / postgres / gateway-extended)
+ * all satisfy this shape; depending on the narrow contract here keeps
+ * the dispatcher decoupled from the bundle's exact intersection type.
+ */
+export interface DispatcherInvestigationStore {
+  findByWorkspace(workspaceId: string): Promise<Investigation[]>;
+  updateStatus(id: string, status: InvestigationStatus): Promise<Investigation | null>;
+}
+
+/**
+ * Minimum surface the dispatcher needs to link the new investigation
+ * back to its alert rule.
+ */
+export interface DispatcherAlertRuleStore {
+  update(id: string, partial: { investigationId?: string }): Promise<unknown>;
+}
 
 const log = createLogger('auto-investigation');
 
@@ -79,14 +94,14 @@ export interface AutoInvestigationDispatcherOptions {
    * transitioned to `completed` (or `failed` on agent error) so the UI
    * detail page renders something instead of spinning at `planning`.
    */
-  investigations?: IInvestigationRepository;
+  investigations?: DispatcherInvestigationStore;
   /**
    * Alert-rule repo. When provided, the dispatcher writes the created
    * investigation's id back to `rule.investigationId` so the manual
    * Investigate button on the Alerts page reuses it instead of creating
    * a duplicate row.
    */
-  alertRules?: IAlertRuleRepository;
+  alertRules?: DispatcherAlertRuleStore;
 }
 
 /**

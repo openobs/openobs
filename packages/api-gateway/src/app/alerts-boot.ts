@@ -131,9 +131,10 @@ export interface MountAlertsDeps {
    * uses it to finalize the row created by the agent's
    * `investigation_create` tool — flipping status to `completed` /
    * `failed` if the model didn't call `investigation_complete`, and
-   * linking the investigation back to the alert rule.
+   * linking the investigation back to the alert rule. Narrow shape kept
+   * inline so we accept any superset (sqlite / postgres / gateway-ext).
    */
-  investigations?: import('@agentic-obs/data-layer').IInvestigationRepository;
+  investigations?: import('../services/auto-investigation-dispatcher.js').DispatcherInvestigationStore;
   /**
    * QueryClient used to back the leader lock. When provided AND
    * `ALERT_EVALUATOR_HA=true`, the evaluator only runs while it holds
