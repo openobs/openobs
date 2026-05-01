@@ -14,6 +14,8 @@ const log = createLogger('redis-event-bus');
 import type { IEventBus, EventHandler } from './interface.js';
 import type { EventEnvelope } from './types.js';
 
+const DEFAULT_STREAM_MAX_LEN = 10_000;
+
 export interface RedisEventBusOptions {
   /** ioredis connection URL, e.g. redis://localhost:6379 */
   url?: string;
@@ -23,6 +25,11 @@ export interface RedisEventBusOptions {
   group?: string;
   /** Consumer name - defaults to a random UUID per bus instance */
   consumer?: string;
+  /**
+   * Approximate Redis stream length cap used by publish().
+   * Defaults to 10,000 entries per topic. Set to 0 to disable trimming.
+   */
+  streamMaxLen?: number;
 }
 
 type RawMessage = [id: string, fields: string[]];
@@ -32,6 +39,7 @@ export class RedisEventBus implements IEventBus {
   private readonly sub: Redis;
   private readonly group: string;
   private readonly consumer: string;
+  private readonly streamMaxLen: number;
   private readonly handlers = new Map<string, Set<EventHandler>>();
   private readonly streamTasks = new Map<string, { stop: () => void }>();
   private closed = false;
@@ -47,9 +55,24 @@ export class RedisEventBus implements IEventBus {
     }
     this.group = opts.group ?? 'agentic-obs';
     this.consumer = opts.consumer ?? randomUUID();
+    this.streamMaxLen = Math.max(0, Math.floor(opts.streamMaxLen ?? DEFAULT_STREAM_MAX_LEN));
   }
 
   async publish<T>(topic: string, event: EventEnvelope<T>): Promise<void> {
+    if (this.streamMaxLen > 0) {
+      await this.pub.xadd(
+        topic,
+        'MAXLEN',
+        '~',
+        this.streamMaxLen,
+        '*',
+        'type',
+        event.type,
+        'payload',
+        JSON.stringify(event),
+      );
+      return;
+    }
     await this.pub.xadd(topic, '*', 'type', event.type, 'payload', JSON.stringify(event));
   }
 
@@ -119,9 +142,7 @@ export class RedisEventBus implements IEventBus {
                 const event = JSON.parse(raw) as EventEnvelope;
                 const handlers = this.handlers.get(topic);
                 if (handlers) {
-                  for (const h of handlers) {
-                    void h(event);
-                  }
+                  await Promise.all([...handlers].map((h) => h(event)));
                 }
                 await this.sub.xack(topic, this.group, msgId);
               } catch (err) {

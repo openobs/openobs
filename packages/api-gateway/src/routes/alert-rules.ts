@@ -46,6 +46,15 @@ export function createAlertRulesRouter(deps: AlertRulesRouterDeps): Router {
   const alertRuleService = new AlertRuleService(store, deps.setupConfig);
   const requirePermission = createRequirePermission(deps.ac);
 
+  async function loadOwnedRule(req: Request, res: Response): Promise<AlertRule | null> {
+    const rule = await store.findById(req.params['id'] ?? '');
+    if (!rule || rule.workspaceId !== resolveOrgId(req)) {
+      res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Alert rule not found' } });
+      return null;
+    }
+    return rule;
+  }
+
   // Scope note: Editor's built-in grants for alert-rule CRUD are keyed on
   // `folders:*` (see roles-def.ts — matching Grafana's "alerts live in
   // folders" model). For per-rule reads / writes we use
@@ -250,11 +259,8 @@ export function createAlertRulesRouter(deps: AlertRulesRouterDeps): Router {
       ac.eval(ACTIONS.AlertRulesRead, `alert.rules:uid:${req.params['id'] ?? ''}`),
     ),
     async (req: Request, res: Response) => {
-      const rule = await store.findById(req.params['id'] ?? '');
-      if (!rule) {
-        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Alert rule not found' } });
-        return;
-      }
+      const rule = await loadOwnedRule(req, res);
+      if (!rule) return;
       res.json(rule);
     },
   );
@@ -295,6 +301,8 @@ export function createAlertRulesRouter(deps: AlertRulesRouterDeps): Router {
       ac.eval(ACTIONS.AlertRulesWrite, `alert.rules:uid:${req.params['id'] ?? ''}`),
     ),
     async (req: Request, res: Response) => {
+      const existing = await loadOwnedRule(req, res);
+      if (!existing) return;
       const updated = await store.update(req.params['id'] ?? '', req.body as Partial<AlertRule>);
       if (!updated) {
         res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Alert rule not found' } });
@@ -310,6 +318,8 @@ export function createAlertRulesRouter(deps: AlertRulesRouterDeps): Router {
       ac.eval(ACTIONS.AlertRulesDelete, `alert.rules:uid:${req.params['id'] ?? ''}`),
     ),
     async (req: Request, res: Response) => {
+      const existing = await loadOwnedRule(req, res);
+      if (!existing) return;
       if (!(await store.delete(req.params['id'] ?? ''))) {
         res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Alert rule not found' } });
         return;
@@ -324,6 +334,8 @@ export function createAlertRulesRouter(deps: AlertRulesRouterDeps): Router {
       ac.eval(ACTIONS.AlertRulesWrite, `alert.rules:uid:${req.params['id'] ?? ''}`),
     ),
     async (req: Request, res: Response) => {
+      const existing = await loadOwnedRule(req, res);
+      if (!existing) return;
       const rule = await store.update(req.params['id'] ?? '', { state: 'disabled' as const });
       if (!rule) {
         res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Alert rule not found' } });
@@ -339,6 +351,8 @@ export function createAlertRulesRouter(deps: AlertRulesRouterDeps): Router {
       ac.eval(ACTIONS.AlertRulesWrite, `alert.rules:uid:${req.params['id'] ?? ''}`),
     ),
     async (req: Request, res: Response) => {
+      const existing = await loadOwnedRule(req, res);
+      if (!existing) return;
       const rule = await store.update(req.params['id'] ?? '', { state: 'normal' as const });
       if (!rule) {
         res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Alert rule not found' } });
@@ -355,7 +369,9 @@ export function createAlertRulesRouter(deps: AlertRulesRouterDeps): Router {
     ),
     async (req: Request, res: Response) => {
       const limit = parseInt((req.query['limit'] as string | undefined) ?? '50', 10);
-      res.json(await store.getHistory(req.params['id'] ?? '', limit));
+      const rule = await loadOwnedRule(req, res);
+      if (!rule) return;
+      res.json(await store.getHistory(rule.id, limit));
     },
   );
 
@@ -366,11 +382,8 @@ export function createAlertRulesRouter(deps: AlertRulesRouterDeps): Router {
     ),
     async (req: Request, res: Response, next: NextFunction) => {
       try {
-        const rule = await store.findById(req.params['id'] ?? '');
-        if (!rule) {
-          res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Alert rule not found' } });
-          return;
-        }
+        const rule = await loadOwnedRule(req, res);
+        if (!rule) return;
 
         res.json({ ok: true, testResult: { message: 'Test endpoint ready - evaluator will be wired in pipeline' } });
       } catch (err) {
@@ -386,11 +399,8 @@ export function createAlertRulesRouter(deps: AlertRulesRouterDeps): Router {
     ),
     async (req: Request, res: Response, next: NextFunction) => {
       try {
-        const rule = await store.findById(req.params['id'] ?? '');
-        if (!rule) {
-          res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Alert rule not found' } });
-          return;
-        }
+        const rule = await loadOwnedRule(req, res);
+        if (!rule) return;
 
         const body = req.body as { force?: boolean } | undefined;
 

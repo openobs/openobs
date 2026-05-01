@@ -9,6 +9,7 @@ import type {
   FeedbackStats,
   FeedListOptions,
   FeedPage,
+  FeedTenantOptions,
 } from '../repository/types/feed.js';
 
 export type {
@@ -22,14 +23,16 @@ export type {
   FeedbackStats,
   FeedListOptions,
   FeedPage,
+  FeedTenantOptions,
 } from '../repository/types/feed.js';
 
 type FeedSubscriber = (item: FeedItem) => void;
+type FeedSubscriberRecord = { fn: FeedSubscriber; tenantId?: string };
 
 export class FeedStore {
   private items: Map<string, FeedItem> = new Map();
   private orderedIds: string[] = [];
-  private subscribers: Set<FeedSubscriber> = new Set();
+  private subscribers: Set<FeedSubscriberRecord> = new Set();
   private readonly tenants = new Map<string, string>();
 
   add(
@@ -54,12 +57,15 @@ export class FeedStore {
     this.orderedIds.push(item.id);
     if (tenantId)
       this.tenants.set(item.id, tenantId);
-    this.notify(item);
+    this.notify(item, tenantId);
     return item;
   }
 
-  get(id: string): FeedItem | undefined {
-    return this.items.get(id);
+  get(id: string, options: FeedTenantOptions = {}): FeedItem | undefined {
+    const item = this.items.get(id);
+    if (!item) return undefined;
+    if (options.tenantId !== undefined && this.tenants.get(id) !== options.tenantId) return undefined;
+    return item;
   }
 
   list(options: FeedListOptions = {}): FeedPage {
@@ -89,8 +95,8 @@ export class FeedStore {
     return { items, total, page, limit };
   }
 
-  markRead(id: string): FeedItem | undefined {
-    const item = this.items.get(id);
+  markRead(id: string, options: FeedTenantOptions = {}): FeedItem | undefined {
+    const item = this.get(id, options);
     if (!item)
       return undefined;
     const updated: FeedItem = { ...item, status: 'read' };
@@ -99,8 +105,8 @@ export class FeedStore {
   }
 
   /** Mark a feed item as followed-up (user navigated from feed into investigation). */
-  markFollowedUp(id: string): FeedItem | undefined {
-    const item = this.items.get(id);
+  markFollowedUp(id: string, options: FeedTenantOptions = {}): FeedItem | undefined {
+    const item = this.get(id, options);
     if (!item)
       return undefined;
     if (item.followed_up)
@@ -110,8 +116,8 @@ export class FeedStore {
     return updated;
   }
 
-  addFeedback(id: string, feedback: FeedFeedback, comment?: string): FeedItem | undefined {
-    const item = this.items.get(id);
+  addFeedback(id: string, feedback: FeedFeedback, comment?: string, options: FeedTenantOptions = {}): FeedItem | undefined {
+    const item = this.get(id, options);
     if (!item)
       return undefined;
     const updated: FeedItem = {
@@ -127,8 +133,8 @@ export class FeedStore {
    * Record or update a per-hypothesis verdict for a feed item.
    * If feedback for the same `hypothesisId` already exists it is replaced.
    */
-  addHypothesisFeedback(id: string, feedback: HypothesisFeedback): FeedItem | undefined {
-    const item = this.items.get(id);
+  addHypothesisFeedback(id: string, feedback: HypothesisFeedback, options: FeedTenantOptions = {}): FeedItem | undefined {
+    const item = this.get(id, options);
     if (!item)
       return undefined;
     const existing = item.hypothesisFeedback ?? [];
@@ -142,8 +148,8 @@ export class FeedStore {
    * Record or update a per-action verdict for a feed item.
    * If feedback for the same `actionId` already exists it is replaced.
    */
-  addActionFeedback(id: string, feedback: ActionFeedback): FeedItem | undefined {
-    const item = this.items.get(id);
+  addActionFeedback(id: string, feedback: ActionFeedback, options: FeedTenantOptions = {}): FeedItem | undefined {
+    const item = this.get(id, options);
     if (!item)
       return undefined;
     const existing = item.actionFeedback ?? [];
@@ -154,8 +160,10 @@ export class FeedStore {
   }
 
   /** Aggregate feedback statistics across all stored feed items. */
-  getStats(): FeedbackStats {
-    const all = [...this.items.values()];
+  getStats(options: FeedTenantOptions = {}): FeedbackStats {
+    const all = [...this.items.values()].filter((item) =>
+      options.tenantId === undefined || this.tenants.get(item.id) === options.tenantId,
+    );
     const total = all.length;
     const withFeedback = all.filter((i) => i.feedback !== undefined).length;
 
@@ -208,24 +216,29 @@ export class FeedStore {
     };
   }
 
-  getUnreadCount(): number {
+  getUnreadCount(options: FeedTenantOptions = {}): number {
     let count = 0;
     for (const item of this.items.values()) {
+      if (options.tenantId !== undefined && this.tenants.get(item.id) !== options.tenantId)
+        continue;
       if (item.status === 'unread')
         count++;
     }
     return count;
   }
 
-  subscribe(fn: FeedSubscriber): () => void {
-    this.subscribers.add(fn);
+  subscribe(fn: FeedSubscriber, options: FeedTenantOptions = {}): () => void {
+    const record: FeedSubscriberRecord = { fn, tenantId: options.tenantId };
+    this.subscribers.add(record);
     return () => {
-      this.subscribers.delete(fn);
+      this.subscribers.delete(record);
     };
   }
 
-  private notify(item: FeedItem): void {
-    for (const fn of this.subscribers) {
+  private notify(item: FeedItem, tenantId?: string): void {
+    for (const { fn, tenantId: subscriberTenantId } of this.subscribers) {
+      if (subscriberTenantId !== undefined && subscriberTenantId !== tenantId)
+        continue;
       fn(item);
     }
   }

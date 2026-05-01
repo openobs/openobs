@@ -231,6 +231,9 @@ export function mountDomainRoutes(deps: MountDomainRoutesDeps): void {
   }));
   app.use('/api/versions', createVersionRouter({
     store: repos.versions,
+    dashboards: repos.dashboards,
+    alertRules: eventAlertRuleStore,
+    investigationReports: repos.investigationReports,
     ac: accessControl,
   }));
   app.use(

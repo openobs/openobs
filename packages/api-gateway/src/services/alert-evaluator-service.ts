@@ -161,6 +161,7 @@ export class AlertEvaluatorService extends EventEmitter {
   private readonly query: MetricQueryFn;
   private readonly clock: ClockFn;
   private readonly timers = new Map<string, NodeJS.Timeout>();
+  private readonly scheduleFingerprints = new Map<string, string>();
   private readonly leaderLock?: LeaderLock;
   private readonly leaderHeartbeatMs: number;
   private readonly refreshIntervalMs: number;
@@ -230,7 +231,9 @@ export class AlertEvaluatorService extends EventEmitter {
     if (this.debounceTimer) clearTimeout(this.debounceTimer);
     this.debounceTimer = setTimeout(() => {
       this.debounceTimer = undefined;
-      void this.refreshSchedule();
+      void this.refreshSchedule().catch((err) => {
+        this.logBackgroundError(err, 'alert evaluator refreshSchedule failed');
+      });
     }, this.refreshDebounceMs);
   }
 
@@ -265,7 +268,9 @@ export class AlertEvaluatorService extends EventEmitter {
     if (this.leaderLock) {
       this.leaderTimer = setInterval(() => {
         if (!this.running) return;
-        void this.tickLeader();
+        void this.tickLeader().catch((err) => {
+          this.logBackgroundError(err, 'alert evaluator tickLeader failed');
+        });
       }, this.leaderHeartbeatMs);
       // Best-effort eager attempt so the first claim doesn't wait one
       // heartbeat interval.
@@ -278,7 +283,9 @@ export class AlertEvaluatorService extends EventEmitter {
     // missed events / out-of-band DB writes still get scheduled.
     this.refreshTimer = setInterval(() => {
       if (!this.running || !this.isLeader) return;
-      void this.refreshSchedule();
+      void this.refreshSchedule().catch((err) => {
+        this.logBackgroundError(err, 'alert evaluator refreshSchedule failed');
+      });
     }, this.refreshIntervalMs);
   }
 
@@ -298,6 +305,7 @@ export class AlertEvaluatorService extends EventEmitter {
     }
     for (const t of this.timers.values()) clearInterval(t);
     this.timers.clear();
+    this.scheduleFingerprints.clear();
     if (this.leaderLock && this.isLeader) {
       // fire-and-forget; release errors are not fatal
       void this.leaderLock.release().catch(() => undefined);
@@ -318,6 +326,7 @@ export class AlertEvaluatorService extends EventEmitter {
         this.isLeader = false;
         for (const t of this.timers.values()) clearInterval(t);
         this.timers.clear();
+        this.scheduleFingerprints.clear();
       }
       return;
     }
@@ -413,20 +422,22 @@ export class AlertEvaluatorService extends EventEmitter {
       seen.add(rule.id);
       const intervalSec = rule.evaluationIntervalSec || 60;
       const intervalMs = intervalSec * 1000;
+      const fingerprint = this.scheduleFingerprint(rule, intervalMs);
       const existing = this.timers.get(rule.id);
+      if (existing && this.scheduleFingerprints.get(rule.id) === fingerprint) {
+        continue;
+      }
       if (existing) {
-        // Reuse the timer; cadence change requires a restart of that timer.
-        // Detect by tagging the timer in a side map — keep simple here:
-        // always replace if the rule's cadence may have changed. The fast
-        // path of 'no cadence change' isn't worth the tracking complexity
-        // until we see real perf trouble.
         clearInterval(existing);
       }
       const t = setInterval(() => {
         if (!this.running) return;
-        void this.tickRule(rule.id);
+        void this.tickRule(rule.id).catch((err) => {
+          this.logBackgroundError(err, 'alert evaluator tickRule failed', { ruleId: rule.id });
+        });
       }, intervalMs);
       this.timers.set(rule.id, t);
+      this.scheduleFingerprints.set(rule.id, fingerprint);
     }
     // Drop timers for rules that disappeared / got disabled.
     for (const id of [...this.timers.keys()]) {
@@ -434,7 +445,26 @@ export class AlertEvaluatorService extends EventEmitter {
         const t = this.timers.get(id);
         if (t) clearInterval(t);
         this.timers.delete(id);
+        this.scheduleFingerprints.delete(id);
       }
     }
+  }
+
+  private scheduleFingerprint(rule: AlertRule, intervalMs: number): string {
+    return `${intervalMs}:${rule.state}`;
+  }
+
+  private logBackgroundError(
+    err: unknown,
+    message: string,
+    extra: Record<string, unknown> = {},
+  ): void {
+    log.error(
+      {
+        ...extra,
+        err: err instanceof Error ? err.message : String(err),
+      },
+      message,
+    );
   }
 }

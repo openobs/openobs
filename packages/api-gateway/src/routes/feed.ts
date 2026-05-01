@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import type { ApiError } from '@agentic-obs/common';
 import { ac, ACTIONS } from '@agentic-obs/common';
 import { authMiddleware } from '../middleware/auth.js';
+import type { AuthenticatedRequest } from '../middleware/auth.js';
 import { createRequirePermission } from '../middleware/require-permission.js';
 import type { AccessControlSurface } from '../services/accesscontrol-holder.js';
 import {
@@ -37,6 +38,10 @@ export interface FeedRouterDeps {
    * — Editor+ can tag verdicts; Viewer can only consume.
    */
   ac: AccessControlSurface;
+}
+
+function currentTenantId(req: Request): string {
+  return (req as AuthenticatedRequest).auth!.orgId;
 }
 
 export function createFeedRouter(deps: FeedRouterDeps): Router {
@@ -87,15 +92,16 @@ export function createFeedRouter(deps: FeedRouterDeps): Router {
       return;
     }
 
-    res.json(await store.list({ page, limit, type, severity, status }));
+    res.json(await store.list({ page, limit, type, severity, status, tenantId: currentTenantId(req) }));
   });
 
   // GET /api/feed/subscribe - SSE stream of new feed items
-  router.get('/subscribe', requireRead, async (_req: Request, res: Response): Promise<void> => {
+  router.get('/subscribe', requireRead, async (req: Request, res: Response): Promise<void> => {
+    const tenantId = currentTenantId(req);
     initSse(res);
 
     // Send current unread count as initial event
-    sendSseEvent(res, { type: 'connected', data: { unreadCount: await store.getUnreadCount() } });
+    sendSseEvent(res, { type: 'connected', data: { unreadCount: await store.getUnreadCount({ tenantId }) } });
 
     const keepAliveTimer = setInterval(() => {
       if (res.writableEnded) {
@@ -108,7 +114,7 @@ export function createFeedRouter(deps: FeedRouterDeps): Router {
     const unsubscribe = store.subscribe((item) => {
       if (!res.writableEnded)
         sendSseEvent(res, { type: 'feed_item', data: item });
-    });
+    }, { tenantId });
 
     res.on('close', () => {
       clearInterval(keepAliveTimer);
@@ -117,13 +123,13 @@ export function createFeedRouter(deps: FeedRouterDeps): Router {
   });
 
   // GET /stats - aggregate feedback statistics (must be before /:id to avoid shadowing)
-  router.get('/stats', requireRead, async (_req: Request, res: Response): Promise<void> => {
-    res.json(await store.getStats());
+  router.get('/stats', requireRead, async (req: Request, res: Response): Promise<void> => {
+    res.json(await store.getStats({ tenantId: currentTenantId(req) }));
   });
 
   // GET /api/feed/:id - single feed item
   router.get('/:id', requireRead, async (req: Request, res: Response): Promise<void> => {
-    const item = await store.get(req.params['id'] ?? '');
+    const item = await store.get(req.params['id'] ?? '', { tenantId: currentTenantId(req) });
     if (!item) {
       const err: ApiError = { code: 'NOT_FOUND', message: 'Feed item not found' };
       res.status(404).json(err);
@@ -134,7 +140,7 @@ export function createFeedRouter(deps: FeedRouterDeps): Router {
 
   // POST /api/feed/:id/read - mark item as read
   router.post('/:id/read', requireWrite, async (req: Request, res: Response): Promise<void> => {
-    const item = await store.markRead(req.params['id'] ?? '');
+    const item = await store.markRead(req.params['id'] ?? '', { tenantId: currentTenantId(req) });
     if (!item) {
       const err: ApiError = { code: 'NOT_FOUND', message: 'Feed item not found' };
       res.status(404).json(err);
@@ -172,6 +178,7 @@ export function createFeedRouter(deps: FeedRouterDeps): Router {
       id,
       feedback as FeedFeedback,
       typeof comment === 'string' ? comment : undefined,
+      { tenantId: currentTenantId(req) },
     );
     if (!item) {
       const err: ApiError = { code: 'NOT_FOUND', message: 'Feed item not found' };
@@ -213,7 +220,7 @@ export function createFeedRouter(deps: FeedRouterDeps): Router {
       comment: typeof comment === 'string' ? comment : undefined,
     };
 
-    const item = await store.addActionFeedback(id, fb);
+    const item = await store.addActionFeedback(id, fb, { tenantId: currentTenantId(req) });
     if (!item) {
       const err: ApiError = { code: 'NOT_FOUND', message: 'Feed item not found' };
       res.status(404).json(err);
@@ -225,7 +232,7 @@ export function createFeedRouter(deps: FeedRouterDeps): Router {
 
   // POST /api/feed/:id/follow-up - mark item as followed-up (user navigated to investigation)
   router.post('/:id/follow-up', requireWrite, async (req: Request, res: Response): Promise<void> => {
-    const item = await store.markFollowedUp(req.params['id'] ?? '');
+    const item = await store.markFollowedUp(req.params['id'] ?? '', { tenantId: currentTenantId(req) });
     if (!item) {
       const err: ApiError = { code: 'NOT_FOUND', message: 'Feed item not found' };
       res.status(404).json(err);
@@ -268,7 +275,7 @@ export function createFeedRouter(deps: FeedRouterDeps): Router {
       comment: typeof comment === 'string' ? comment : undefined,
     };
 
-    const item = await store.addHypothesisFeedback(id, fb);
+    const item = await store.addHypothesisFeedback(id, fb, { tenantId: currentTenantId(req) });
     if (!item) {
       const err: ApiError = { code: 'NOT_FOUND', message: 'Feed item not found' };
       res.status(404).json(err);
@@ -280,4 +287,3 @@ export function createFeedRouter(deps: FeedRouterDeps): Router {
 
   return router;
 }
-
