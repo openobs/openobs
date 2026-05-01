@@ -347,4 +347,39 @@ describe('AlertEvaluatorService.tickAll + start/stop', () => {
     svc.stop();
     svc.stop(); // double-stop safe
   });
+
+  it('refreshSchedule keeps unchanged timers so long cadences still fire', async () => {
+    vi.useFakeTimers();
+    try {
+      const db = createTestDb();
+      const repo = new SqliteAlertRuleRepository(db);
+      const rule = await repo.create({
+        name: 'slow-cadence', description: '',
+        condition: { query: 'q', operator: '>', threshold: 5, forDurationSec: 0 },
+        evaluationIntervalSec: 2, severity: 'low', createdBy: 'u', lastEvaluatedAt: '',
+      });
+      const seen: string[] = [];
+      const svc = new AlertEvaluatorService({
+        rules: repo,
+        query: async (r) => { seen.push(r.id); return 10; },
+        clock: () => new Date(),
+        refreshIntervalMs: 1_000,
+      });
+      svc.on('alert.fired', () => undefined);
+
+      await svc.start();
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(seen).toHaveLength(0);
+
+      await vi.advanceTimersByTimeAsync(999);
+      expect(seen).toHaveLength(0);
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(seen).toEqual([rule.id]);
+      expect((await repo.findById(rule.id))?.state).toBe('firing');
+      svc.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

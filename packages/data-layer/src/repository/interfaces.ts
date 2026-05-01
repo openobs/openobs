@@ -38,6 +38,7 @@ import type {
   HypothesisFeedback,
   ActionFeedback,
   FeedbackStats,
+  FeedTenantOptions,
 } from './types/feed.js';
 import type { ApprovalAction, ApprovalContext, ApprovalRequest } from '../stores/approval-store.js';
 import type { SharePermission, ShareLink as StoreShareLink } from '../stores/share-store.js';
@@ -149,15 +150,15 @@ export interface IFeedItemRepository {
     investigationId?: string,
     tenantId?: string,
   ): MaybeAsync<FeedItem>;
-  get(id: string): MaybeAsync<FeedItem | undefined>;
+  get(id: string, options?: FeedTenantOptions): MaybeAsync<FeedItem | undefined>;
   list(options?: FeedListOptions): MaybeAsync<FeedPage>;
-  markRead(id: string): MaybeAsync<FeedItem | undefined>;
-  markFollowedUp(id: string): MaybeAsync<FeedItem | undefined>;
-  addFeedback(id: string, feedback: FeedFeedback, comment?: string): MaybeAsync<FeedItem | undefined>;
-  addHypothesisFeedback(id: string, feedback: HypothesisFeedback): MaybeAsync<FeedItem | undefined>;
-  addActionFeedback(id: string, feedback: ActionFeedback): MaybeAsync<FeedItem | undefined>;
-  getUnreadCount(): MaybeAsync<number>;
-  getStats(): MaybeAsync<FeedbackStats>;
+  markRead(id: string, options?: FeedTenantOptions): MaybeAsync<FeedItem | undefined>;
+  markFollowedUp(id: string, options?: FeedTenantOptions): MaybeAsync<FeedItem | undefined>;
+  addFeedback(id: string, feedback: FeedFeedback, comment?: string, options?: FeedTenantOptions): MaybeAsync<FeedItem | undefined>;
+  addHypothesisFeedback(id: string, feedback: HypothesisFeedback, options?: FeedTenantOptions): MaybeAsync<FeedItem | undefined>;
+  addActionFeedback(id: string, feedback: ActionFeedback, options?: FeedTenantOptions): MaybeAsync<FeedItem | undefined>;
+  getUnreadCount(options?: FeedTenantOptions): MaybeAsync<number>;
+  getStats(options?: FeedTenantOptions): MaybeAsync<FeedbackStats>;
 }
 
 // — Approval

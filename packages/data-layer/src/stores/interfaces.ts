@@ -28,6 +28,7 @@ import type {
   HypothesisFeedback,
   ActionFeedback,
   FeedbackStats,
+  FeedTenantOptions,
 } from './feed-store.js'
 import type {
   FollowUpRecord,
@@ -93,16 +94,16 @@ export interface IGatewayIncidentStore {
 export interface IGatewayFeedStore {
   // HTTP read/update
   list(options?: FeedListOptions): MaybeAsync<FeedPage>
-  get(id: string): MaybeAsync<FeedItem | undefined>
-  markRead(id: string): MaybeAsync<FeedItem | undefined>
-  markFollowedUp(id: string): MaybeAsync<FeedItem | undefined>
-  addFeedback(id: string, feedback: FeedFeedback, comment?: string): MaybeAsync<FeedItem | undefined>
-  addHypothesisFeedback(id: string, feedback: HypothesisFeedback): MaybeAsync<FeedItem | undefined>
-  addActionFeedback(id: string, feedback: ActionFeedback): MaybeAsync<FeedItem | undefined>
-  getUnreadCount(): MaybeAsync<number>
-  getStats(): MaybeAsync<FeedbackStats>
+  get(id: string, options?: FeedTenantOptions): MaybeAsync<FeedItem | undefined>
+  markRead(id: string, options?: FeedTenantOptions): MaybeAsync<FeedItem | undefined>
+  markFollowedUp(id: string, options?: FeedTenantOptions): MaybeAsync<FeedItem | undefined>
+  addFeedback(id: string, feedback: FeedFeedback, comment?: string, options?: FeedTenantOptions): MaybeAsync<FeedItem | undefined>
+  addHypothesisFeedback(id: string, feedback: HypothesisFeedback, options?: FeedTenantOptions): MaybeAsync<FeedItem | undefined>
+  addActionFeedback(id: string, feedback: ActionFeedback, options?: FeedTenantOptions): MaybeAsync<FeedItem | undefined>
+  getUnreadCount(options?: FeedTenantOptions): MaybeAsync<number>
+  getStats(options?: FeedTenantOptions): MaybeAsync<FeedbackStats>
   /** Subscribe to new feed items; returns an unsubscribe function. Always sync. */
-  subscribe(fn: (item: FeedItem) => void): () => void
+  subscribe(fn: (item: FeedItem) => void, options?: FeedTenantOptions): () => void
 
   // Write - used by orchestrator and proactive pipeline
   add(

@@ -15,6 +15,7 @@ import type {
   HypothesisFeedback,
   ActionFeedback,
   FeedbackStats,
+  FeedTenantOptions,
 } from '../types/feed.js';
 
 type FeedRow = typeof feedItems.$inferSelect;
@@ -67,8 +68,11 @@ export class SqliteFeedItemRepository implements IFeedItemRepository {
     return rowToFeedItem(row!);
   }
 
-  async get(id: string): Promise<FeedItem | undefined> {
-    const [row] = await this.db.select().from(feedItems).where(eq(feedItems.id, id));
+  async get(id: string, options: FeedTenantOptions = {}): Promise<FeedItem | undefined> {
+    const where = options.tenantId
+      ? and(eq(feedItems.id, id), eq(feedItems.tenantId, options.tenantId))
+      : eq(feedItems.id, id);
+    const [row] = await this.db.select().from(feedItems).where(where);
     return row ? rowToFeedItem(row) : undefined;
   }
 
@@ -102,37 +106,46 @@ export class SqliteFeedItemRepository implements IFeedItemRepository {
     return { items: rows.map(rowToFeedItem), total, page, limit };
   }
 
-  async markRead(id: string): Promise<FeedItem | undefined> {
+  async markRead(id: string, options: FeedTenantOptions = {}): Promise<FeedItem | undefined> {
+    const where = options.tenantId
+      ? and(eq(feedItems.id, id), eq(feedItems.tenantId, options.tenantId))
+      : eq(feedItems.id, id);
     const [row] = await this.db
       .update(feedItems)
       .set({ status: 'read' })
-      .where(eq(feedItems.id, id))
+      .where(where)
       .returning();
     return row ? rowToFeedItem(row) : undefined;
   }
 
-  async markFollowedUp(id: string): Promise<FeedItem | undefined> {
+  async markFollowedUp(id: string, options: FeedTenantOptions = {}): Promise<FeedItem | undefined> {
+    const where = options.tenantId
+      ? and(eq(feedItems.id, id), eq(feedItems.tenantId, options.tenantId))
+      : eq(feedItems.id, id);
     const [row] = await this.db
       .update(feedItems)
       .set({ followedUp: true })
-      .where(eq(feedItems.id, id))
+      .where(where)
       .returning();
     return row ? rowToFeedItem(row) : undefined;
   }
 
-  async addFeedback(id: string, feedback: FeedFeedback, comment?: string): Promise<FeedItem | undefined> {
+  async addFeedback(id: string, feedback: FeedFeedback, comment?: string, options: FeedTenantOptions = {}): Promise<FeedItem | undefined> {
     const sets: Record<string, unknown> = { feedback, status: 'read' };
     if (comment !== undefined) sets.feedbackComment = comment;
+    const where = options.tenantId
+      ? and(eq(feedItems.id, id), eq(feedItems.tenantId, options.tenantId))
+      : eq(feedItems.id, id);
     const [row] = await this.db
       .update(feedItems)
       .set(sets)
-      .where(eq(feedItems.id, id))
+      .where(where)
       .returning();
     return row ? rowToFeedItem(row) : undefined;
   }
 
-  async addHypothesisFeedback(id: string, feedback: HypothesisFeedback): Promise<FeedItem | undefined> {
-    const existing = await this.get(id);
+  async addHypothesisFeedback(id: string, feedback: HypothesisFeedback, options: FeedTenantOptions = {}): Promise<FeedItem | undefined> {
+    const existing = await this.get(id, options);
     if (!existing) return undefined;
 
     const current = existing.hypothesisFeedback ?? [];
@@ -143,16 +156,19 @@ export class SqliteFeedItemRepository implements IFeedItemRepository {
       current.push(feedback);
     }
 
+    const where = options.tenantId
+      ? and(eq(feedItems.id, id), eq(feedItems.tenantId, options.tenantId))
+      : eq(feedItems.id, id);
     const [row] = await this.db
       .update(feedItems)
       .set({ hypothesisFeedback: current })
-      .where(eq(feedItems.id, id))
+      .where(where)
       .returning();
     return row ? rowToFeedItem(row) : undefined;
   }
 
-  async addActionFeedback(id: string, feedback: ActionFeedback): Promise<FeedItem | undefined> {
-    const existing = await this.get(id);
+  async addActionFeedback(id: string, feedback: ActionFeedback, options: FeedTenantOptions = {}): Promise<FeedItem | undefined> {
+    const existing = await this.get(id, options);
     if (!existing) return undefined;
 
     const current = existing.actionFeedback ?? [];
@@ -163,24 +179,33 @@ export class SqliteFeedItemRepository implements IFeedItemRepository {
       current.push(feedback);
     }
 
+    const where = options.tenantId
+      ? and(eq(feedItems.id, id), eq(feedItems.tenantId, options.tenantId))
+      : eq(feedItems.id, id);
     const [row] = await this.db
       .update(feedItems)
       .set({ actionFeedback: current })
-      .where(eq(feedItems.id, id))
+      .where(where)
       .returning();
     return row ? rowToFeedItem(row) : undefined;
   }
 
-  async getUnreadCount(): Promise<number> {
+  async getUnreadCount(options: FeedTenantOptions = {}): Promise<number> {
+    const where = options.tenantId
+      ? and(eq(feedItems.status, 'unread'), eq(feedItems.tenantId, options.tenantId))
+      : eq(feedItems.status, 'unread');
     const [result] = await this.db
       .select({ count: sql<number>`count(*)` })
       .from(feedItems)
-      .where(eq(feedItems.status, 'unread'));
+      .where(where);
     return Number(result?.count ?? 0);
   }
 
-  async getStats(): Promise<FeedbackStats> {
-    const allRows = await this.db.select().from(feedItems);
+  async getStats(options: FeedTenantOptions = {}): Promise<FeedbackStats> {
+    const allRows = await this.db
+      .select()
+      .from(feedItems)
+      .where(options.tenantId ? eq(feedItems.tenantId, options.tenantId) : undefined);
     const items = allRows.map(rowToFeedItem);
     const total = items.length;
     const withFeedback = items.filter((i) => i.feedback).length;

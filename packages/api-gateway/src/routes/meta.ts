@@ -5,6 +5,7 @@
 import { Router } from 'express';
 import { ac, ACTIONS } from '@agentic-obs/common';
 import { authMiddleware } from '../middleware/auth.js';
+import type { AuthenticatedRequest } from '../middleware/auth.js';
 import { createRequirePermission } from '../middleware/require-permission.js';
 import type { AccessControlSurface } from '../services/accesscontrol-holder.js';
 import type { IGatewayInvestigationStore, IGatewayFeedStore } from '@agentic-obs/data-layer';
@@ -58,12 +59,14 @@ function toWeekStart(isoDate: string): string {
 export async function computeQualityMetrics(
   investigationStore: IGatewayInvestigationStore,
   feedStoreInstance: IGatewayFeedStore,
+  orgId: string,
 ): Promise<QualityMetrics> {
-  const investigations = await investigationStore.findAll();
+  const investigations = (await investigationStore.findAll())
+    .filter((inv) => inv.workspaceId === orgId);
   const totalInvestigations = investigations.length;
 
   // -- adoption rate
-  const feedStats = await feedStoreInstance.getStats();
+  const feedStats = await feedStoreInstance.getStats({ tenantId: orgId });
   const positive
     = (feedStats.byVerdict['useful'] ?? 0)
       + (feedStats.byVerdict['root_cause_correct'] ?? 0);
@@ -195,8 +198,9 @@ export function createMetaRouter(deps: MetaRouterDeps): Router {
   router.use(authMiddleware);
   router.use(requirePermission(() => ac.eval(ACTIONS.InvestigationsRead, 'investigations:*')));
 
-  router.get('/quality', async (_req, res) => {
-    const metrics = await computeQualityMetrics(invStore, feed);
+  router.get('/quality', async (req, res) => {
+    const orgId = (req as AuthenticatedRequest).auth!.orgId;
+    const metrics = await computeQualityMetrics(invStore, feed, orgId);
     res.json(metrics);
   });
 

@@ -79,4 +79,24 @@ describe('FeedStore', () => {
     expect(highOnly.items).toHaveLength(1);
     expect(highOnly.items[0]!.severity).toBe('high');
   });
+
+  it('scopes reads, updates, counts, stats, and subscriptions by tenant', () => {
+    const orgA = store.add('anomaly_detected', 'A', 'A summary', 'high', undefined, 'org_a');
+    const orgB = store.add('anomaly_detected', 'B', 'B summary', 'high', undefined, 'org_b');
+    const seen: string[] = [];
+    store.subscribe((feedItem) => seen.push(feedItem.id), { tenantId: 'org_a' });
+
+    expect(store.list({ tenantId: 'org_a' }).items.map((feedItem) => feedItem.id)).toEqual([orgA.id]);
+    expect(store.get(orgB.id, { tenantId: 'org_a' })).toBeUndefined();
+    expect(store.markRead(orgB.id, { tenantId: 'org_a' })).toBeUndefined();
+    expect(store.getUnreadCount({ tenantId: 'org_a' })).toBe(1);
+
+    store.addFeedback(orgA.id, 'useful', undefined, { tenantId: 'org_a' });
+    expect(store.getStats({ tenantId: 'org_a' }).withFeedback).toBe(1);
+    expect(store.getStats({ tenantId: 'org_b' }).withFeedback).toBe(0);
+
+    store.add('anomaly_detected', 'A2', 'A2 summary', 'high', undefined, 'org_a');
+    store.add('anomaly_detected', 'B2', 'B2 summary', 'high', undefined, 'org_b');
+    expect(seen).toHaveLength(1);
+  });
 });

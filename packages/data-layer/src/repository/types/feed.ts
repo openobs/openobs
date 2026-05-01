@@ -102,6 +102,10 @@ export interface FeedListOptions {
   tenantId?: string;
 }
 
+export interface FeedTenantOptions {
+  tenantId?: string;
+}
+
 export interface FeedPage {
   items: FeedItem[];
   total: number;
