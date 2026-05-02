@@ -25,6 +25,10 @@ pictures/
 .idea/
 .codex
 
+# e2e testkit runtime state (cluster url, tokens, port-forward pid/log).
+tests/e2e/.state/*
+!tests/e2e/.state/.gitkeep
+
 # packages/cli is a generated distribution — build with `npm run dist`
 packages/cli/dist/
 packages/cli/web-dist/

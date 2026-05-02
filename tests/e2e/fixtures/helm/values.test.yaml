@@ -1,0 +1,30 @@
+# Helm values for the e2e testkit. Layered on top of helm/openobs/values.yaml
+# via `-f`. Image tag, LLM provider/model/api key are injected by deploy.sh
+# from $OPENOBS_TEST_LLM_* env vars.
+replicaCount: 1
+
+image:
+  tag: ""
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+
+env:
+  NODE_ENV: production
+  LOG_LEVEL: info
+  # #119 already defaults this on; pinned here so an operator override in
+  # values.yaml cannot break in-cluster datasource discovery.
+  OPENOBS_ALLOW_PRIVATE_URLS: "true"
+  # Provider/model are injected via --set in deploy.sh.
+  LLM_PROVIDER: ""
+  LLM_MODEL: ""
+  # Non-charted keys flow through env.extra (rendered into the configmap).
+  # ALERT_EVALUATOR_REFRESH_MS avoids the timer-reset feedback loop observed
+  # on main where every alert rule write rearms the evaluator; deploy.sh
+  # injects it via --set so callers can override per run.
+  extra: {}
+
+secretEnv:
+  # LLM_API_KEY injected via --set in deploy.sh.
+  LLM_API_KEY: ""
