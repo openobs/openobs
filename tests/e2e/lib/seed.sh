@@ -177,7 +177,7 @@ printf "%s" "$prom_id" > "$PROM_DS_FILE"
 
 # --- 5. ops connector (in-cluster) --------------------------------------
 phase "ops connector (in-cluster, namespace=$OPS_NS)"
-existing_ops=$(api GET "/api/ops-connectors" "${CURL_AUTH[@]}")
+existing_ops=$(api GET "/api/ops/connectors" "${CURL_AUTH[@]}")
 ops_id=$(printf '%s' "$existing_ops" | python3 -c '
 import json,sys
 data = json.load(sys.stdin)
@@ -190,7 +190,7 @@ if [[ -z "$ops_id" ]]; then
 {"name":"e2e","type":"kubernetes","config":{"mode":"in-cluster"},"allowedNamespaces":["$OPS_NS"],"capabilities":["read","propose","execute_approved"]}
 JSON
 )
-  created=$(api POST "/api/ops-connectors" "${CURL_AUTH[@]}" --data "$ops_body")
+  created=$(api POST "/api/ops/connectors" "${CURL_AUTH[@]}" --data "$ops_body")
   ops_id=$(printf '%s' "$created" | python3 -c 'import json,sys; print(json.load(sys.stdin)["connector"]["id"])')
   printf "[seed] ops connector created id=%s\n" "$ops_id" >&2
 else
