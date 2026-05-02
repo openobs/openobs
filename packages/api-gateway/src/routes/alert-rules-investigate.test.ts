@@ -9,12 +9,25 @@
  * workspaceId through.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import type { AlertRule } from '@agentic-obs/common';
 import type { Identity } from '@agentic-obs/common';
-import { setAuthMiddleware } from '../middleware/auth.js';
+
+// Replace the module-level authMiddleware (which delegates to a global
+// resolvedMiddleware mutable across the process) with a passthrough.
+// vi.mock isolates per-test-file regardless of vitest worker reuse, so
+// other test files that mutate the global cannot strip req.auth that
+// our per-app middleware in makeApp() sets below.
+vi.mock('../middleware/auth.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../middleware/auth.js')>();
+  return {
+    ...actual,
+    authMiddleware: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
+  };
+});
+
 import { createAlertRulesRouter } from './alert-rules.js';
 
 const ALWAYS_ALLOW: { evaluate: () => Promise<true>; eval: (...a: unknown[]) => unknown } = {
@@ -85,13 +98,6 @@ function makeApp(opts: {
 }
 
 describe('POST /api/alert-rules/:id/investigate', () => {
-  beforeEach(() => {
-    // Replace the global auth middleware with a passthrough so the
-    // router's internal `authMiddleware` call is a no-op and won't
-    // overwrite req.auth that the per-app middleware (in makeApp) sets.
-    setAuthMiddleware((_req, _res, next) => { next(); });
-  });
-
   it('passes the rule\'s workspaceId to investigationStore.create', async () => {
     const create = vi.fn(async (input: { workspaceId?: string }) => ({
       id: 'inv_1',
