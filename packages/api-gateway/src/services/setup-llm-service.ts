@@ -7,6 +7,7 @@ import {
   GeminiProvider,
   OllamaProvider,
   ProviderError,
+  buildApiKeyResolver,
   type ModelInfo,
 } from '@agentic-obs/llm-gateway';
 import { ensureSafeUrl } from '../utils/url-validator.js';
@@ -40,8 +41,16 @@ export class SetupLlmServiceError extends Error {
   }
 }
 
-function resolveToken(cfg: LlmConfigWire): string | null {
-  return cfg.apiKey ?? null;
+async function resolveToken(cfg: LlmConfigWire): Promise<string | null> {
+  // Honour `apiKeyHelper` here too — otherwise the Test Connection probe
+  // sends no auth header even though the saved config will, and the user
+  // sees a confusing 401 against a config that actually works.
+  const resolver = buildApiKeyResolver({
+    staticKey: cfg.apiKey ?? null,
+    helperCommand: cfg.apiKeyHelper ?? null,
+  });
+  const value = (await resolver()).trim();
+  return value.length > 0 ? value : null;
 }
 
 function describeFetchError(err: unknown): string {
@@ -89,7 +98,7 @@ export class SetupLlmService {
         const baseUrl = cfg.baseUrl;
         if (!baseUrl) return { ok: false, message: 'Gateway base URL is required' };
         const apiFormat = cfg.apiFormat ?? 'anthropic';
-        const token = resolveToken(cfg);
+        const token = await resolveToken(cfg);
         // Token is OPTIONAL for corp gateways — some authenticate via the
         // network boundary (mTLS / IP allowlist / sidecar proxy). When set
         // we forward it; when empty we skip the auth header entirely.
@@ -131,9 +140,16 @@ export class SetupLlmService {
           headers['anthropic-version'] = '2023-06-01';
         }
         if (token && apiFormat !== 'gemini') {
-          if (cfg.authType === 'bearer' || apiFormat === 'openai') {
+          // Bedrock-style upstreams (and any explicit `bearer` authType)
+          // expect `Authorization: Bearer …`. Anthropic native gateways use
+          // `x-api-key`. Anything else falls back to `api-key`.
+          if (
+            cfg.authType === 'bearer' ||
+            apiFormat === 'openai' ||
+            apiFormat === 'anthropic-bedrock'
+          ) {
             headers['Authorization'] = `Bearer ${token}`;
-          } else if (apiFormat === 'anthropic' || apiFormat === 'anthropic-bedrock') {
+          } else if (apiFormat === 'anthropic') {
             headers['x-api-key'] = token;
           } else {
             headers['api-key'] = token;

@@ -7,7 +7,7 @@
  */
 
 import { Router } from 'express';
-import type { Request, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 import type { SetupConfigService } from '../services/setup-config-service.js';
 import type {
@@ -121,7 +121,7 @@ export function createDatasourcesRouter(deps: DatasourcesRouterDeps): Router {
   router.post(
     '/',
     requirePermission(() => ac.eval(ACTIONS.DatasourcesCreate)),
-    async (req: Request, res: Response) => {
+    async (req: Request, res: Response, next: NextFunction) => {
     const body = req.body as DatasourceBody;
     if (!body?.type || !body.url || !body.name) {
       res.status(400).json({
@@ -131,29 +131,47 @@ export function createDatasourcesRouter(deps: DatasourcesRouterDeps): Router {
     }
     const actor = actorFromReq(req);
     const orgId = resolveOrgId(req, body);
-    // If caller supplies an id that already exists, surface 409.
-    if (body.id && (await setupConfig.getDatasource(body.id, { orgId }))) {
-      res.status(409).json({
-        error: { code: 'CONFLICT', message: `Datasource "${body.id}" already exists` },
-      });
-      return;
+    try {
+      // If caller supplies an id that already exists, surface 409.
+      if (body.id && (await setupConfig.getDatasource(body.id, { orgId }))) {
+        res.status(409).json({
+          error: { code: 'CONFLICT', message: `Datasource "${body.id}" already exists` },
+        });
+        return;
+      }
+      const input: NewInstanceDatasource = {
+        id: body.id,
+        type: body.type,
+        name: body.name,
+        url: body.url,
+        environment: body.environment ?? null,
+        cluster: body.cluster ?? null,
+        label: body.label ?? null,
+        apiKey: body.apiKey ?? null,
+        username: body.username ?? null,
+        password: body.password ?? null,
+        isDefault: body.isDefault ?? false,
+        orgId,
+      };
+      const created = await setupConfig.createDatasource(input, actor);
+      res.status(201).json({ datasource: maskForWire(created) });
+    } catch (err) {
+      // SQLite unique-constraint races (e.g. two concurrent POSTs with the
+      // same name/id) reach here after the pre-check above. Map them to a
+      // proper 409 instead of letting the request hang on an unhandled
+      // promise rejection — Express 4 doesn't auto-forward async throws.
+      const code = (err as { code?: string } | null)?.code;
+      if (code === 'SQLITE_CONSTRAINT_UNIQUE' || code === 'SQLITE_CONSTRAINT') {
+        res.status(409).json({
+          error: {
+            code: 'CONFLICT',
+            message: `Datasource conflicts with an existing entry${body.id ? ` ("${body.id}")` : ''}`,
+          },
+        });
+        return;
+      }
+      next(err);
     }
-    const input: NewInstanceDatasource = {
-      id: body.id,
-      type: body.type,
-      name: body.name,
-      url: body.url,
-      environment: body.environment ?? null,
-      cluster: body.cluster ?? null,
-      label: body.label ?? null,
-      apiKey: body.apiKey ?? null,
-      username: body.username ?? null,
-      password: body.password ?? null,
-      isDefault: body.isDefault ?? false,
-      orgId,
-    };
-    const created = await setupConfig.createDatasource(input, actor);
-    res.status(201).json({ datasource: maskForWire(created) });
   },
   );
 

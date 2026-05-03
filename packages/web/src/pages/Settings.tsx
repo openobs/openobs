@@ -1114,11 +1114,16 @@ function LlmTab({ canWrite }: { canWrite: boolean }) {
   }, []);
 
   const provider = LLM_PROVIDERS.find((p) => p.value === config.provider) ?? LLM_PROVIDERS[0]!;
-  // Only fetched models are selectable — no manual entry, no fallback list.
-  const availableModels = remoteModels.map((m) => ({
-    id: m.id,
-    label: m.description ? `${m.name} (${m.description})` : m.name,
-  }));
+  // Prefer fetched models, but fall back to the provider's known list so
+  // providers without a /models endpoint (e.g. corporate-gateway) still
+  // surface options. The Default Model field is also free-text via
+  // <datalist> so users can type any model the upstream supports.
+  const availableModels = (remoteModels.length > 0
+    ? remoteModels.map((m) => ({
+        id: m.id,
+        label: m.description ? `${m.name} (${m.description})` : m.name,
+      }))
+    : provider.fallbackModels.map((id) => ({ id, label: id })));
 
   const handleFetchModels = async () => {
     setFetchingModels(true); setRemoteModels([]); setModelsFetched(false); setModelsWarning(null);
@@ -1260,9 +1265,16 @@ function LlmTab({ canWrite }: { canWrite: boolean }) {
       <div>
         <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">Default Model</label>
         <div className="flex gap-2">
-          <select value={config.model} onChange={(e) => setConfig((prev) => ({ ...prev, model: e.target.value }))} className={selectCls + ' flex-1'}>
+          <input
+            list="llm-model-options"
+            value={config.model}
+            onChange={(e) => setConfig((prev) => ({ ...prev, model: e.target.value }))}
+            placeholder="model id"
+            className={inputCls + ' flex-1'}
+          />
+          <datalist id="llm-model-options">
             {availableModels.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-          </select>
+          </datalist>
           {provider.supportsModelFetch && (
             <button type="button" onClick={() => void handleFetchModels()} disabled={fetchingModels || (provider.needsKey && !config.apiKey)} className={btnSecondary + ' whitespace-nowrap'}>
               {fetchingModels ? 'Loading...' : 'Fetch Models'}
