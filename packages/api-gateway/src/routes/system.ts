@@ -73,9 +73,18 @@ export function createSystemRouter(deps: SystemRouterDeps): Router {
       });
       return;
     }
-    if (!cfg.apiKey && cfg.provider !== 'ollama' && cfg.provider !== 'aws-bedrock') {
+    // Providers that authenticate without a static `apiKey`:
+    //  - ollama / aws-bedrock: no key concept (Bedrock uses SigV4)
+    //  - corporate-gateway: typically authed at the network edge
+    //    (mTLS / sidecar) or via a rotating helper command
+    // For everyone else, accept either a static key OR an apiKeyHelper.
+    const keylessProviders = new Set(['ollama', 'aws-bedrock', 'corporate-gateway']);
+    if (!cfg.apiKey && !cfg.apiKeyHelper && !keylessProviders.has(cfg.provider)) {
       res.status(400).json({
-        error: { code: 'VALIDATION', message: 'apiKey is required for this provider' },
+        error: {
+          code: 'VALIDATION',
+          message: 'apiKey or apiKeyHelper is required for this provider',
+        },
       });
       return;
     }
@@ -86,6 +95,8 @@ export function createSystemRouter(deps: SystemRouterDeps): Router {
       baseUrl: cfg.baseUrl ?? null,
       authType: cfg.authType ?? null,
       region: cfg.region ?? null,
+      apiKeyHelper: cfg.apiKeyHelper ?? null,
+      apiFormat: cfg.apiFormat ?? null,
     };
     const saved = await setupConfig.setLlm(input, actorFromReq(req));
     res.json({ ok: true, llm: { ...saved, apiKey: saved.apiKey ? '••••••' + (saved.apiKey.slice(-4)) : null } });

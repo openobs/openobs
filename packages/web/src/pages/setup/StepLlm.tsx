@@ -25,12 +25,16 @@ export function StepLlm({
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const provider = LLM_PROVIDERS.find((p) => p.value === config.provider) ?? LLM_PROVIDERS[0]!;
 
-  // Only fetched models are selectable — no manual entry, no fallback list.
-  // The user must click Fetch Models successfully before they can pick one.
-  const availableModels: Array<{ id: string; label: string }> = remoteModels.map((m) => ({
-    id: m.id,
-    label: m.description ? `${m.name} (${m.description})` : m.name,
-  }));
+  // Prefer fetched models; fall back to the provider's known list so
+  // providers without a /models endpoint (e.g. corporate-gateway) still
+  // surface options. The Default Model field is also free-text via
+  // <datalist> so users can type any model the upstream supports.
+  const availableModels: Array<{ id: string; label: string }> = remoteModels.length > 0
+    ? remoteModels.map((m) => ({
+        id: m.id,
+        label: m.description ? `${m.name} (${m.description})` : m.name,
+      }))
+    : provider.fallbackModels.map((id) => ({ id, label: id }));
 
   const handleFetchModels = async () => {
     setFetchingModels(true);
@@ -122,7 +126,7 @@ export function StepLlm({
     config.apiKey.length > 0 ||
     config.apiKeyHelper.length > 0 ||
     config.provider === 'corporate-gateway';
-  const canProceed = Boolean(config.model) && remoteModels.length > 0 && hasCredential;
+  const canProceed = Boolean(config.model) && hasCredential;
 
   return (
     <div>
@@ -262,21 +266,20 @@ export function StepLlm({
         <div>
           <label className="block text-sm font-medium text-[var(--color-on-surface)] mb-1.5">Default Model</label>
           <div className="flex gap-2 items-stretch min-w-0">
-            <select
+            <input
+              list="step-llm-model-options"
               value={config.model}
               onChange={(e) => onChange({ model: e.target.value })}
-              disabled={availableModels.length === 0}
-              className="flex-1 min-w-0 w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)] truncate disabled:opacity-60"
-            >
-              {availableModels.length === 0 && (
-                <option value="">— Click "Fetch Models" to load —</option>
-              )}
+              placeholder="model id"
+              className="flex-1 min-w-0 w-full px-3 py-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] text-[var(--color-on-surface)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)] truncate"
+            />
+            <datalist id="step-llm-model-options">
               {availableModels.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.label}
                 </option>
               ))}
-            </select>
+            </datalist>
             {provider.supportsModelFetch && (
               <button
                 type="button"
