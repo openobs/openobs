@@ -176,19 +176,9 @@ describe('POST /api/alert-rules/:id/investigate', () => {
     expect((create.mock.calls[0] as unknown[])?.[0]).toMatchObject({ userId: 'u_alice' });
   });
 
-  it('falls back to the requester\'s workspace when the rule has none', async () => {
-    const create = vi.fn(async () => ({ id: 'inv_2' }));
-    const app = makeApp({
-      rule: makeRule({ workspaceId: undefined }),
-      identity: { userId: 'u1', orgId: 'org_main', orgRole: 'Editor', isServerAdmin: false, authenticatedBy: 'session' },
-      capturedCreate: create,
-    });
-
-    await request(app)
-      .post('/api/alert-rules/r1/investigate')
-      .send({})
-      .expect(200);
-
-    expect((create.mock.calls[0] as unknown[])?.[0]).toMatchObject({ workspaceId: 'org_main' });
-  });
+  // Removed: 'falls back to the requester's workspace when the rule has none'.
+  // The audit fix in #126 tightened loadOwnedRule to a strict workspaceId
+  // equality check — rules without a workspaceId are now 404, not silently
+  // adopted by the requester's org. The fallback contract this test asserted
+  // no longer exists; keeping the test would gate CI on dead behavior.
 });
