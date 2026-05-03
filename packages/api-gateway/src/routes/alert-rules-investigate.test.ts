@@ -62,6 +62,7 @@ function makeApp(opts: {
   rule: AlertRule | null;
   identity: Identity;
   capturedCreate: ReturnType<typeof vi.fn>;
+  runner?: Parameters<typeof createAlertRulesRouter>[0]['runner'];
 }) {
   const store = {
     findById: vi.fn(async () => opts.rule),
@@ -92,6 +93,7 @@ function makeApp(opts: {
       investigationStore,
       setupConfig: SETUP_CONFIG_STUB,
       ac: ALWAYS_ALLOW as unknown as Parameters<typeof createAlertRulesRouter>[0]['ac'],
+      ...(opts.runner ? { runner: opts.runner } : {}),
     }),
   );
   return app;
@@ -117,6 +119,61 @@ describe('POST /api/alert-rules/:id/investigate', () => {
     expect(res.body).toEqual({ investigationId: 'inv_1', existing: false });
     expect(create).toHaveBeenCalledTimes(1);
     expect((create.mock.calls[0] as unknown[])?.[0]).toMatchObject({ workspaceId: 'ws_team_a' });
+  });
+
+  it('spawns the background agent under the clicker\'s identity and advances investigation status', async () => {
+    const create = vi.fn(async () => ({ id: 'inv_run_1' }));
+    // Promise we resolve when the orchestrator's handleMessage is called.
+    // This proves the route actually kicks off the agent path (not just
+    // creates the row).
+    let agentCalledResolve: (msg: { identity: Identity; message: string; status: string }) => void = () => {};
+    const agentCalled = new Promise<{ identity: Identity; message: string; status: string }>((r) => { agentCalledResolve = r; });
+    let observedStatus = 'planning';
+
+    const identity: Identity = {
+      userId: 'u_alice',
+      orgId: 'ws_team_a',
+      orgRole: 'Editor',
+      isServerAdmin: false,
+      authenticatedBy: 'session',
+    };
+
+    const fakeOrchestrator = {
+      handleMessage: vi.fn(async (message: string) => {
+        // Mock the agent doing its work and advancing status.
+        observedStatus = 'completed';
+        agentCalledResolve({ identity, message, status: observedStatus });
+        return 'done';
+      }),
+    } as unknown as Awaited<ReturnType<NonNullable<Parameters<typeof createAlertRulesRouter>[0]['runner']>['makeOrchestrator']>>;
+
+    const runner = {
+      saTokens: { validateAndLookup: vi.fn() } as unknown as NonNullable<Parameters<typeof createAlertRulesRouter>[0]['runner']>['saTokens'],
+      makeOrchestrator: vi.fn(async () => fakeOrchestrator),
+    } as NonNullable<Parameters<typeof createAlertRulesRouter>[0]['runner']>;
+
+    const app = makeApp({
+      rule: makeRule({ workspaceId: 'ws_team_a' }),
+      identity,
+      capturedCreate: create,
+      runner,
+    });
+
+    const res = await request(app)
+      .post('/api/alert-rules/r1/investigate')
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ investigationId: 'inv_run_1', existing: false });
+
+    // The route returns immediately; the agent spawn is in-flight. Wait
+    // for it to land so we can assert it actually ran.
+    const observed = await agentCalled;
+    expect(observed.identity.userId).toBe('u_alice');
+    expect(observed.message).toContain('Test Rule');
+    expect(observed.status).toBe('completed');
+    // Investigation row was created with the clicker's userId, not 'alert-system'.
+    expect((create.mock.calls[0] as unknown[])?.[0]).toMatchObject({ userId: 'u_alice' });
   });
 
   it('falls back to the requester\'s workspace when the rule has none', async () => {
