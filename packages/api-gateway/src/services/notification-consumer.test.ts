@@ -359,6 +359,174 @@ describe('NotificationConsumer', () => {
     expect(dispatchRepo.rows).toHaveLength(1);
   });
 
+  // -- Approval routing (T3.1) --------------------------------------
+  //
+  // Reuses the same NotificationConsumer; injects an ApprovalRouter stub
+  // that returns a fixed user list, plus a teamMembers stub that maps
+  // users to teams. The policy tree keys on `team` labels exactly the
+  // same way it does for alert.fired routing — no second source of truth.
+
+  it('approval.created — routes to contact points belonging to teams of matched users', async () => {
+    const tree = nodeOf({
+      id: 'root',
+      contactPointId: '',
+      children: [
+        nodeOf({ id: 'c1', matchers: [{ label: 'team', operator: '=', value: 'team_payments' }], contactPointId: 'cp-pay' }),
+        nodeOf({ id: 'c2', matchers: [{ label: 'team', operator: '=', value: 'team_storage' }], contactPointId: 'cp-stor' }),
+      ],
+    });
+    const i1: ContactPointIntegration = { id: 'slack-pay', type: 'slack', name: 's', settings: { url: 'https://hooks/abc' } };
+    const i2: ContactPointIntegration = { id: 'slack-stor', type: 'slack', name: 's', settings: { url: 'https://hooks/abc' } };
+
+    const consumer = new NotificationConsumer({
+      bus,
+      notifications: new FakeNotifRepo(tree, [cpWith('cp-pay', [i1]), cpWith('cp-stor', [i2])]) as unknown as INotificationRepository,
+      notificationDispatch: dispatchRepo,
+      senders: () => async (integration) => { calls.push({ integrationId: integration.id, payload: basePayload() }); return { ok: true, message: 'ok' }; },
+      clock: () => new Date('2026-05-03T00:00:00Z'),
+      approvalRouter: { findApprovers: async () => ['u_alice'] } as unknown as import('./approval-router.js').ApprovalRouter,
+      teamMembers: {
+        listTeamsForUser: async (userId: string) => userId === 'u_alice' ? [{ teamId: 'team_payments', userId } as never] : [],
+      } as unknown as import('@agentic-obs/common').ITeamMemberRepository,
+    });
+
+    await consumer.handleApprovalCreated({
+      id: 'env_1',
+      type: 'approval.created',
+      timestamp: '2026-05-03T00:00:00Z',
+      payload: {
+        approvalId: 'ap_1',
+        orgId: 'org_main',
+        opsConnectorId: 'prod-eks',
+        targetNamespace: 'platform',
+        requesterTeamId: null,
+        summary: 's',
+        createdAt: '2026-05-03T00:00:00Z',
+      },
+    });
+
+    expect(calls.map((c) => c.integrationId)).toEqual(['slack-pay']);
+  });
+
+  it('approval.created — idempotent: a duplicate publish for the same approvalId does not re-notify', async () => {
+    const tree = nodeOf({
+      id: 'root',
+      contactPointId: '',
+      children: [
+        nodeOf({ id: 'c1', matchers: [{ label: 'team', operator: '=', value: 'team_payments' }], contactPointId: 'cp-pay' }),
+      ],
+    });
+    const i1: ContactPointIntegration = { id: 'slack-pay', type: 'slack', name: 's', settings: { url: 'https://hooks/abc' } };
+
+    const consumer = new NotificationConsumer({
+      bus,
+      notifications: new FakeNotifRepo(tree, [cpWith('cp-pay', [i1])]) as unknown as INotificationRepository,
+      notificationDispatch: dispatchRepo,
+      senders: () => async (integration) => { calls.push({ integrationId: integration.id, payload: basePayload() }); return { ok: true, message: 'ok' }; },
+      clock: () => new Date('2026-05-03T00:00:00Z'),
+      approvalRouter: { findApprovers: async () => ['u_alice'] } as unknown as import('./approval-router.js').ApprovalRouter,
+      teamMembers: {
+        listTeamsForUser: async () => [{ teamId: 'team_payments', userId: 'u_alice' } as never],
+      } as unknown as import('@agentic-obs/common').ITeamMemberRepository,
+    });
+
+    const env = {
+      id: 'env_1', type: 'approval.created', timestamp: '2026-05-03T00:00:00Z',
+      payload: {
+        approvalId: 'ap_dup', orgId: 'org_main',
+        opsConnectorId: null, targetNamespace: null, requesterTeamId: null,
+        summary: 's', createdAt: '2026-05-03T00:00:00Z',
+      },
+    } as const;
+
+    await consumer.handleApprovalCreated(env);
+    await consumer.handleApprovalCreated(env);
+    // The notification_dispatch dedup key is (orgId, fingerprint=approvalId,
+    // contactPointId, groupKey). The first send writes it; the second falls
+    // into the within-groupInterval window and skips.
+    expect(calls).toHaveLength(1);
+    expect(dispatchRepo.rows).toHaveLength(1);
+    expect(dispatchRepo.rows[0]!.fingerprint).toBe('ap_dup');
+  });
+
+  it('approval.created — fail-closed: a non-matching narrow grant is NOT notified (router decides; consumer trusts)', async () => {
+    // Router returns an empty user list — simulating ApprovalRouter
+    // correctly excluding a user whose grant scope did not cover the row.
+    const tree = nodeOf({
+      id: 'root',
+      contactPointId: '',
+      children: [
+        nodeOf({ id: 'c1', matchers: [{ label: 'team', operator: '=', value: 'team_payments' }], contactPointId: 'cp-pay' }),
+      ],
+    });
+    const i1: ContactPointIntegration = { id: 'slack-pay', type: 'slack', name: 's', settings: { url: 'https://hooks/abc' } };
+
+    const consumer = new NotificationConsumer({
+      bus,
+      notifications: new FakeNotifRepo(tree, [cpWith('cp-pay', [i1])]) as unknown as INotificationRepository,
+      notificationDispatch: dispatchRepo,
+      senders: () => async (integration) => { calls.push({ integrationId: integration.id, payload: basePayload() }); return { ok: true, message: 'ok' }; },
+      clock: () => new Date('2026-05-03T00:00:00Z'),
+      approvalRouter: { findApprovers: async () => [] } as unknown as import('./approval-router.js').ApprovalRouter,
+      teamMembers: { listTeamsForUser: async () => [] } as unknown as import('@agentic-obs/common').ITeamMemberRepository,
+    });
+
+    await consumer.handleApprovalCreated({
+      id: 'env_1', type: 'approval.created', timestamp: '2026-05-03T00:00:00Z',
+      payload: {
+        approvalId: 'ap_1', orgId: 'org_main',
+        opsConnectorId: 'prod-eks', targetNamespace: null, requesterTeamId: null,
+        summary: 's', createdAt: '2026-05-03T00:00:00Z',
+      },
+    });
+
+    expect(calls).toHaveLength(0);
+    expect(dispatchRepo.rows).toHaveLength(0);
+  });
+
+  it('approval.created — sender error isolation: one slack throws, other senders still fire', async () => {
+    const tree = nodeOf({
+      id: 'root',
+      contactPointId: '',
+      children: [
+        nodeOf({ id: 'c1', matchers: [{ label: 'team', operator: '=', value: 'team_payments' }], contactPointId: 'cp-pay' }),
+      ],
+    });
+    const broken: ContactPointIntegration = { id: 'broken', type: 'slack', name: 's', settings: { url: 'https://hooks/abc' } };
+    const ok: ContactPointIntegration = { id: 'ok', type: 'webhook', name: 'w', settings: { url: 'https://hooks/abc' } };
+
+    const senderImpl: Sender = vi.fn(async (integration) => {
+      if (integration.id === 'broken') throw new Error('boom');
+      calls.push({ integrationId: integration.id, payload: basePayload() });
+      return { ok: true, message: 'ok' };
+    });
+
+    const consumer = new NotificationConsumer({
+      bus,
+      notifications: new FakeNotifRepo(tree, [cpWith('cp-pay', [broken, ok])]) as unknown as INotificationRepository,
+      notificationDispatch: dispatchRepo,
+      senders: () => senderImpl,
+      clock: () => new Date('2026-05-03T00:00:00Z'),
+      approvalRouter: { findApprovers: async () => ['u_alice'] } as unknown as import('./approval-router.js').ApprovalRouter,
+      teamMembers: {
+        listTeamsForUser: async () => [{ teamId: 'team_payments', userId: 'u_alice' } as never],
+      } as unknown as import('@agentic-obs/common').ITeamMemberRepository,
+    });
+
+    await consumer.handleApprovalCreated({
+      id: 'env_1', type: 'approval.created', timestamp: '2026-05-03T00:00:00Z',
+      payload: {
+        approvalId: 'ap_1', orgId: 'org_main',
+        opsConnectorId: null, targetNamespace: null, requesterTeamId: null,
+        summary: 's', createdAt: '2026-05-03T00:00:00Z',
+      },
+    });
+
+    expect(senderImpl).toHaveBeenCalledTimes(2);
+    expect(calls.map((c) => c.integrationId)).toEqual(['ok']);
+    expect(dispatchRepo.rows).toHaveLength(1);
+  });
+
   it('start/stop subscribes and unsubscribes from the bus', () => {
     // Use the bus's underlying EventEmitter listenerCount as ground truth.
     // The consumer's subscribe handler wraps handle() in `void` (fire-and-

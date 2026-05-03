@@ -37,6 +37,7 @@ import type { SetupConfigService } from '../services/setup-config-service.js';
 import type { AccessControlSurface } from '../services/accesscontrol-holder.js';
 import type { AuditWriter } from '../auth/audit-writer.js';
 import type { GitHubChangeSourceRegistry } from '../services/github-change-source-service.js';
+import type { IApprovalRequestRepository } from '@agentic-obs/data-layer';
 
 const NOOP_CONVERSATION_STORE: IAgentConversationStore = {
   getMessages: async () => [],
@@ -56,6 +57,13 @@ export interface BackgroundOrchestratorFactoryDeps {
   folderRepository?: IFolderRepository;
   /** In-process GitHub/change sources. */
   githubChangeSources?: GitHubChangeSourceRegistry;
+  /**
+   * Override the approval-request repo used by the agent's plan handler.
+   * Wired at boot to a publishing wrapper so plan-level `submit()` calls
+   * publish `approval.created` (T3.1). Falls back to the persistence repo
+   * when omitted (tests / pre-T3.1 callers).
+   */
+  approvalsOverride?: IApprovalRequestRepository;
 }
 
 export type MakeBackgroundOrchestrator = (overrides: {
@@ -109,7 +117,7 @@ export function buildBackgroundOrchestratorFactory(
       allDatasources: toAgentDatasources(datasources),
       ...(opsCommandRunner ? { opsCommandRunner, opsConnectors } : {}),
       remediationPlans: deps.persistence.repos.remediationPlans,
-      approvalRequests: deps.persistence.repos.approvals,
+      approvalRequests: deps.approvalsOverride ?? deps.persistence.repos.approvals,
       // Background runs have no SSE channel; tool events are still logged
       // via the agent's internal logger but not streamed anywhere.
       sendEvent: () => undefined,

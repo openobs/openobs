@@ -84,6 +84,12 @@ export interface MountDomainRoutesDeps {
    * Without it the row is created but no agent runs.
    */
   runner?: BackgroundRunnerDeps;
+  /**
+   * Approval-request repo used by PlanExecutorService for per-step approval
+   * submits. Wired at boot to a publishing wrapper so each `submit()`
+   * publishes `approval.created` (T3.1). Falls back to `repos.approvals`.
+   */
+  approvalsForExecutor?: import('@agentic-obs/data-layer').IApprovalRequestRepository;
 }
 
 export function mountDomainRoutes(deps: MountDomainRoutesDeps): void {
@@ -197,7 +203,7 @@ export function mountDomainRoutes(deps: MountDomainRoutesDeps): void {
   mountPlans({
     app,
     plans: repos.remediationPlans,
-    approvals: repos.approvals,
+    approvals: deps.approvalsForExecutor ?? repos.approvals,
     approvalEventStore: eventApprovalStore,
     connectors: repos.opsConnectors,
     ac: accessControl,
