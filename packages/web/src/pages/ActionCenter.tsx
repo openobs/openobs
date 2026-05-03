@@ -1,9 +1,21 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { apiClient, plansApi } from '../api/client.js';
 import type { RemediationPlan } from '../api/client.js';
+import { opsApi, type OpsConnector } from '../api/ops-api.js';
 import { relativeTime } from '../utils/time.js';
 import { useAuth } from '../contexts/AuthContext.js';
+import {
+  applyFilters,
+  distinctConnectorIds,
+  distinctNamespaces,
+  distinctTeamIds,
+  isAnyFilterActive,
+  NONE_SENTINEL,
+  parseFiltersFromParams,
+  writeFiltersToParams,
+  type ApprovalFilters,
+} from './action-center-filters.js';
 
 // Types
 
@@ -31,6 +43,16 @@ interface ApprovalRequest {
   expiresAt?: string;
   resolvedAt?: string;
   resolvedBy?: string;
+  // Multi-team scope tags (T2.1). NULL on legacy / non-ops rows. Used by the
+  // filter chip strips to narrow within the user's already-permitted set.
+  opsConnectorId?: string | null;
+  targetNamespace?: string | null;
+  requesterTeamId?: string | null;
+}
+
+interface TeamLite {
+  id: string;
+  name: string;
 }
 
 // Helpers
@@ -149,6 +171,60 @@ function ActionCard({ request, processing, onApprove, onReject, canApprove }: Ac
   );
 }
 
+// Filter chip strip (single-select within group, "All" clears it).
+//
+// Visual style mirrors the state-filter pills in `Alerts.tsx` (bg-surface-high
+// pill container, primary highlight on active). No shared chip component
+// exists in this codebase; if/when one is extracted these strips should
+// migrate to it.
+
+interface ChipStripProps {
+  label: string;
+  values: readonly (string | typeof NONE_SENTINEL)[];
+  active: string | null;
+  onChange: (next: string | null) => void;
+  display: (value: string | typeof NONE_SENTINEL) => string;
+}
+
+function ChipStrip({ label, values, active, onChange, display }: ChipStripProps) {
+  if (values.length === 0) return null;
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <span className="text-xs text-[var(--color-outline)] uppercase tracking-wide">{label}</span>
+      <div className="flex gap-1 bg-surface-high rounded-lg p-0.5 flex-wrap">
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+            active === null
+              ? 'bg-[var(--color-surface-high)] text-[var(--color-on-surface)]'
+              : 'text-[var(--color-outline)] hover:text-[var(--color-on-surface-variant)]'
+          }`}
+        >
+          All
+        </button>
+        {values.map((v) => {
+          const isActive = active === v;
+          return (
+            <button
+              key={v}
+              type="button"
+              onClick={() => onChange(v)}
+              className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                isActive
+                  ? 'bg-[var(--color-primary)]/15 text-[var(--color-primary)]'
+                  : 'text-[var(--color-outline)] hover:text-[var(--color-on-surface-variant)]'
+              }`}
+            >
+              {display(v)}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // Main component
 
 export default function ActionCenter() {
@@ -190,6 +266,52 @@ export default function ActionCenter() {
     setTabState((prev) => (prev === next ? prev : next));
   }, [searchParams]);
   const [plans, setPlans] = useState<RemediationPlan[]>([]);
+
+  // Filter chip state (T3.2). Lives in the URL so deep links survive refresh
+  // and can be linked to from other pages (team detail "See all").
+  const filters: ApprovalFilters = useMemo(() => parseFiltersFromParams(searchParams), [searchParams]);
+  const setFilter = useCallback(
+    (slot: keyof ApprovalFilters, next: string | null) => {
+      const params = new URLSearchParams(searchParams);
+      const updated = { ...parseFiltersFromParams(params), [slot]: next };
+      // Picking a different connector invalidates the namespace selection.
+      if (slot === 'connector') updated.namespace = null;
+      writeFiltersToParams(params, updated);
+      setSearchParams(params, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
+
+  // One-shot lookups for human-readable names. Connector + team lists are
+  // small, so we pull each once and join client-side rather than per-row.
+  const [connectors, setConnectors] = useState<OpsConnector[]>([]);
+  const [teams, setTeams] = useState<TeamLite[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const list = await opsApi.listConnectors();
+        if (!cancelled) setConnectors(list);
+      } catch {
+        // Names are nice-to-have — fall back to ids on failure.
+      }
+      const res = await apiClient.get<{ items?: TeamLite[]; teams?: TeamLite[] }>('/teams/search?perpage=200');
+      if (!cancelled && !res.error) {
+        const list = res.data.items ?? res.data.teams ?? [];
+        setTeams(list);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const connectorName = useCallback((id: string) => {
+    const c = connectors.find((x) => x.id === id);
+    return c ? `${c.name} (${id})` : id;
+  }, [connectors]);
+  const teamName = useCallback((id: string) => {
+    const t = teams.find((x) => x.id === id);
+    return t ? `${t.name} (${id})` : id;
+  }, [teams]);
 
   const loadApprovals = useCallback(async () => {
     const res = await apiClient.get<ApprovalRequest[]>('/approvals');
@@ -268,7 +390,13 @@ export default function ActionCenter() {
     }
   }, [loadApprovals]);
 
-  const approvalsDisplayed = tab === 'pending' ? pending : tab === 'resolved' ? resolved : [];
+  const approvalsForTab = tab === 'pending' ? pending : tab === 'resolved' ? resolved : [];
+  const approvalsDisplayed = useMemo(() => applyFilters(approvalsForTab, filters), [approvalsForTab, filters]);
+  const showFilters = tab !== 'plans';
+  const connectorOptions = useMemo(() => distinctConnectorIds(approvalsForTab), [approvalsForTab]);
+  const namespaceOptions = useMemo(() => distinctNamespaces(approvalsForTab, filters.connector), [approvalsForTab, filters.connector]);
+  const teamOptions = useMemo(() => distinctTeamIds(approvalsForTab), [approvalsForTab]);
+  const filtersActive = isAnyFilterActive(filters);
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-4 bg-[var(--color-surface-lowest)] min-h-full">
@@ -337,6 +465,41 @@ export default function ActionCenter() {
         ))}
       </div>
 
+      {/* Filter chip strips (T3.2). Hidden on the Plans tab — those rows
+          come from /api/plans and don't carry the scope tags this filter
+          targets. */}
+      {showFilters && (connectorOptions.length > 0 || namespaceOptions.length > 0 || teamOptions.length > 0) && (
+        <div className="space-y-2">
+          {connectorOptions.length > 0 && (
+            <ChipStrip
+              label="Connector"
+              values={connectorOptions}
+              active={filters.connector}
+              onChange={(v) => setFilter('connector', v)}
+              display={(v) => (v === NONE_SENTINEL ? '(no connector)' : connectorName(v))}
+            />
+          )}
+          {namespaceOptions.length > 0 && (
+            <ChipStrip
+              label="Namespace"
+              values={namespaceOptions}
+              active={filters.namespace}
+              onChange={(v) => setFilter('namespace', v)}
+              display={(v) => (v === NONE_SENTINEL ? '(cluster-scoped)' : v)}
+            />
+          )}
+          {teamOptions.length > 0 && (
+            <ChipStrip
+              label="Team"
+              values={teamOptions}
+              active={filters.team}
+              onChange={(v) => setFilter('team', v)}
+              display={(v) => (v === NONE_SENTINEL ? '(no team)' : teamName(v))}
+            />
+          )}
+        </div>
+      )}
+
       {/* Action error toast */}
       {actionError && (
         <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/20 text-sm text-[#EF4444]">
@@ -400,7 +563,9 @@ export default function ActionCenter() {
         )
       ) : approvalsDisplayed.length === 0 ? (
         <div className="text-center py-16 text-[var(--color-outline)] text-sm">
-          {tab === 'pending' ? 'No pending approvals' : 'No resolved actions yet'}
+          {filtersActive
+            ? 'No pending approvals match the current filters.'
+            : tab === 'pending' ? 'No pending approvals' : 'No resolved actions yet'}
         </div>
       ) : (
         <div className="space-y-3">

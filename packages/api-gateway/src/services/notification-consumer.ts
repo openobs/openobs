@@ -28,6 +28,7 @@ import type {
 import {
   EventTypes,
   type AlertFiredEventPayload,
+  type ApprovalCreatedEventPayload,
 } from '@agentic-obs/common/events';
 import type {
   INotificationRepository,
@@ -36,6 +37,8 @@ import type {
 import { createLogger } from '@agentic-obs/common/logging';
 import { senderFor } from './notification-senders/index.js';
 import type { Sender } from './notification-senders/index.js';
+import type { ApprovalRouter, ApprovalRow } from './approval-router.js';
+import type { ITeamMemberRepository } from '@agentic-obs/common';
 
 const log = createLogger('notification-consumer');
 
@@ -52,6 +55,20 @@ export interface NotificationConsumerOptions {
   clock?: () => Date;
   /** Topic name; defaults to EventTypes.ALERT_FIRED. */
   topic?: string;
+  /**
+   * Optional approval-routing surface. When wired, the consumer also
+   * subscribes to `approval.created` and fans out to users whose
+   * `approvals:approve` grant covers the approval's scope. Without it,
+   * approval routing is silently disabled (alert.fired path unaffected).
+   * See approvals-multi-team-scope §3.7.
+   */
+  approvalRouter?: ApprovalRouter;
+  /**
+   * Required when `approvalRouter` is set — used to resolve a recipient
+   * user's teams so the policy tree (which keys on `team` labels) can
+   * locate their contact points.
+   */
+  teamMembers?: ITeamMemberRepository;
 }
 
 interface MatchedRoute {
@@ -175,7 +192,8 @@ export function decideDispatch(
 }
 
 export class NotificationConsumer {
-  private unsubscribe: (() => void) | null = null;
+  private unsubscribeAlert: (() => void) | null = null;
+  private unsubscribeApproval: (() => void) | null = null;
   private readonly clock: () => Date;
   private readonly senders: (type: ContactPointIntegration['type']) => Sender | null;
   private readonly topic: string;
@@ -187,19 +205,33 @@ export class NotificationConsumer {
   }
 
   start(): void {
-    if (this.unsubscribe) return;
-    this.unsubscribe = this.opts.bus.subscribe<AlertFiredEventPayload>(
-      this.topic,
-      (env) => {
-        void this.handle(env);
-      },
-    );
+    if (!this.unsubscribeAlert) {
+      this.unsubscribeAlert = this.opts.bus.subscribe<AlertFiredEventPayload>(
+        this.topic,
+        (env) => {
+          void this.handle(env);
+        },
+      );
+    }
+    if (!this.unsubscribeApproval && this.opts.approvalRouter) {
+      this.unsubscribeApproval = this.opts.bus.subscribe<ApprovalCreatedEventPayload>(
+        EventTypes.APPROVAL_CREATED,
+        (env) => {
+          void this.handleApprovalCreated(env);
+        },
+      );
+    }
   }
 
   stop(): void {
-    if (!this.unsubscribe) return;
-    this.unsubscribe();
-    this.unsubscribe = null;
+    if (this.unsubscribeAlert) {
+      this.unsubscribeAlert();
+      this.unsubscribeAlert = null;
+    }
+    if (this.unsubscribeApproval) {
+      this.unsubscribeApproval();
+      this.unsubscribeApproval = null;
+    }
   }
 
   /** Public for tests; production callers go via subscribe(). */
@@ -354,6 +386,120 @@ export class NotificationConsumer {
           'failed to persist notification_dispatch row',
         );
       }
+    }
+  }
+
+  /**
+   * Handle an `approval.created` event: find users whose `approvals:approve`
+   * grant covers the row, look up each user's teams, walk the policy tree
+   * keyed on `team` labels to find their contact points, and fan out.
+   *
+   * Idempotency: uses the approvalId as the dispatch fingerprint, so a
+   * duplicate publish (e.g. retry) does not re-notify (T3.1 acceptance #7).
+   *
+   * Fail-closed: callers MUST NOT fall back to broader scopes — the router
+   * already enforces this; here we just trust the recipient list it returns.
+   */
+  async handleApprovalCreated(
+    env: EventEnvelope<ApprovalCreatedEventPayload>,
+  ): Promise<void> {
+    if (!this.opts.approvalRouter || !this.opts.teamMembers) {
+      log.warn({ approvalId: env.payload.approvalId }, 'approval router not wired; skipping');
+      return;
+    }
+    const payload = env.payload;
+    const row: ApprovalRow = {
+      id: payload.approvalId,
+      opsConnectorId: payload.opsConnectorId,
+      targetNamespace: payload.targetNamespace,
+      requesterTeamId: payload.requesterTeamId,
+    };
+
+    let userIds: string[];
+    try {
+      userIds = await this.opts.approvalRouter.findApprovers(payload.orgId, row);
+    } catch (err) {
+      log.error(
+        { err: err instanceof Error ? err.message : String(err), approvalId: payload.approvalId },
+        'failed to resolve approvers for approval.created',
+      );
+      return;
+    }
+
+    if (userIds.length === 0) {
+      log.info({ approvalId: payload.approvalId }, 'no users matched approval scope; skipping');
+      return;
+    }
+
+    let tree: NotificationPolicyNode;
+    try {
+      tree = await this.opts.notifications.getPolicyTree();
+    } catch (err) {
+      log.error(
+        { err: err instanceof Error ? err.message : String(err), approvalId: payload.approvalId },
+        'failed to load notification policy tree',
+      );
+      return;
+    }
+
+    // For each user: find their teams, ask the policy tree for routes
+    // matching `{ team: <teamId> }` per team. Dedup contact points across
+    // users so two recipients sharing a team channel only get one send.
+    const seenContactPoints = new Set<string>();
+    const routes: MatchedRoute[] = [];
+    for (const userId of userIds) {
+      let memberships;
+      try {
+        memberships = await this.opts.teamMembers.listTeamsForUser(userId, payload.orgId);
+      } catch (err) {
+        log.warn(
+          { err: err instanceof Error ? err.message : String(err), userId },
+          'failed to list teams for user; skipping',
+        );
+        continue;
+      }
+      for (const m of memberships) {
+        const matched = collectMatchingRoutes(tree, { team: m.teamId });
+        for (const r of matched) {
+          if (!r.contactPointId) continue;
+          if (seenContactPoints.has(r.contactPointId)) continue;
+          seenContactPoints.add(r.contactPointId);
+          routes.push(r);
+        }
+      }
+    }
+
+    if (routes.length === 0) {
+      log.info(
+        { approvalId: payload.approvalId, userCount: userIds.length },
+        'no contact points reachable for matched approvers; skipping',
+      );
+      return;
+    }
+
+    // Adapt the approval payload to the existing Sender shape (which takes
+    // an AlertFiredEventPayload). Senders use `ruleName`/`severity`/`labels`
+    // for body text — synthesize equivalents from the approval row.
+    const adapted: AlertFiredEventPayload = {
+      ruleId: payload.approvalId,
+      ruleName: `Approval pending: ${payload.summary}`,
+      orgId: payload.orgId,
+      severity: payload.severity ?? 'medium',
+      value: 0,
+      threshold: 0,
+      operator: 'pending',
+      labels: {
+        approvalId: payload.approvalId,
+        ...(payload.opsConnectorId ? { connector: payload.opsConnectorId } : {}),
+        ...(payload.targetNamespace ? { namespace: payload.targetNamespace } : {}),
+        ...(payload.requesterTeamId ? { team: payload.requesterTeamId } : {}),
+      },
+      firedAt: payload.createdAt,
+      fingerprint: payload.approvalId,
+    };
+
+    for (const route of routes) {
+      await this.dispatchToContactPoint(adapted, route);
     }
   }
 }

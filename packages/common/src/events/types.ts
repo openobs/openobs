@@ -45,6 +45,9 @@ export const EventTypes = {
 
   // Alert lifecycle
   ALERT_FIRED: 'alert.fired',
+
+  // Approval lifecycle
+  APPROVAL_CREATED: 'approval.created',
 } as const;
 
 export type EventType = (typeof EventTypes)[keyof typeof EventTypes];
@@ -82,6 +85,31 @@ export interface FeedItemEventPayload {
   itemId: string;
   type: string;
   investigationId?: string;
+}
+
+/**
+ * `approval.created` payload — published when an ApprovalRequest row commits.
+ * Routing identical for plan-level and per-step approvals; the optional
+ * `planId` distinguishes them.
+ *
+ * Scope tags mirror the row columns from approvals-multi-team-scope §3.2 so
+ * the NotificationConsumer can find recipients via the same scope resolver
+ * the read path (T2.2) uses.
+ */
+export interface ApprovalCreatedEventPayload {
+  approvalId: string;
+  orgId: string;
+  /** Plan-level approval if non-null (action.type === 'plan'); per-step otherwise. */
+  planId?: string | null;
+  investigationId?: string | null;
+  opsConnectorId: string | null;
+  targetNamespace: string | null;
+  requesterTeamId: string | null;
+  /** Short summary for the notification body. */
+  summary: string;
+  /** Severity hint when the approval traces back to an alert. */
+  severity?: 'low' | 'medium' | 'high' | 'critical' | null;
+  createdAt: string;
 }
 
 export interface AlertFiredEventPayload {

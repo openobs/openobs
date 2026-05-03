@@ -248,7 +248,7 @@ function CreateTeamModal({
 
 // ────────────────────────────────────────────────────────────────────────────
 
-type DrawerTab = 'members' | 'roles' | 'preferences';
+type DrawerTab = 'members' | 'roles' | 'preferences' | 'approvals';
 
 function TeamDrawer({
   team,
@@ -273,7 +273,7 @@ function TeamDrawer({
         </div>
       )}
       <div className="flex gap-1 border-b border-outline mb-4">
-        {(['members', 'roles', 'preferences'] as const).map((t) => (
+        {(['members', 'roles', 'preferences', 'approvals'] as const).map((t) => (
           <button
             key={t}
             type="button"
@@ -298,8 +298,122 @@ function TeamDrawer({
       {tab === 'preferences' && (
         <TeamPreferencesTab team={team} disabled={disabled} />
       )}
+      {tab === 'approvals' && <TeamApprovalsSection teamId={team.id} />}
     </Drawer>
   );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Pending approvals from this team (T3.2). Reads `GET /approvals` and filters
+// client-side by `requesterTeamId` — the API already enforces per-row
+// visibility (T2.2), so this view never shows rows the caller couldn't see in
+// the Action Center directly.
+
+export interface TeamApprovalRow {
+  id: string;
+  status: string;
+  createdAt: string;
+  requesterTeamId?: string | null;
+  action?: { type?: string };
+}
+
+const TEAM_APPROVALS_PREVIEW_LIMIT = 5;
+
+/** Pure helper: filter the list to pending rows owned by `teamId`. */
+export function pendingApprovalsForTeam(
+  rows: readonly TeamApprovalRow[],
+  teamId: string,
+): TeamApprovalRow[] {
+  return rows.filter((r) => r.status === 'pending' && r.requesterTeamId === teamId);
+}
+
+/** Pure helper: build the "See all" link href for a given team. */
+export function teamApprovalsSeeAllHref(teamId: string): string {
+  return `/actions?team=${encodeURIComponent(teamId)}`;
+}
+
+/** Pure helper: produce the See-all link label given total + preview slice. */
+export function teamApprovalsSeeAllLabel(total: number, previewLimit: number): string {
+  const overflow = total - Math.min(total, previewLimit);
+  return overflow > 0
+    ? `See all (${overflow} more) approvals from this team`
+    : 'See all approvals from this team';
+}
+
+export function TeamApprovalsSection({
+  teamId,
+  fetchApprovals = defaultFetchApprovals,
+  previewLimit = TEAM_APPROVALS_PREVIEW_LIMIT,
+}: {
+  teamId: string;
+  fetchApprovals?: () => Promise<TeamApprovalRow[]>;
+  previewLimit?: number;
+}): React.ReactElement {
+  const [rows, setRows] = useState<TeamApprovalRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await fetchApprovals();
+        if (cancelled) return;
+        setRows(pendingApprovalsForTeam(list, teamId));
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load approvals');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [teamId, fetchApprovals]);
+
+  if (error) {
+    return (
+      <div className="text-xs text-error rounded-lg border border-error/40 bg-error/5 px-3 py-2">
+        {error}
+      </div>
+    );
+  }
+  if (rows === null) return <LoadingRow />;
+  if (rows.length === 0) {
+    return <EmptyState label="No pending approvals from this team." />;
+  }
+
+  const visible = rows.slice(0, previewLimit);
+
+  return (
+    <div data-testid="team-approvals-section">
+      <div className="space-y-2 mb-3">
+        {visible.map((r) => (
+          <div
+            key={r.id}
+            className="flex items-center gap-2 p-2 rounded-lg border border-outline"
+          >
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-mono text-on-surface truncate">
+                {r.action?.type ?? 'approval'}
+              </div>
+              <div className="text-xs text-on-surface-variant">{r.createdAt}</div>
+            </div>
+            <Badge variant="neutral">pending</Badge>
+          </div>
+        ))}
+      </div>
+      <a
+        href={teamApprovalsSeeAllHref(teamId)}
+        data-testid="see-all-approvals-link"
+        className="text-xs text-primary hover:opacity-80"
+      >
+        {teamApprovalsSeeAllLabel(rows.length, previewLimit)}
+      </a>
+    </div>
+  );
+}
+
+async function defaultFetchApprovals(): Promise<TeamApprovalRow[]> {
+  const data = await api.get<TeamApprovalRow[]>('/approvals');
+  return Array.isArray(data) ? data : [];
 }
 
 // ────────────────────────────────────────────────────────────────────────────

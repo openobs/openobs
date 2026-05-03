@@ -40,6 +40,8 @@ import { mountDomainRoutes } from './app/domain-routes.js';
 import { startAlerts } from './app/alerts-boot.js';
 import { createEventBusFromEnv } from '@agentic-obs/common/events';
 import { NotificationConsumer } from './services/notification-consumer.js';
+import { PublishingApprovalRepository } from './services/publishing-approval-repository.js';
+import { ApprovalRouter } from './services/approval-router.js';
 import { EventEmittingAlertRuleRepository } from '@agentic-obs/data-layer';
 import { buildBackgroundOrchestratorFactory } from './app/agent-factory.js';
 import { GitHubChangeSourceRegistry } from './services/github-change-source-service.js';
@@ -207,6 +209,17 @@ export async function createApp(): Promise<Application> {
   const eventBus = createEventBusFromEnv();
   app.locals['eventBus'] = eventBus;
 
+  // Wrap the approval-request repo so a successful `submit()` publishes
+  // `approval.created` on the bus (T3.1 / approvals-multi-team-scope §3.7).
+  // Both the agent-core remediation-plan handler (plan-level approvals) and
+  // PlanExecutorService (per-step approvals) write through this wrapper, so
+  // the NotificationConsumer below sees every new approval row.
+  const publishingApprovals = new PublishingApprovalRepository({
+    inner: persistence.repos.approvals,
+    bus: eventBus,
+    orgId: 'org_main',
+  });
+
   // Background-agent runner — shared by both the auto-investigation
   // dispatcher (alert.fired -> agent run) and the manual Investigate
   // button on alert rules. Built once so both paths use the same
@@ -215,6 +228,7 @@ export async function createApp(): Promise<Application> {
     saTokens: bundle.apiKeyService,
     makeOrchestrator: buildBackgroundOrchestratorFactory({
       persistence,
+      approvalsOverride: publishingApprovals,
       setupConfig,
       accessControl,
       audit: bundle.authSub.audit,
@@ -237,6 +251,7 @@ export async function createApp(): Promise<Application> {
     eventAlertRuleStore,
     githubChangeSources,
     runner: backgroundRunner,
+    approvalsForExecutor: publishingApprovals,
   });
 
   // Start the periodic alert evaluator (Phase 0.5 boot path). Behind
@@ -264,10 +279,24 @@ export async function createApp(): Promise<Application> {
   // to `alert.fired` on the same bus. Routing tree + group/repeat windows
   // are read live, so policy edits in the UI take effect on the next fire
   // without restarting.
+  // ApprovalRouter resolves users from RBAC for approval.created routing
+  // (approvals-multi-team-scope §3.7). Shares the auth repos with
+  // AccessControlService — same source of truth for visibility + notify.
+  const approvalRouter = new ApprovalRouter({
+    permissions: persistence.rbacRepos.permissions,
+    roles: persistence.rbacRepos.roles,
+    userRoles: persistence.rbacRepos.userRoles,
+    teamRoles: persistence.rbacRepos.teamRoles,
+    teamMembers: persistence.rbacRepos.teamMembers,
+    orgUsers: bundle.authRepos.orgUsers,
+  });
+
   const notificationConsumer = new NotificationConsumer({
     bus: eventBus,
     notifications: persistence.repos.notifications,
     notificationDispatch: persistence.repos.notificationDispatch,
+    approvalRouter,
+    teamMembers: persistence.rbacRepos.teamMembers,
   });
   notificationConsumer.start();
   app.locals['notificationConsumer'] = notificationConsumer;
