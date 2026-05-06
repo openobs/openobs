@@ -54,9 +54,18 @@ type OAIMsg = OAIAssistantMsg | OAIUserMsg | OAIToolMsg;
 const MAX_TURNS = 10;
 
 const PROMPTS = [
+  // Generic investigation — no vendor-specific metric in the prompt itself.
+  // web_search trigger 2 ("hits an unfamiliar metric") needs the model to
+  // notice an unknown name MID-investigation. With canned generic metric
+  // names this trigger has no surface to fire on.
   'Why is p99 latency on api-gateway so high in the last hour?',
   'Investigate why our error rate spiked at 14:30',
+  // Named-system dashboard — trigger 1.
   'Build a Redis monitoring dashboard',
+  // Vendor-specific metric DIRECTLY in the prompt — should trigger 2 if
+  // the model reads "this is a name I should look up".
+  'Why is redis_aof_rewrite_in_progress always 1 on our Redis primary?',
+  'Investigate why kafka_consumergroup_lag is climbing on group=orders-svc',
 ];
 
 function cannedToolResult(name: string): string {
@@ -154,6 +163,7 @@ interface Trace {
   toolSearchCount: number;
   webSearchCount: number;
   toolNames: string[];
+  hallucinated: string[]; // tools called but NOT in toolsForTurn (model invented or pulled from prompt prose)
   firstNonSearchToolAtTurn: number | null;
   endedReason: 'plain-text' | 'max-turns' | 'enough-work' | 'no-tool-support';
 }
@@ -185,6 +195,7 @@ async function runOne(model: string, apiKey: string, baseUrl: string, prompt: st
     toolSearchCount: 0,
     webSearchCount: 0,
     toolNames: [],
+    hallucinated: [],
     firstNonSearchToolAtTurn: null,
     endedReason: 'max-turns',
   };
@@ -205,11 +216,13 @@ async function runOne(model: string, apiKey: string, baseUrl: string, prompt: st
       tool_calls: tools,
     });
 
+    const exposedNames = new Set(toolsForTurn().map((t) => t.function.name));
     for (const tc of tools) {
       const name = tc.function.name;
       let input: Record<string, unknown>;
       try { input = JSON.parse(tc.function.arguments); } catch { input = {}; }
       trace.toolNames.push(name);
+      if (!exposedNames.has(name)) trace.hallucinated.push(name);
       let resultText: string;
       if (name === 'tool_search') {
         trace.toolSearchCount++;
@@ -254,8 +267,9 @@ async function main() {
       traces.push(t);
       console.log(
         `turns=${t.totalTurns} tool_search=${t.toolSearchCount} web_search=${t.webSearchCount} ` +
-        `firstWork@${t.firstNonSearchToolAtTurn ?? 'never'} ended=${t.endedReason}\n` +
-        `   sequence: ${t.toolNames.join(' → ') || '(no tools called)'}`,
+        `firstWork@${t.firstNonSearchToolAtTurn ?? 'never'} ended=${t.endedReason}` +
+        (t.hallucinated.length > 0 ? ` ⚠️hallucinated=[${t.hallucinated.join(',')}]` : '') +
+        `\n   sequence: ${t.toolNames.join(' → ') || '(no tools called)'}`,
       );
     } catch (e) {
       console.log(`ERROR: ${(e as Error).message}`);
