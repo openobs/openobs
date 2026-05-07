@@ -373,6 +373,21 @@ export class UPlotConfigBuilder {
           const out = yFormatter(v, undefined);
           return `${out.prefix ?? ''}${out.text}${out.suffix ?? ''}`;
         })) as unknown as uPlot.Axis.Values,
+      // Dynamic gutter sizing — uPlot's default 50px is too narrow for labels
+      // like "180 req/s" or "1.50 GiB" and clips the leading digit. Compute
+      // width from the longest formatted tick label per render. Capped 50-140
+      // so a single huge value (e.g. an outlier with many digits) can't blow
+      // up the chart, and short labels stay compact.
+      size: (_u, values) => {
+        if (!Array.isArray(values) || values.length === 0) return 50;
+        let maxLen = 0;
+        for (const v of values) {
+          const s = String(v ?? '');
+          if (s.length > maxLen) maxLen = s.length;
+        }
+        // ~7 px per char at the 12px sans-serif we use, plus 16px tick + pad.
+        return Math.max(50, Math.min(140, maxLen * 7 + 16));
+      },
     };
 
     // T-203 — log scale auto-suggest. If the non-zero value range spans
