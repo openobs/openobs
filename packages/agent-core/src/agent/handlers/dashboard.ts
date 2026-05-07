@@ -200,6 +200,21 @@ export async function handleDashboardAddPanels(
     return `Error: every query needs a datasourceId. Missing on: ${missing.join(', ')}. Pass datasourceId per query — the dashboard primary is NOT inherited automatically. For a single-source dashboard, set every query to the dashboard's primary; for compare panels, set per query.`;
   }
 
+  const queries = panels
+    .flatMap((p) => Array.isArray(p.queries) ? p.queries as Array<Record<string, unknown>> : [])
+    .map((q) => String(q.expr ?? '').trim())
+    .filter((expr) => expr.length > 0);
+  if (queries.length > 0) {
+    const evidence = ctx.dashboardBuildEvidence;
+    if (evidence.webSearchCount === 0 && evidence.metricDiscoveryCount === 0) {
+      return 'Error: dashboard_add_panels requires prior metric research. Call web_search for named-system/exporter dashboards or metrics_discover for existing metrics before adding panels.';
+    }
+    const unvalidated = [...new Set(queries)].filter((expr) => !evidence.validatedQueries.has(expr));
+    if (unvalidated.length > 0) {
+      return `Error: validate panel queries before dashboard_add_panels. Call metrics_validate for: ${unvalidated.join(' | ')}`;
+    }
+  }
+
   ctx.sendEvent({ type: 'tool_call', tool: 'dashboard_add_panels', args: { count: panels.length }, displayText: `Adding ${panels.length} panel(s)` });
 
   type CommonPanel = import('@agentic-obs/common').PanelConfig;

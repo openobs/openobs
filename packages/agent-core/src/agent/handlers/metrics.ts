@@ -275,6 +275,7 @@ export async function handleMetricsDiscover(
       summary: `metrics_discover (${kind}) ok`,
       success: true,
     });
+    ctx.dashboardBuildEvidence.metricDiscoveryCount += 1;
     return observation;
   } catch (err) {
     const msg = `metrics_discover (${kind}) failed: ${err instanceof Error ? err.message : String(err)}`;
@@ -305,6 +306,7 @@ export async function handleMetricsValidate(ctx: ActionContext, args: Record<str
     await adapter.rangeQuery(expr, start, end, '60s');
 
     const summary = `Valid query: ${expr}`;
+    ctx.dashboardBuildEvidence.validatedQueries.add(expr);
     ctx.sendEvent({ type: 'tool_result', tool: 'metrics_validate', summary, success: true });
     return summary;
   } catch (err) {

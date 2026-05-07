@@ -132,6 +132,11 @@ export class OrchestratorAgent {
   private readonly activeInvestigationIdRef: { current: string | null } = { current: null }
   /** Same pattern for the active dashboard id (set by dashboard_create / _clone). */
   private readonly activeDashboardIdRef: { current: string | null } = { current: null }
+  private readonly dashboardBuildEvidence = {
+    webSearchCount: 0,
+    metricDiscoveryCount: 0,
+    validatedQueries: new Set<string>(),
+  }
   readonly sessionId: string
 
   constructor(private deps: OrchestratorDeps, sessionId?: string) {
@@ -329,6 +334,7 @@ export class OrchestratorAgent {
       investigationSections: this.investigationSections,
       activeInvestigationIdRef: this.activeInvestigationIdRef,
       activeDashboardIdRef: this.activeDashboardIdRef,
+      dashboardBuildEvidence: this.dashboardBuildEvidence,
     })
     return this.actionRunner.execute(step, ctx)
   }

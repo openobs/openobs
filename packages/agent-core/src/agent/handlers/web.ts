@@ -47,6 +47,9 @@ export async function handleWebSearch(ctx: ActionContext, args: Record<string, u
     const summary = results.length === 0
       ? 'No results found.'
       : results.map((r) => `${r.title ?? 'Result'}: ${r.snippet}${r.url ? ` (${r.url})` : ''}`).join('\n\n');
+    if (results.length > 0) {
+      ctx.dashboardBuildEvidence.webSearchCount += 1;
+    }
     ctx.sendEvent({ type: 'tool_result', tool: 'web_search', summary: `${results.length} results`, success: results.length > 0 });
     return summary;
   } catch (err) {

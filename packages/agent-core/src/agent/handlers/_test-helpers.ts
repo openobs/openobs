@@ -72,6 +72,11 @@ export function makeFakeActionContext(
     investigationSections: new Map(),
     activeInvestigationId: null,
     activeDashboardId: null,
+    dashboardBuildEvidence: {
+      webSearchCount: 0,
+      metricDiscoveryCount: 0,
+      validatedQueries: new Set<string>(),
+    },
     ...overrides,
   } as FakeActionContext;
 
