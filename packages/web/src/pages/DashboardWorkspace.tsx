@@ -12,6 +12,7 @@ import { useGlobalChat } from '../contexts/ChatContext.js';
 import { useAuth } from '../contexts/AuthContext.js';
 import ConfirmDialog from '../components/ConfirmDialog.js';
 import TimeRangePicker from '../components/TimeRangePicker.js';
+import RefreshControl from '../components/RefreshControl.js';
 import FolderDialog from '../components/FolderDialog.js';
 import ExportMenu from '../components/ExportMenu.js';
 import { PermissionsDialog } from '../components/permissions/index.js';
@@ -498,20 +499,24 @@ export default function DashboardWorkspace() {
           )}
         </div>
 
-        {/* Center: time range + refresh */}
+        {/* Center: time range + refresh control (manual + auto) */}
         {!showReport && (
-          <TimeRangePicker
-            value={timeRange}
-            onChange={(v) => {
-              setTimeRange(v);
-              queryScheduler.clearCache();
-              window.dispatchEvent(new CustomEvent('dashboard:refresh-panels'));
-            }}
-            onRefresh={() => {
-              queryScheduler.clearCache();
-              window.dispatchEvent(new CustomEvent('dashboard:refresh-panels'));
-            }}
-          />
+          <div className="flex items-center gap-2 shrink-0">
+            <TimeRangePicker
+              value={timeRange}
+              onChange={(v) => {
+                setTimeRange(v);
+                queryScheduler.clearCache();
+                window.dispatchEvent(new CustomEvent('dashboard:refresh-panels'));
+              }}
+            />
+            <RefreshControl
+              onRefresh={() => {
+                queryScheduler.clearCache();
+                window.dispatchEvent(new CustomEvent('dashboard:refresh-panels'));
+              }}
+            />
+          </div>
         )}
 
         {!showReport && (
