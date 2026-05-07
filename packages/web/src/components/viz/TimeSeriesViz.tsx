@@ -47,6 +47,12 @@ import {
   type StackingMode,
 } from '../../lib/uplot/index.js';
 import { getSeriesColor, getSeriesColorByKey, VIZ_TOKENS } from '../../lib/theme/index.js';
+import {
+  decideLegendLayout,
+  usePanelLayout,
+  type LegendLayoutDecision,
+  type PanelLayout,
+} from '../../lib/viz/usePanelLayout.js';
 import type { LegendPlacement, LegendStat } from '../panel/types.js';
 
 // ---------------------------------------------------------------------------
@@ -661,28 +667,21 @@ export function TimeSeriesViz(props: TimeSeriesVizProps): JSX.Element {
         .map(({ m }) => m)
     : metas;
   const statColumns = effectiveLegendStats?.length ?? 0;
-  const wideForList = metas.length > 6 || (metas.length >= 2 && statColumns >= 2);
-  const effectiveLegendMode: 'list' | 'table' =
-    legend === 'list' && wideForList ? 'table' : (legend as 'list' | 'table');
 
-  // Height-aware legend gating — when the panel is too short, the legend
-  // eats most of the space and the chart becomes unreadable. Hide it under
-  // the threshold; users on a small panel almost always know which series
-  // they're looking at from the title alone.
-  const [containerHeight, setContainerHeight] = useState(0);
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver((entries) => {
-      const h = entries[0]?.contentRect.height ?? 0;
-      setContainerHeight((prev) => (prev === h ? prev : h));
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-  const tooShortForLegend = containerHeight > 0 && containerHeight < 180;
-
-  const showLegend = legend !== 'hidden' && metas.length > 0 && !tooShortForLegend;
+  // Single source of truth for sizing. `usePanelLayout` owns the
+  // ResizeObserver and projects width/height to a size class; the
+  // `decideLegendLayout` pure function maps that + series shape to a
+  // concrete legend mode (list / table / stacked / hidden) plus
+  // basis. Everything below reads from `legendDecision` — no scattered
+  // breakpoints / magic-number widths in this file anymore.
+  const panelLayout = usePanelLayout(containerRef);
+  const legendDecision = decideLegendLayout(
+    panelLayout,
+    metas.length,
+    statColumns,
+    legend,
+  );
+  const showLegend = legendDecision.mode !== 'hidden';
 
   // -- Render ----------------------------------------------------------------
 
@@ -721,6 +720,7 @@ export function TimeSeriesViz(props: TimeSeriesVizProps): JSX.Element {
           hidden={hidden}
           unit={unit}
           containerRef={containerRef}
+          maxWidth={panelLayout.tooltipMaxWidth}
         />
       )}
 
@@ -730,7 +730,7 @@ export function TimeSeriesViz(props: TimeSeriesVizProps): JSX.Element {
             metas={visibleMetas}
             hidden={hidden}
             onToggle={toggleSeries}
-            mode={effectiveLegendMode}
+            decision={legendDecision}
             unit={unit}
             stats={effectiveLegendStats}
           />
@@ -861,9 +861,12 @@ interface TooltipLayerProps {
   hidden: Record<string, boolean>;
   unit: string | undefined;
   containerRef: React.RefObject<HTMLDivElement | null>;
+  /** Container-driven max width — narrow panels get a tighter cap so
+   *  the tooltip doesn't overflow visually past the chart edge. */
+  maxWidth: number;
 }
 
-function TooltipLayer({ tooltip, xs, metas, hidden, unit, containerRef }: TooltipLayerProps): JSX.Element {
+function TooltipLayer({ tooltip, xs, metas, hidden, unit, containerRef, maxWidth }: TooltipLayerProps): JSX.Element {
   const ts = xs[tooltip.idx];
   const timeLabel =
     typeof ts === 'number'
@@ -914,8 +917,8 @@ function TooltipLayer({ tooltip, xs, metas, hidden, unit, containerRef }: Toolti
           borderRadius: VIZ_TOKENS.tooltip.borderRadius,
           fontSize: VIZ_TOKENS.tooltip.fontSize,
           padding: '6px 8px',
-          minWidth: 160,
-          maxWidth: 320,
+          minWidth: Math.min(160, maxWidth),
+          maxWidth,
           color: 'var(--color-on-surface)',
           // Soft drop-shadow. Kept at low alpha so it lands readably on both
           // dark (subtle lift off panel) and light (halo around tooltip).
@@ -993,9 +996,11 @@ interface LegendLayerProps {
   metas: SeriesMeta[];
   hidden: Record<string, boolean>;
   onToggle: (name: string) => void;
-  mode: 'list' | 'table';
+  /** Resolved layout decision from `decideLegendLayout`. Carries the
+   *  mode (list / table / stacked) and any layout knobs (basis). */
+  decision: LegendLayoutDecision;
   unit: string | undefined;
-  /** Inline stats per legend entry (list) or columns (table). */
+  /** Inline stats per legend entry (list / stacked) or columns (table). */
   stats?: LegendStat[];
 }
 
@@ -1032,10 +1037,14 @@ function LegendLayer({
   metas,
   hidden,
   onToggle,
-  mode,
+  decision,
   unit,
   stats,
-}: LegendLayerProps): JSX.Element {
+}: LegendLayerProps): JSX.Element | null {
+  const { mode, itemBasis } = decision;
+
+  if (mode === 'hidden') return null;
+
   if (mode === 'table') {
     // Preserve previous behavior when caller didn't specify which columns to
     // show: render all four. When specified, honor the order/subset.
@@ -1098,7 +1107,12 @@ function LegendLayer({
                     style={{
                       textAlign: 'left',
                       padding: '2px 6px',
-                      maxWidth: 320,
+                      // Bound by `maxWidth: 0 + width: 100%` trick so the
+                      // cell shrinks with the table column rather than
+                      // hardcoding a pixel cap. Long labels ellipsis;
+                      // tooltip-on-hover still gives the full text.
+                      maxWidth: 0,
+                      width: '100%',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
@@ -1121,10 +1135,99 @@ function LegendLayer({
     );
   }
 
-  // mode === 'list'
   // Default to `['last']` to preserve the pre-T-022 single-value look.
   const inlineStats: LegendStat[] = stats && stats.length > 0 ? stats : ['last'];
 
+  // Stacked mode — narrow panels (< 300 px). Series name owns the first
+  // row at full width so CJK / long labels never truncate; stats drop to
+  // a second row indented to the swatch column. This is what every
+  // mature charting lib does at narrow widths (Grafana, Datadog, etc.).
+  if (mode === 'stacked') {
+    return (
+      <div
+        style={{
+          ...LEGEND_CONTAINER_STYLE,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+          fontSize: 12,
+          color: 'var(--color-on-surface)',
+        }}
+      >
+        {metas.map((meta) => {
+          const isHidden = !!hidden[meta.displayName];
+          return (
+            <button
+              key={meta.displayName}
+              type="button"
+              onClick={() => onToggle(meta.displayName)}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'stretch',
+                gap: 2,
+                padding: '2px 4px',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                opacity: isHidden ? 0.35 : 1,
+                color: 'inherit',
+                font: 'inherit',
+                textAlign: 'left',
+                width: '100%',
+              }}
+              title={meta.displayName}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span
+                  aria-hidden
+                  style={{
+                    display: 'inline-block',
+                    width: 10,
+                    height: 10,
+                    borderRadius: 2,
+                    background: meta.color,
+                    flexShrink: 0,
+                  }}
+                />
+                <span style={{ overflowWrap: 'anywhere', minWidth: 0 }}>
+                  {meta.displayName}
+                </span>
+              </span>
+              <span
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '0 12px',
+                  // Indent under the swatch column so the stats line up
+                  // with the series name, not the swatch itself.
+                  paddingLeft: 18,
+                  fontSize: 11,
+                  color: 'var(--color-on-surface-variant)',
+                }}
+              >
+                {inlineStats.map((stat) => (
+                  <LegendStatChip
+                    key={stat}
+                    stat={stat}
+                    value={pickStat(meta, stat)}
+                    unit={unit}
+                    showLabel={inlineStats.length > 1 || stat !== 'last'}
+                  />
+                ))}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // mode === 'list' (medium / wide). itemBasis comes from layout
+  // decision: 140 on medium, 220 on wide. minWidth: 0 lets ellipsis
+  // kick in when the name genuinely doesn't fit; this is fine in list
+  // mode because there's enough horizontal room. Stacked mode catches
+  // the CJK truncation case before we get here.
   return (
     <div
       style={{
@@ -1144,20 +1247,10 @@ function LegendLayer({
             type="button"
             onClick={() => onToggle(meta.displayName)}
             style={{
-              // Each item declares its own min-width so flex-wrap lays them
-              // out as tidy columns at narrow widths instead of jagged rows.
-              // Reduced 220→160 so a single CJK series name (~50px) plus one
-              // stat ("Mean: 133.16 req/s" ~110px) fits without ellipsis at
-              // ~300px panel widths.
-              flex: '1 1 160px',
+              flex: `1 1 ${itemBasis}px`,
               minWidth: 0,
               maxWidth: '100%',
               display: 'inline-flex',
-              // Wrap items inside the button so a too-narrow container moves
-              // the stat onto a second line under the name instead of
-              // squeezing the name to ellipsis. CJK names are ~2× the px-per-
-              // glyph of Latin so the squeeze hits non-Latin labels hard.
-              flexWrap: 'wrap',
               alignItems: 'center',
               gap: 8,
               padding: '2px 4px',
@@ -1184,58 +1277,75 @@ function LegendLayer({
             />
             <span
               style={{
-                flex: '1 1 auto',
+                flex: 1,
                 minWidth: 0,
-                // No ellipsis — the wrap on the parent button lets the stats
-                // drop to a second line so the name can stay whole. Allow
-                // CJK / long labels to wrap as a last resort instead of
-                // truncating mid-character.
-                overflowWrap: 'anywhere',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
               }}
             >
               {meta.displayName}
             </span>
             {inlineStats.map((stat, idx) => (
-              <span
+              <LegendStatChip
                 key={stat}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'baseline',
-                  gap: 4,
-                  // ~16px between stat columns; first stat sits closer to the
-                  // name (the parent's gap of 8px provides that).
-                  marginLeft: idx === 0 ? 0 : 8,
-                  flexShrink: 0,
-                }}
-              >
-                {inlineStats.length > 1 && (
-                  <span
-                    style={{
-                      fontSize: 11,
-                      color: 'var(--color-on-surface-variant)',
-                    }}
-                  >
-                    {STAT_LABELS[stat]}:
-                  </span>
-                )}
-                <span
-                  style={{
-                    fontFamily: MONO_FONT,
-                    fontVariantNumeric: 'tabular-nums',
-                    color:
-                      inlineStats.length > 1
-                        ? 'var(--color-on-surface)'
-                        : 'var(--color-on-surface-variant)',
-                  }}
-                >
-                  {formatValueForDisplay(pickStat(meta, stat), unit)}
-                </span>
-              </span>
+                stat={stat}
+                value={pickStat(meta, stat)}
+                unit={unit}
+                showLabel={inlineStats.length > 1}
+                marginLeft={idx === 0 ? 0 : 8}
+              />
             ))}
           </button>
         );
       })}
     </div>
+  );
+}
+
+/**
+ * One stat reading inside a legend item. Shared between list and
+ * stacked modes. Pulled out so both modes render numbers identically:
+ * monospace, tabular-nums, optional `Mean:` label prefix.
+ */
+function LegendStatChip({
+  stat,
+  value,
+  unit,
+  showLabel,
+  marginLeft,
+}: {
+  stat: LegendStat;
+  value: number | null;
+  unit: string | undefined;
+  showLabel: boolean;
+  marginLeft?: number;
+}): JSX.Element {
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'baseline',
+        gap: 4,
+        marginLeft: marginLeft ?? 0,
+        flexShrink: 0,
+      }}
+    >
+      {showLabel && (
+        <span style={{ fontSize: 11, color: 'var(--color-on-surface-variant)' }}>
+          {STAT_LABELS[stat]}:
+        </span>
+      )}
+      <span
+        style={{
+          fontFamily: MONO_FONT,
+          fontVariantNumeric: 'tabular-nums',
+          color: showLabel ? 'var(--color-on-surface)' : 'var(--color-on-surface-variant)',
+        }}
+      >
+        {formatValueForDisplay(value, unit)}
+      </span>
+    </span>
   );
 }
 
