@@ -91,10 +91,13 @@ export function decideLegendLayout(
     return { mode: 'stacked', itemBasis: 0 };
   }
 
-  // Inline list overflows when each row carries multiple stat columns
-  // across multiple series — table mode aligns the stats into proper
-  // columns instead of letting them wrap raggedly.
-  if (requested === 'table' || seriesCount > 6 || (seriesCount >= 2 && statCount >= 2)) {
+  // Inline list overflows when each row carries multiple stat columns,
+  // regardless of series count. A single series × 3 stats ("Mean: …
+  // Max: … Last: …") is already ~400 CSS px of fixed-width content
+  // before the name even starts; in any panel below ~700 px the name
+  // gets squeezed to zero. Table mode aligns the stats into proper
+  // columns and lets the name reflow under its own column.
+  if (requested === 'table' || seriesCount > 6 || statCount >= 2) {
     return { mode: 'table', itemBasis: 0 };
   }
 

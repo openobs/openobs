@@ -44,16 +44,20 @@ describe('decideLegendLayout — narrow', () => {
 });
 
 describe('decideLegendLayout — medium', () => {
-  it('returns list mode with basis 140', () => {
+  it('returns list mode with basis 140 for single series × single stat', () => {
     const layout = makeLayout({ width: 400, sizeClass: 'medium' });
     const d = decideLegendLayout(layout, 1, 1, 'list');
     expect(d.mode).toBe('list');
     expect(d.itemBasis).toBe(140);
   });
 
-  it('upgrades to table when multi-series × multi-stat would crowd a row', () => {
+  it('upgrades to table on multi-stat regardless of series count', () => {
+    // Regression: previous trigger required `series >= 2 && stat >= 2`,
+    // so single-series + 3-stat (default) ran in list mode and the
+    // ~400px of stats squeezed the name to ellipsis. Threshold now
+    // also fires on `stat >= 2` alone.
     const layout = makeLayout({ width: 400, sizeClass: 'medium' });
-    const d = decideLegendLayout(layout, 3, 3, 'list');
+    const d = decideLegendLayout(layout, 1, 3, 'list');
     expect(d.mode).toBe('table');
   });
 
@@ -78,9 +82,9 @@ describe('decideLegendLayout — wide', () => {
     expect(d.mode).toBe('table');
   });
 
-  it('upgrades to table on multi-series × multi-stat regardless of width', () => {
+  it('upgrades to table on multi-stat regardless of width', () => {
     const layout = makeLayout({ width: 800, sizeClass: 'wide' });
-    const d = decideLegendLayout(layout, 4, 4, 'list');
+    const d = decideLegendLayout(layout, 1, 3, 'list');
     expect(d.mode).toBe('table');
   });
 });

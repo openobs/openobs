@@ -1122,7 +1122,16 @@ function LegendLayer({
                     {meta.displayName}
                   </td>
                   {columns.map((col) => (
-                    <td key={col} style={{ padding: '2px 6px', fontFamily: MONO_FONT }}>
+                    <td
+                      key={col}
+                      style={{
+                        padding: '2px 6px',
+                        fontFamily: MONO_FONT,
+                        // Without nowrap the cell wraps "44 ms" to two
+                        // lines when the name column eats the row width.
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
                       {formatValueForDisplay(pickStat(meta, col), unit)}
                     </td>
                   ))}
