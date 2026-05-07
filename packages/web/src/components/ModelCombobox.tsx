@@ -60,12 +60,18 @@ export function ModelCombobox({
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [open]);
 
-  // Filter: case-insensitive substring on id + label. When input is
-  // empty, show all options (capped). Result is capped at
-  // MAX_VISIBLE_OPTIONS so a 370-item provider doesn't render a
-  // multi-thousand-pixel popup.
+  // Filter: case-insensitive substring on id + label. Two cases skip the
+  // filter and show all options (capped):
+  //   - empty input — first-time browse
+  //   - input value is EXACTLY a known option id — the user already picked
+  //     one and is opening the popup to switch. Without this, opening the
+  //     dropdown after a previous pick shows ONLY that option (the value
+  //     trivially matches itself), hiding the other 369 entries.
+  // Result is capped at MAX_VISIBLE_OPTIONS so a 370-item provider doesn't
+  // render a multi-thousand-pixel popup.
   const q = value.trim().toLowerCase();
-  const filtered = q.length === 0
+  const isExactMatch = q.length > 0 && options.some((o) => o.id.toLowerCase() === q);
+  const filtered = q.length === 0 || isExactMatch
     ? options.slice(0, MAX_VISIBLE_OPTIONS)
     : options.filter((o) => o.id.toLowerCase().includes(q) || o.label.toLowerCase().includes(q)).slice(0, MAX_VISIBLE_OPTIONS);
 
