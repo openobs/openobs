@@ -35,7 +35,10 @@ interface ModelComboboxProps {
   className?: string;
 }
 
-const MAX_VISIBLE_OPTIONS = 80;
+// No render cap — even 1000-row providers (the realistic worst case for
+// OpenRouter today is ~370) render fast enough as plain <li>. The user-
+// scrollable popup with overflow-auto is the right UX; capping silently
+// hides options below the cap and surprises users.
 
 export function ModelCombobox({
   value,
@@ -72,8 +75,8 @@ export function ModelCombobox({
   const q = value.trim().toLowerCase();
   const isExactMatch = q.length > 0 && options.some((o) => o.id.toLowerCase() === q);
   const filtered = q.length === 0 || isExactMatch
-    ? options.slice(0, MAX_VISIBLE_OPTIONS)
-    : options.filter((o) => o.id.toLowerCase().includes(q) || o.label.toLowerCase().includes(q)).slice(0, MAX_VISIBLE_OPTIONS);
+    ? options
+    : options.filter((o) => o.id.toLowerCase().includes(q) || o.label.toLowerCase().includes(q));
 
   function commit(next: string) {
     onChange(next);
@@ -117,7 +120,7 @@ export function ModelCombobox({
       />
       {open && filtered.length > 0 && (
         <ul
-          className="absolute z-20 mt-1 left-0 right-0 max-h-72 overflow-auto rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] shadow-lg text-sm"
+          className="absolute z-20 mt-1 left-0 right-0 max-h-96 overflow-auto rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-high)] shadow-lg text-sm"
           role="listbox"
         >
           {filtered.map((opt, i) => (
@@ -142,9 +145,9 @@ export function ModelCombobox({
               )}
             </li>
           ))}
-          {filtered.length === MAX_VISIBLE_OPTIONS && (
-            <li className="px-3 py-1.5 text-xs text-tertiary border-t border-[var(--color-outline-variant)]/50">
-              Showing first {MAX_VISIBLE_OPTIONS} matches — type to narrow.
+          {filtered.length > 50 && (
+            <li className="px-3 py-1.5 text-xs text-tertiary border-t border-[var(--color-outline-variant)]/50 sticky bottom-0 bg-[var(--color-surface-high)]">
+              {filtered.length} options — type to narrow.
             </li>
           )}
         </ul>
