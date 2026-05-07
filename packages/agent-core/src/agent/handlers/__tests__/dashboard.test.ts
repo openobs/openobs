@@ -108,6 +108,62 @@ describe('dashboard handlers', () => {
       expect(panelAdded).toBeDefined();
     });
 
+    it('requires metric research before adding queried panels', async () => {
+      const ctx = makeFakeActionContext({ activeDashboardId: 'd1' });
+      const observation = await handleDashboardAddPanels(ctx, {
+        panels: [{
+          title: 'Request rate',
+          visualization: 'time_series',
+          queries: [{ refId: 'A', expr: 'sum(rate(http_requests_total[5m]))', datasourceId: 'prom' }],
+        }],
+      });
+      expect(observation).toMatch(/requires prior metric research/);
+      expect(ctx.actionExecutor.execute).not.toHaveBeenCalled();
+    });
+
+    it('requires metrics_validate for every queried panel expression', async () => {
+      const ctx = makeFakeActionContext({
+        activeDashboardId: 'd1',
+        dashboardBuildEvidence: {
+          webSearchCount: 1,
+          metricDiscoveryCount: 0,
+          validatedQueries: new Set<string>(),
+        },
+      });
+      const observation = await handleDashboardAddPanels(ctx, {
+        panels: [{
+          title: 'Request rate',
+          visualization: 'time_series',
+          queries: [{ refId: 'A', expr: 'sum(rate(http_requests_total[5m]))', datasourceId: 'prom' }],
+        }],
+      });
+      expect(observation).toMatch(/validate panel queries/);
+      expect(ctx.actionExecutor.execute).not.toHaveBeenCalled();
+    });
+
+    it('adds queried panels after research and validation evidence exists', async () => {
+      const expr = 'sum(rate(http_requests_total[5m]))';
+      const ctx = makeFakeActionContext({
+        activeDashboardId: 'd1',
+        dashboardBuildEvidence: {
+          webSearchCount: 0,
+          metricDiscoveryCount: 1,
+          validatedQueries: new Set<string>([expr]),
+        },
+      });
+      const observation = await handleDashboardAddPanels(ctx, {
+        panels: [{
+          title: 'Request rate',
+          visualization: 'time_series',
+          queries: [{ refId: 'A', expr, datasourceId: 'prom' }],
+        }],
+      });
+      expect(ctx.actionExecutor.execute).toHaveBeenCalledWith('d1', [
+        expect.objectContaining({ type: 'add_panels' }),
+      ]);
+      expect(observation).toContain('Added 1 panel(s): Request rate');
+    });
+
     it('returns an error when panels array is empty', async () => {
       const ctx = makeFakeActionContext({ activeDashboardId: 'd1' });
       const observation = await handleDashboardAddPanels(ctx, { panels: [] });

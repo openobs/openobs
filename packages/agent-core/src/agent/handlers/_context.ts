@@ -125,4 +125,14 @@ export interface ActionContext {
    * silent corruption.
    */
   activeDashboardId: string | null;
+  /**
+   * Per-session dashboard build evidence. Read tools write into this, and
+   * dashboard_add_panels checks it before mutating so dashboard creation stays
+   * read/verify-first instead of relying only on prompt discipline.
+   */
+  dashboardBuildEvidence: {
+    webSearchCount: number;
+    metricDiscoveryCount: number;
+    validatedQueries: Set<string>;
+  };
 }

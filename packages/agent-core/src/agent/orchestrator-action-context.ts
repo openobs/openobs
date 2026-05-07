@@ -68,6 +68,7 @@ export interface OrchestratorActionRuntime {
   activeInvestigationIdRef: { current: string | null };
   /** Same pattern, for the active dashboard id. */
   activeDashboardIdRef: { current: string | null };
+  dashboardBuildEvidence: ActionContext['dashboardBuildEvidence'];
 }
 
 export function buildActionContext(
@@ -107,5 +108,6 @@ export function buildActionContext(
     set activeInvestigationId(v: string | null) { invRef.current = v; },
     get activeDashboardId() { return dashRef.current; },
     set activeDashboardId(v: string | null) { dashRef.current = v; },
+    dashboardBuildEvidence: runtime.dashboardBuildEvidence,
   };
 }
