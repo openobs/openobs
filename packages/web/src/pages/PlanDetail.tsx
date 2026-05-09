@@ -19,6 +19,29 @@ import type {
 } from '../api/client.js';
 import { useAuth } from '../contexts/AuthContext.js';
 import { relativeTime } from '../utils/time.js';
+import RiskAwareConfirm from '../components/RiskAwareConfirm.js';
+import type { RiskAwareRisk } from '../components/RiskAwareConfirm.js';
+
+/**
+ * Pick a display risk for the plan as a whole.
+ *
+ * Plans are background_agent-sourced, so the confirmation surface is
+ * `formal_approval`. Risk drives friction: any write-style step yields
+ * `high`; ops.run_command with a destructive verb (delete/drain) yields
+ * `critical`. Everything else stays `medium`.
+ */
+function pickPlanRisk(plan: RemediationPlan): RiskAwareRisk {
+  const argvs = plan.steps
+    .map((s) => {
+      const params = (s as unknown as { params?: { argv?: unknown } }).params;
+      return Array.isArray(params?.argv) ? (params!.argv as string[]) : [];
+    })
+    .flat()
+    .map((v) => String(v).toLowerCase());
+  if (argvs.some((v) => v === 'delete' || v === 'drain')) return 'critical';
+  if (plan.steps.length > 0) return 'high';
+  return 'medium';
+}
 
 const PLAN_STATUS_STYLES: Record<RemediationPlanStatus, string> = {
   draft: 'bg-[var(--color-surface-high)] text-on-surface-variant',
@@ -259,43 +282,53 @@ export default function PlanDetail() {
         </ol>
       </div>
 
-      {/* Approval form */}
+      {/* Approval surface — plans come from the background agent so the
+          confirmation surface is the formal_approval path: Approve / Reject. */}
       {isPending && canApprove && (
-        <div className="border border-[var(--color-outline-variant)] rounded-xl p-4 space-y-3 bg-[var(--color-surface-highest)]">
-          <h3 className="font-semibold text-on-surface">Review</h3>
-          {canAutoEdit && (
-            <label className="flex items-start gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                checked={autoEdit}
-                onChange={(e) => setAutoEdit(e.target.checked)}
-                className="mt-1"
-              />
-              <span>
-                <span className="font-semibold">Auto-edit subsequent steps.</span>{' '}
-                <span className="text-on-surface-variant">When checked, the executor runs every step without asking for per-step approval. Use sparingly.</span>
-              </span>
-            </label>
-          )}
-          <div className="flex gap-3">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={handleApprove}
-              className="px-4 py-2 rounded-md bg-primary text-on-primary-fixed font-semibold hover:opacity-90 disabled:opacity-50"
-            >
-              {busy ? 'Working…' : 'Approve'}
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={handleReject}
-              className="px-4 py-2 rounded-md border border-[var(--color-outline-variant)] hover:bg-[var(--color-surface-high)] disabled:opacity-50"
-            >
-              Reject
-            </button>
-          </div>
-        </div>
+        <RiskAwareConfirm
+          risk={pickPlanRisk(plan)}
+          mode="formal_approval"
+          resourceName={plan.investigationId.slice(0, 12)}
+          busy={busy}
+          onConfirm={handleApprove}
+          onCancel={handleReject}
+          summary={
+            <div>
+              <div className="font-semibold mb-1">Review</div>
+              {canAutoEdit && (
+                <label className="flex items-start gap-2 text-sm cursor-pointer mt-2">
+                  <input
+                    type="checkbox"
+                    checked={autoEdit}
+                    onChange={(e) => setAutoEdit(e.target.checked)}
+                    className="mt-1"
+                  />
+                  <span>
+                    <span className="font-semibold">Auto-edit subsequent steps.</span>{' '}
+                    <span className="text-on-surface-variant">
+                      When checked, the executor runs every step without asking for per-step approval.
+                    </span>
+                  </span>
+                </label>
+              )}
+            </div>
+          }
+          approvalContext={
+            <div>
+              From investigation {plan.investigationId.slice(0, 12)}… • {plan.steps.length} step
+              {plan.steps.length === 1 ? '' : 's'} • created by {plan.createdBy}
+            </div>
+          }
+          dryRun={
+            <ol className="space-y-1 max-h-64 overflow-auto font-mono text-xs">
+              {plan.steps.map((s) => (
+                <li key={s.id} className="text-on-surface-variant">
+                  step {s.ordinal + 1}: {s.commandText}
+                </li>
+              ))}
+            </ol>
+          }
+        />
       )}
 
       {/* Cancel control */}
