@@ -112,4 +112,4 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup, code style, and 
 
 ## License
 
-[MIT](./LICENSE)
+[AGPL-3.0-or-later](./LICENSE)
