@@ -30,7 +30,6 @@ import type {
   AgentConfigService,
 } from '../types.js';
 import type { ActionExecutor } from '../action-executor.js';
-import type { AlertRuleAgent } from '../alert-rule-agent.js';
 import type { IAccessControlService } from '../types-permissions.js';
 
 /** Shared context passed to every action handler. */
@@ -99,7 +98,6 @@ export interface ActionContext {
   accessControl: IAccessControlService;
 
   actionExecutor: ActionExecutor;
-  alertRuleAgent: AlertRuleAgent;
 
   emitAgentEvent(event: AgentEvent): void;
   makeAgentEvent(type: AgentEvent['type'], metadata?: Record<string, unknown>): AgentEvent;

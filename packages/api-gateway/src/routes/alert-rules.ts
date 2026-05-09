@@ -4,7 +4,6 @@ import type { AlertRule, AlertSilence, NotificationPolicy, IFolderRepository } f
 import {
   ACTIONS,
   ac,
-  getErrorMessage,
 } from '@agentic-obs/common';
 import type { IAlertRuleRepository, IGatewayInvestigationStore, IGatewayFeedStore, IInvestigationReportRepository } from '@agentic-obs/data-layer';
 import { defaultAlertRuleStore } from '@agentic-obs/data-layer';
@@ -40,7 +39,7 @@ export interface AlertRulesRouterDeps {
   investigationStore?: IGatewayInvestigationStore;
   feedStore?: IGatewayFeedStore;
   reportStore?: IInvestigationReportRepository;
-  /** W2 / T2.4 — required for the `/generate` endpoint to reach the LLM config. */
+  /** Required for preview/backtest to resolve configured metrics datasources. */
   setupConfig: SetupConfigService;
   folderRepository: IFolderRepository;
   /**
@@ -116,53 +115,6 @@ export function createAlertRulesRouter(deps: AlertRulesRouterDeps): Router {
   router.use((req: Request, res: Response, next: NextFunction) => {
     authMiddleware(req as AuthenticatedRequest, res, next);
   });
-
-  // -- POST /api/alert-rules/generate - NL -> alert rule (no dashboard needed)
-  // IMPORTANT: must be before /:id routes
-
-  router.post(
-    '/generate',
-    requirePermission((req) => {
-      const folderUid = requestFolderUid(req) || DEFAULT_ALERT_RULE_FOLDER_UID;
-      return ac.eval(ACTIONS.AlertRulesCreate, `folders:uid:${folderUid}`);
-    }),
-    async (req: Request, res: Response, next: NextFunction) => {
-      try {
-        const body = req.body as { prompt?: string; folderUid?: string };
-        if (!body?.prompt || typeof body.prompt !== 'string' || body.prompt.trim() === '') {
-          res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'prompt is required' } });
-          return;
-        }
-
-        const workspaceId = resolveOrgId(req);
-        const folderUid = await resolveAlertRuleFolderUid(
-          workspaceId,
-          (req as AuthenticatedRequest).auth?.userId,
-          body.folderUid,
-        );
-        const { rule } = await alertRuleService.generateFromPrompt(body.prompt.trim(), workspaceId);
-        // Keep older stores/tests that derive scope from labels aligned with workspaceId.
-        const updatePatch: Partial<AlertRule> = {
-          folderUid,
-          ...(workspaceId !== 'default'
-            ? { workspaceId, labels: { ...rule.labels, workspaceId } }
-            : {}),
-        };
-        const scopedRule = await store.update(rule.id, updatePatch);
-        if (!scopedRule) {
-          throw new Error(`Generated alert rule disappeared before folder assignment: ${rule.id}`);
-        }
-        res.status(201).json(scopedRule);
-      } catch (err: unknown) {
-        const message = getErrorMessage(err);
-        if (message.includes('LLM not configured')) {
-          res.status(503).json({ error: { code: 'LLM_NOT_CONFIGURED', message } });
-          return;
-        }
-        next(err);
-      }
-    },
-  );
 
   // -- POST /api/alert-rules/preview - backtest a candidate condition
   // IMPORTANT: must be before /:id routes
@@ -599,6 +551,5 @@ export function createAlertRulesRouter(deps: AlertRulesRouterDeps): Router {
 }
 
 // NOTE: `alertRulesRouter` used to be a module-scoped instance built without
-// any deps. W2 / T2.4 made `setupConfig` required for the `/generate` endpoint
-// (it needs the LLM config), so callers must construct via
-// `createAlertRulesRouter(deps)` now. No default export.
+// any deps. It now requires setupConfig for alert preview/backtest datasource
+// resolution, so callers must construct via `createAlertRulesRouter(deps)`.

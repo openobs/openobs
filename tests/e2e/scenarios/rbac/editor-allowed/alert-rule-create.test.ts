@@ -1,6 +1,6 @@
 /**
  * Editor has `alert.rules:create` (folder-scoped) so the auth gate on
- * POST /api/alert-rules/generate must NOT 403 for an Editor.
+ * structured POST /api/alert-rules must NOT 403 for an Editor.
  */
 import { afterAll, describe, expect, it } from 'vitest';
 import { createUser, deleteUser, loginAs, apiAs } from '../../helpers/users.js';
@@ -14,12 +14,15 @@ describe('rbac/editor-allowed/alert-rule-create', () => {
     }
   }, 60_000);
 
-  it('editor POST /api/alert-rules/generate does not return 403', async () => {
+  it('editor POST /api/alert-rules does not return 403', async () => {
     const editor = await createUser('Editor');
     cleanup.push(() => deleteUser(editor.id));
     const cookie = await loginAs(editor);
-    const result = await apiAs(cookie, 'POST', '/api/alert-rules/generate', {
-      prompt: 'create alert editor-rbac-test: PromQL up < 1 for 30s severity low',
+    const result = await apiAs(cookie, 'POST', '/api/alert-rules', {
+      name: 'editor-rbac-test',
+      condition: { query: 'up', operator: '<', threshold: 1, forDurationSec: 30 },
+      evaluationIntervalSec: 60,
+      severity: 'low',
     });
     expect(result.status).not.toBe(403);
   }, 60_000);

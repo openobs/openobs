@@ -27,8 +27,7 @@ describe('alerts/for-duration-zero', () => {
   }, 180_000);
 
   it('forDurationSec=0 fires on the first true evaluation', async () => {
-    // Create rule directly so we can pin forDurationSec=0; the LLM
-    // /generate endpoint does not promise to honor "0s".
+    // Create rule directly so we can pin forDurationSec=0.
     const created = await apiPost<AlertRule>('/api/alert-rules', {
       name: 'web-api-for0',
       condition: {

@@ -8,8 +8,6 @@ export {
   // Compat alias — api-gateway still imports under the old name
   OrchestratorAgent as DashboardOrchestratorAgent,
   type OrchestratorDeps as DashboardOrchestratorDeps,
-  AlertRuleAgent,
-  type AlertRuleContext,
   ActionExecutor,
   type IDashboardAgentStore,
   type IConversationStore,

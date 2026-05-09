@@ -19,7 +19,6 @@ function makeCtx(overrides: Partial<ActionContext> = {}): ActionContext {
       filterByPermission: async (_id, rows) => rows,
     },
     actionExecutor: {} as ActionContext['actionExecutor'],
-    alertRuleAgent: {} as ActionContext['alertRuleAgent'],
     emitAgentEvent: vi.fn(),
     makeAgentEvent: ((type: string) => ({ type, agentType: 'orchestrator', timestamp: '' })) as ActionContext['makeAgentEvent'],
     pushConversationAction: vi.fn(),

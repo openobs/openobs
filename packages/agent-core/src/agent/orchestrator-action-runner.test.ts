@@ -45,6 +45,15 @@ function fakeFolderRepo(folders: Array<{ uid: string; title: string; parentUid?:
   } as unknown as ActionContext['folderRepository'];
 }
 
+const alertCreateSpec = {
+  name: 'High latency',
+  description: 'Alert when latency is high.',
+  condition: { query: 'up', operator: '>', threshold: 1, forDurationSec: 60 },
+  evaluationIntervalSec: 60,
+  severity: 'high',
+  labels: {},
+};
+
 describe('PermissionWrappedActionRunner — required-arg validation', () => {
   it('returns a clarifying observation and does not invoke the handler when a required arg is missing', async () => {
     const { runner, sendEvent, auditReporter } = makeRunner();
@@ -69,22 +78,9 @@ describe('PermissionWrappedActionRunner — required-arg validation', () => {
   it('creates alert_rule_write op=create in the default Alerts folder when folderUid is omitted', async () => {
     const { runner } = makeRunner();
     const folderRepo = fakeFolderRepo([]);
-    const alertRuleAgent = {
-      generate: vi.fn().mockResolvedValue({
-        rule: {
-          name: 'High latency',
-          description: 'd',
-          condition: { query: 'up', operator: '>', threshold: 1, forDurationSec: 60 },
-          evaluationIntervalSec: 60,
-          severity: 'high',
-          labels: {},
-        },
-      }),
-    };
     const created: Array<Record<string, unknown>> = [];
     const ctx = makeFakeActionContext({
       folderRepository: folderRepo,
-      alertRuleAgent: alertRuleAgent as unknown as ActionContext['alertRuleAgent'],
       alertRuleStore: {
         create: vi.fn(async (input: Record<string, unknown>) => {
           created.push(input);
@@ -96,7 +92,7 @@ describe('PermissionWrappedActionRunner — required-arg validation', () => {
     const step: ReActStep = {
       thought: '',
       action: 'alert_rule_write',
-      args: { op: 'create', prompt: 'Alert when error rate > 5%' },
+      args: { op: 'create', spec: alertCreateSpec },
     };
     const observation = await runner.execute(step, ctx);
 
@@ -117,22 +113,9 @@ describe('PermissionWrappedActionRunner — required-arg validation', () => {
       { uid: 'prod', title: 'Production', parentUid: null },
       { uid: 'staging', title: 'Staging', parentUid: null },
     ]);
-    const alertRuleAgent = {
-      generate: vi.fn().mockResolvedValue({
-        rule: {
-          name: 'High latency',
-          description: 'd',
-          condition: { query: 'up', operator: '>', threshold: 1, forDurationSec: 60 },
-          evaluationIntervalSec: 60,
-          severity: 'high',
-          labels: {},
-        },
-      }),
-    };
     const created: Array<Record<string, unknown>> = [];
     const ctx = makeFakeActionContext({
       folderRepository: folderRepo,
-      alertRuleAgent: alertRuleAgent as unknown as ActionContext['alertRuleAgent'],
       alertRuleStore: {
         create: vi.fn(async (input: Record<string, unknown>) => {
           created.push(input);
@@ -144,7 +127,7 @@ describe('PermissionWrappedActionRunner — required-arg validation', () => {
     const step: ReActStep = {
       thought: '',
       action: 'alert_rule_write',
-      args: { op: 'create', prompt: 'Alert when error rate > 5%', folderUid: 'prod' },
+      args: { op: 'create', spec: alertCreateSpec, folderUid: 'prod' },
     };
     const observation = await runner.execute(step, ctx);
 

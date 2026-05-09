@@ -109,7 +109,7 @@ function makeStore(dashboards: Array<{ id: string; title: string; description: s
 function build(opts: {
   llmResponses: LLMResponse[];
   accessControl?: AccessControlStub;
-  agentType?: 'orchestrator' | 'alert-rule-builder';
+  agentType?: 'orchestrator';
   identity?: Identity;
   dashboards?: Array<{ id: string; title: string; description: string; status: string }>;
 }) {
@@ -243,11 +243,24 @@ describe('Scenario 7 — propose_only agent + dashboard_create', () => {
   it('denies at Layer 2 (permissionMode)', async () => {
     const { agent, audit } = build({
       llmResponses: [
-        asStep('attempt', 'alert_rule_write', { op: 'create', folderUid: 'rules', prompt: 'x' }),
+        asStep('attempt', 'alert_rule_write', {
+          op: 'create',
+          folderUid: 'rules',
+          spec: {
+            name: 'X',
+            description: 'X',
+            condition: { query: 'up', operator: '>', threshold: 1, forDurationSec: 60 },
+            evaluationIntervalSec: 60,
+            severity: 'high',
+          },
+        }),
         asReply('Proposal only.'),
       ],
-      agentType: 'alert-rule-builder',
+      agentType: 'orchestrator',
     });
+    // Force the current agent definition into propose-only mode for this
+    // permission-layer test; alert creation itself is covered elsewhere.
+    (agent as unknown as { agentDef: { permissionMode: string } }).agentDef.permissionMode = 'propose_only';
     await agent.handleMessage('Make an alert.');
     const denied = (audit.entries as Array<{ action: string; metadata?: Record<string, unknown> }>).filter(
       (e) => e.action === 'agent.tool_denied',

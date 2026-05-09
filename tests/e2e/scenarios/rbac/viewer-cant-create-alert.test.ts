@@ -1,6 +1,6 @@
 /**
  * A Viewer-role user lacks `alert.rules:create` and must get 403 from
- * POST /api/alert-rules/generate.
+ * structured POST /api/alert-rules.
  */
 import { afterAll, describe, expect, it } from 'vitest';
 import { createUser, deleteUser, loginAs, apiAs } from '../helpers/users.js';
@@ -14,12 +14,15 @@ describe('rbac/viewer-cant-create-alert', () => {
     }
   }, 60_000);
 
-  it('viewer is forbidden from POST /api/alert-rules/generate', async () => {
+  it('viewer is forbidden from POST /api/alert-rules', async () => {
     const viewer = await createUser('Viewer');
     cleanup.push(() => deleteUser(viewer.id));
     const cookie = await loginAs(viewer);
-    const result = await apiAs(cookie, 'POST', '/api/alert-rules/generate', {
-      prompt: 'create alert viewer-test: PromQL up < 1 for 30s severity low',
+    const result = await apiAs(cookie, 'POST', '/api/alert-rules', {
+      name: 'viewer-test',
+      condition: { query: 'up', operator: '<', threshold: 1, forDurationSec: 30 },
+      evaluationIntervalSec: 60,
+      severity: 'low',
     });
     expect(result.status).toBe(403);
   }, 60_000);

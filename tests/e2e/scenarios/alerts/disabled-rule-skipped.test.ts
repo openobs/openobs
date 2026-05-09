@@ -5,6 +5,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { apiPost, apiGet, apiDelete } from '../helpers/api-client.js';
+import { createAlertRuleFixture, WEB_API_DOWN_QUERY } from '../helpers/alert-rule.js';
 import { scaleDeployment } from '../helpers/scale.js';
 
 const NS = 'openobs-e2e';
@@ -27,9 +28,14 @@ describe('alerts/disabled-rule-skipped', () => {
   }, 180_000);
 
   it('disabled rule stays disabled when its condition breaches', async () => {
-    const prompt =
-      'create alert web-api-disabled: PromQL (sum(rate(http_requests_total{app="web-api"}[1m])) or vector(0)) < 1 for 10s severity critical';
-    const created = await apiPost<AlertRule>('/api/alert-rules/generate', { prompt });
+    const created = await createAlertRuleFixture({
+      name: 'web-api-disabled',
+      query: WEB_API_DOWN_QUERY,
+      operator: '<',
+      threshold: 1,
+      forDurationSec: 10,
+      severity: 'critical',
+    });
     ruleId = created.id;
     const disabled = await apiPost<AlertRule>(`/api/alert-rules/${ruleId}/disable`, {});
     expect(disabled.state).toBe('disabled');

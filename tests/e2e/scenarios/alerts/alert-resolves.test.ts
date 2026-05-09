@@ -3,7 +3,8 @@
  * normal) once web-api comes back up.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { apiPost, apiGet, apiDelete } from '../helpers/api-client.js';
+import { apiGet, apiDelete } from '../helpers/api-client.js';
+import { createAlertRuleFixture, WEB_API_DOWN_QUERY } from '../helpers/alert-rule.js';
 import { pollUntil } from '../helpers/wait.js';
 import { scaleDeployment } from '../helpers/scale.js';
 
@@ -27,9 +28,14 @@ describe('alerts/alert-resolves', () => {
   }, 180_000);
 
   it('rule transitions firing -> resolved when web-api is restored', async () => {
-    const prompt =
-      'create alert web-api-resolves: PromQL (sum(rate(http_requests_total{app="web-api"}[1m])) or vector(0)) < 1 for 30s severity critical';
-    const created = await apiPost<AlertRule>('/api/alert-rules/generate', { prompt });
+    const created = await createAlertRuleFixture({
+      name: 'web-api-resolves',
+      query: WEB_API_DOWN_QUERY,
+      operator: '<',
+      threshold: 1,
+      forDurationSec: 30,
+      severity: 'critical',
+    });
     ruleId = created.id;
 
     await scaleDeployment(NS, DEPLOY, 0);

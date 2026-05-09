@@ -59,7 +59,6 @@ export function makeFakeActionContext(
     actionExecutor: {
       execute: vi.fn().mockResolvedValue(undefined),
     } as unknown as ActionContext['actionExecutor'],
-    alertRuleAgent: {} as ActionContext['alertRuleAgent'],
     emitAgentEvent,
     makeAgentEvent: (type: string, metadata?: Record<string, unknown>) => ({
       type,

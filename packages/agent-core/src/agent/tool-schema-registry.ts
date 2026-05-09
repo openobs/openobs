@@ -646,7 +646,7 @@ export const TOOL_REGISTRY: Record<string, ToolRegistryEntry> = {
       name: 'alert_rule_write',
       description:
         'Create, update, or delete an alert rule — three verbs share one tool. Required: op. Per op:\n' +
-        ' - op="create": requires `prompt` (natural-language description). The rule generator produces PromQL, threshold, severity, labels. Query the current metric value first so the threshold is grounded in real data. Optional `dashboardId` reuses that dashboard\'s queries/variables. Optional `folderUid` only when the user explicitly names a folder; otherwise the rule lands in the default Alerts folder. When a metrics datasource is registered, the tool result includes a backtest preview ("would have fired N time(s) ... in the last 24h") computed against real data; when no metrics datasource is wired, the preview is omitted (no fabrication).\n' +
+        ' - op="create": requires `spec` (fully structured alert rule). Build the spec in the main agent flow after metrics discovery/query validation. Do not pass a natural-language prompt and expect this tool to generate the rule. Optional `dashboardId` links the alert to a dashboard. Optional `folderUid` only when the user explicitly names a folder; otherwise the rule lands in the default Alerts folder. When a metrics datasource is registered, the tool result includes a backtest preview ("would have fired N time(s) ... in the last 24h") computed against real data; when no metrics datasource is wired, the preview is omitted (no fabrication).\n' +
         ' - op="update": requires `ruleId`. Pass only the fields to change (threshold, operator, severity, forDurationSec, evaluationIntervalSec, query, name). Resolve "it"/"this alert" via Active Alert Rule Context.\n' +
         ' - op="delete": requires `ruleId`. Irreversible.',
       input_schema: {
@@ -658,7 +658,29 @@ export const TOOL_REGISTRY: Record<string, ToolRegistryEntry> = {
             description: 'Which verb to run. See description for required args per op.',
           },
           ruleId: { type: 'string', description: 'Required for op=update / op=delete: id of the rule.' },
-          prompt: { type: 'string', description: 'Required for op=create: natural-language description of the alert condition.' },
+          spec: {
+            type: 'object',
+            description: 'Required for op=create: complete alert rule spec. The main agent must construct this after discovery and validation.',
+            properties: {
+              name: { type: 'string', description: 'Short descriptive alert rule name.' },
+              description: { type: 'string', description: 'Human-readable description of what this alert detects and why it matters.' },
+              condition: {
+                type: 'object',
+                properties: {
+                  query: { type: 'string', description: 'Validated PromQL/MetricsQL expression.' },
+                  operator: { type: 'string', enum: ['>', '<', '>=', '<=', '=='] },
+                  threshold: { type: 'number' },
+                  forDurationSec: { type: 'number' },
+                },
+                required: ['query', 'operator', 'threshold', 'forDurationSec'],
+              },
+              evaluationIntervalSec: { type: 'number' },
+              severity: { type: 'string', enum: ['critical', 'high', 'medium', 'low'] },
+              labels: { type: 'object', description: 'String labels attached to the rule.' },
+              autoInvestigate: { type: 'boolean' },
+            },
+            required: ['name', 'description', 'condition', 'evaluationIntervalSec', 'severity'],
+          },
           folderUid: { type: 'string', description: 'Optional for op=create: folder uid that owns the rule. Omit unless the user explicitly asks for a folder; omitted rules land in the default Alerts folder.' },
           dashboardId: { type: 'string', description: 'Optional for op=create: when set, the generator reuses dashboard queries/variables for consistency.' },
           threshold: { type: 'number', description: 'For op=update: new trigger threshold.' },

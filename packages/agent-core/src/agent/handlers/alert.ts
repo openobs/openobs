@@ -1,4 +1,4 @@
-import { ac, type AlertOperator } from '@agentic-obs/common';
+import { ac, type AlertCondition, type AlertOperator, type AlertSeverity } from '@agentic-obs/common';
 import { createLogger } from '@agentic-obs/common/logging';
 import type { ActionContext } from './_context.js';
 import { withWorkspaceScope } from './_shared.js';
@@ -92,33 +92,70 @@ type AlertRuleWriteOp = 'create' | 'update' | 'delete';
 
 const ALERT_RULE_WRITE_OPS: ReadonlySet<AlertRuleWriteOp> = new Set(['create', 'update', 'delete']);
 
+interface AlertRuleCreateSpec {
+  name: string;
+  description: string;
+  condition: AlertCondition;
+  evaluationIntervalSec: number;
+  severity: AlertSeverity;
+  labels?: Record<string, string>;
+  autoInvestigate?: boolean;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function parseCreateSpec(raw: unknown): AlertRuleCreateSpec | string {
+  if (!isPlainObject(raw)) return 'alert_rule_write with op="create" requires "spec".';
+  const condition = raw.condition;
+  if (!isPlainObject(condition)) return 'alert_rule_write create spec requires condition.';
+
+  const name = typeof raw.name === 'string' ? raw.name.trim() : '';
+  const description = typeof raw.description === 'string' ? raw.description.trim() : '';
+  const query = typeof condition.query === 'string' ? condition.query.trim() : '';
+  const operator = condition.operator as AlertCondition['operator'];
+  const threshold = condition.threshold;
+  const forDurationSec = condition.forDurationSec;
+  const evaluationIntervalSec = raw.evaluationIntervalSec;
+  const severity = raw.severity as AlertSeverity;
+
+  if (!name) return 'alert_rule_write create spec requires name.';
+  if (!description) return 'alert_rule_write create spec requires description.';
+  if (!query) return 'alert_rule_write create spec requires condition.query.';
+  if (!['>', '<', '>=', '<=', '=='].includes(operator)) return 'alert_rule_write create spec requires condition.operator.';
+  if (typeof threshold !== 'number' || !Number.isFinite(threshold)) return 'alert_rule_write create spec requires numeric condition.threshold.';
+  if (typeof forDurationSec !== 'number' || !Number.isFinite(forDurationSec)) return 'alert_rule_write create spec requires numeric condition.forDurationSec.';
+  if (typeof evaluationIntervalSec !== 'number' || !Number.isFinite(evaluationIntervalSec) || evaluationIntervalSec <= 0) return 'alert_rule_write create spec requires positive evaluationIntervalSec.';
+  if (!['critical', 'high', 'medium', 'low'].includes(severity)) return 'alert_rule_write create spec requires severity.';
+  if (raw.labels !== undefined && !isPlainObject(raw.labels)) return 'alert_rule_write create spec labels must be an object.';
+  if (isPlainObject(raw.labels) && Object.values(raw.labels).some((v) => typeof v !== 'string')) {
+    return 'alert_rule_write create spec labels must be string values.';
+  }
+  if (raw.autoInvestigate !== undefined && typeof raw.autoInvestigate !== 'boolean') {
+    return 'alert_rule_write create spec autoInvestigate must be boolean.';
+  }
+
+  return {
+    name,
+    description,
+    condition: { query, operator, threshold, forDurationSec },
+    evaluationIntervalSec,
+    severity,
+    labels: isPlainObject(raw.labels) ? raw.labels as Record<string, string> : {},
+    autoInvestigate: raw.autoInvestigate === true,
+  };
+}
+
 async function createAlertRule(
   ctx: ActionContext,
   args: Record<string, unknown>,
 ): Promise<string> {
-  const prompt = String(args.prompt ?? args.goal ?? '');
   const dashboardId = String(args.dashboardId ?? '');
   const folderUid = await resolveAlertRuleFolderUid(ctx, args);
-
-  const currentDash = dashboardId ? await ctx.store.findById(dashboardId) : undefined;
-  const existingQueries = (currentDash?.panels ?? [])
-    .flatMap((p) => [
-      ...(p.queries ?? []).map((q) => q.expr),
-      ...(typeof p.query === 'string' && p.query.trim().length > 0 ? [p.query] : []),
-    ])
-    .filter(Boolean);
-  const variables = (currentDash?.variables ?? []).map((v) => ({
-    name: v.name,
-    value: v.current,
-  }));
-
-  const result = await ctx.alertRuleAgent.generate(prompt, {
-    dashboardId,
-    dashboardTitle: currentDash?.title,
-    existingQueries: existingQueries.length > 0 ? existingQueries : undefined,
-    variables: variables.length > 0 ? variables : undefined,
-  });
-  const generated = result.rule;
+  const spec = parseCreateSpec(args.spec);
+  if (typeof spec === 'string') return `Error: ${spec}`;
+  const generated = spec;
 
   // Upsert: if a rule with the same name exists IN THE CALLER'S WORKSPACE,
   // update it. The lookup MUST be workspace-scoped — a global findAll() +
@@ -176,7 +213,7 @@ async function createAlertRule(
       withWorkspaceScope(ctx.identity, {
         name: generated.name,
         description: generated.description,
-        originalPrompt: prompt,
+        originalPrompt: generated.description,
         condition: generated.condition,
         evaluationIntervalSec: generated.evaluationIntervalSec,
         severity: generated.severity,
@@ -355,9 +392,9 @@ export async function handleAlertRuleWrite(
   // Per-op required-arg validation. Error messages name the missing arg so
   // the LLM can retry without guessing.
   if (op === 'create') {
-    const prompt = typeof args.prompt === 'string' ? args.prompt : (typeof args.goal === 'string' ? args.goal : '');
-    if (!prompt) {
-      return 'Error: alert_rule_write with op="create" requires "prompt" (natural-language description of the alert condition).';
+    const parsed = parseCreateSpec(args.spec);
+    if (typeof parsed === 'string') {
+      return `Error: ${parsed}`;
     }
   }
   if (op === 'update' || op === 'delete') {
@@ -367,7 +404,7 @@ export async function handleAlertRuleWrite(
   }
 
   const displayText = op === 'create'
-    ? `Creating alert rule: ${String(args.prompt ?? args.goal ?? '').slice(0, 60)}`
+    ? `Creating alert rule: ${String((args.spec as { name?: unknown } | undefined)?.name ?? '').slice(0, 60)}`
     : op === 'update'
       ? `Updating alert rule ${String(args.ruleId ?? '')}...`
       : `Deleting alert rule ${String(args.ruleId ?? '')}...`;
