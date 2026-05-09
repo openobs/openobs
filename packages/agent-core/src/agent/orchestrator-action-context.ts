@@ -22,6 +22,7 @@ import type {
   IInvestigationReportStore,
   IInvestigationStore,
   RemediationPlanStore,
+  AgentConfigService,
 } from './types.js';
 import type { IAccessControlService } from './types-permissions.js';
 
@@ -45,6 +46,8 @@ export interface OrchestratorActionContextDeps {
   remediationPlans?: RemediationPlanStore;
   /** P4 — used to auto-emit a plan-level ApprovalRequest on plan creation. */
   approvalRequests?: ApprovalRequestStore;
+  /** Task 07 — AI-first configuration tools (datasource / connector / settings). */
+  configService?: AgentConfigService;
   sendEvent: (event: DashboardSseEvent) => void;
   identity: Identity;
   accessControl: IAccessControlService;
@@ -93,6 +96,7 @@ export function buildActionContext(
     opsConnectors: deps.opsConnectors,
     remediationPlans: deps.remediationPlans,
     approvalRequests: deps.approvalRequests,
+    configService: deps.configService,
     sendEvent: deps.sendEvent,
     sessionId: runtime.sessionId,
     identity: deps.identity,

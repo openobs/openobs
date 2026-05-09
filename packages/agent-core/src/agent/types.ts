@@ -180,6 +180,61 @@ export interface ApprovalRequest {
   expiresAt: string
 }
 
+/**
+ * Minimal config-mutation surface the agent uses for AI-first
+ * datasource / connector / org-setting configuration tools.
+ *
+ * Implemented by api-gateway adapting `SetupConfigService` (and ops connector
+ * repo) — agent-core stays decoupled from the gateway. Optional on
+ * ActionContext so test/in-memory setups can omit; the handlers return a
+ * clear "not configured" observation if the agent invokes them anyway.
+ *
+ * Raw credentials NEVER flow through this surface — adapters only accept an
+ * opaque `secretRef` (string id of an externally-stored secret) plus shape
+ * config. Connection probes operate on already-persisted records.
+ */
+export interface AgentConfigService {
+  /** Create or update a datasource draft. `id` set ⇒ update, else create. */
+  upsertDatasource(input: {
+    id?: string;
+    orgId: string;
+    type: string;
+    name: string;
+    url: string;
+    environment?: string | null;
+    cluster?: string | null;
+    label?: string | null;
+    isDefault?: boolean;
+    secretRef?: string | null;
+    actorUserId?: string | null;
+  }): Promise<{ id: string; type: string; name: string; url: string; secretMissing?: boolean }>;
+  /** Probe an already-persisted datasource. */
+  testDatasource(id: string, orgId: string): Promise<{ ok: boolean; message: string }>;
+
+  /** Create or update an ops connector draft. `id` set ⇒ update, else create. */
+  upsertOpsConnector(input: {
+    id?: string;
+    orgId: string;
+    type: 'kubernetes';
+    name: string;
+    environment?: string | null;
+    secretRef?: string | null;
+    allowedNamespaces?: string[];
+    capabilities?: string[];
+    actorUserId?: string | null;
+  }): Promise<{ id: string; name: string; type: string; secretMissing?: boolean }>;
+  /** Probe an already-persisted connector. */
+  testOpsConnector(id: string, orgId: string): Promise<{ ok: boolean; message: string; status?: string }>;
+
+  /** Read/write low-risk org settings (default folders, etc). */
+  getInstanceSetting(key: string): Promise<string | null>;
+  setInstanceSetting(
+    key: string,
+    value: string,
+    actor: { userId: string | null },
+  ): Promise<void>;
+}
+
 export interface ApprovalRequestStore {
   submit(params: {
     action: ApprovalAction;

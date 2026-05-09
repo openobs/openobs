@@ -24,6 +24,7 @@ import {
   toAgentDatasources,
 } from './dashboard-service.js';
 import { OpsCommandRunnerService } from './ops-command-runner-service.js';
+import { createAgentConfigService } from './agent-config-adapter.js';
 import { DuckDuckGoSearchAdapter } from '@agentic-obs/adapters';
 
 // Web-search adapter is configuration-free for the default DuckDuckGo
@@ -418,6 +419,16 @@ export class ChatService {
       ? await opsCommandRunner.listConnectors()
       : undefined;
 
+    // Task 07 — AI-first configuration tools. Available whenever the gateway
+    // has both setupConfig and an opsConnectors repository (the same surface
+    // the manual Settings UI uses).
+    const configService = this.deps.opsConnectorStore
+      ? createAgentConfigService({
+          setupConfig: this.deps.setupConfig,
+          opsConnectors: this.deps.opsConnectorStore,
+        })
+      : undefined;
+
     // Parse relative time range (e.g., "1h", "6h", "24h", "7d") to absolute
     // start/end. Carry the client's IANA timezone so the prompt can label
     // both UTC and local time — without that the agent can't reconcile a
@@ -534,6 +545,7 @@ export class ChatService {
         // datasources.pin/unpin and we read it back across messages.
         sessionDatasourcePins: getSessionDatasourcePins(resolvedSessionId),
         ...(opsCommandRunner ? { opsCommandRunner, opsConnectors } : {}),
+        ...(configService ? { configService } : {}),
         // P4 — agent can propose remediation plans when these stores are wired.
         ...(this.deps.remediationPlanStore
           ? { remediationPlans: this.deps.remediationPlanStore }

@@ -7,3 +7,4 @@ export type {
   PermissionChecker,
 } from './action-guard.js';
 export type { PolicyRule, GuardDecision } from './types.js';
+export { CONFIG_PLANE_ALLOWLIST } from './allowlist-registry.js';

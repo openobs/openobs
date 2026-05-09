@@ -1,6 +1,6 @@
 // @agentic-obs/guardrails - Safety guardrails
 
-export { ActionGuard, pickConfirmationMode } from './action-guard/index.js';
+export { ActionGuard, pickConfirmationMode, CONFIG_PLANE_ALLOWLIST } from './action-guard/index.js';
 export type {
   ActionInput,
   CapabilityAllowEntry,

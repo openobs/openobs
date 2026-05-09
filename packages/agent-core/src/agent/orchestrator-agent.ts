@@ -19,6 +19,7 @@ import type {
   OpsConnectorConfig,
   ApprovalRequestStore,
   RemediationPlanStore,
+  AgentConfigService,
 } from './types.js'
 import type { AdapterRegistry, IWebSearchAdapter } from '../adapters/index.js'
 import type { LLMGateway } from '@agentic-obs/llm-gateway'
@@ -74,6 +75,8 @@ export interface OrchestratorDeps {
   remediationPlans?: RemediationPlanStore
   /** P4 — used to auto-emit a plan-level ApprovalRequest on plan creation. */
   approvalRequests?: ApprovalRequestStore
+  /** Task 07 — AI-first configuration tools (datasource / connector / settings). */
+  configService?: AgentConfigService
   sendEvent: (event: DashboardSseEvent) => void
   timeRange?: { start: string; end: string; clientTimezone?: string }
   maxTokenBudget?: number

@@ -26,6 +26,7 @@ import type {
   OpsConnectorConfig,
   ApprovalRequestStore,
   RemediationPlanStore,
+  AgentConfigService,
 } from '../types.js';
 import type { ActionExecutor } from '../action-executor.js';
 import type { AlertRuleAgent } from '../alert-rule-agent.js';
@@ -78,6 +79,13 @@ export interface ActionContext {
    * ApprovalRequest is created (the UI's plans page can still show them).
    */
   approvalRequests?: ApprovalRequestStore;
+  /**
+   * AI-first configuration surface used by the `datasource_configure`,
+   * `ops_connector_configure`, and `system_setting_configure` tools.
+   * Optional — when absent those tools return a "not configured"
+   * observation; the existing manual Settings UI is unaffected either way.
+   */
+  configService?: AgentConfigService;
   sendEvent: (event: DashboardSseEvent) => void;
   sessionId: string;
 
