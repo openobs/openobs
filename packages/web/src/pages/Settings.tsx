@@ -624,10 +624,10 @@ function GitHubChangeSourcesTab({ canWrite }: { canWrite: boolean }) {
               <input type="text" value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="Prod deploys" className={inputCls} />
             </Field>
             <Field label="Owner" hint="Optional">
-              <input type="text" value={form.owner} onChange={(e) => setForm((prev) => ({ ...prev, owner: e.target.value }))} placeholder="openobs" className={inputCls} />
+              <input type="text" value={form.owner} onChange={(e) => setForm((prev) => ({ ...prev, owner: e.target.value }))} placeholder="syntropize" className={inputCls} />
             </Field>
             <Field label="Repository" hint="Optional">
-              <input type="text" value={form.repo} onChange={(e) => setForm((prev) => ({ ...prev, repo: e.target.value }))} placeholder="openobs" className={inputCls} />
+              <input type="text" value={form.repo} onChange={(e) => setForm((prev) => ({ ...prev, repo: e.target.value }))} placeholder="syntropize" className={inputCls} />
             </Field>
             <Field label="Webhook secret" hint="Leave blank to generate one.">
               <input type="password" value={form.secret} onChange={(e) => setForm((prev) => ({ ...prev, secret: e.target.value }))} placeholder="Generated if blank" className={inputCls} />
@@ -851,7 +851,7 @@ function OpsIntegrationsTab({ canWrite }: { canWrite: boolean }) {
             <div>
               <h3 className="text-sm font-semibold text-[var(--color-on-surface)]">Connect Kubernetes</h3>
               <p className="text-xs text-[var(--color-on-surface-variant)] mt-0.5">
-                Choose how OpenObs should reach the cluster, then restrict what the agent may do.
+                Choose how Rounds should reach the cluster, then restrict what the agent may do.
               </p>
             </div>
             <span className="px-2 py-1 rounded bg-[var(--color-primary)]/10 text-[var(--color-primary)] text-[10px] font-semibold shrink-0">
@@ -934,7 +934,7 @@ function OpsIntegrationsTab({ canWrite }: { canWrite: boolean }) {
               )}
               {kubeconfigPreview?.unreachableFromGateway && (
                 <p className="text-xs text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/20 rounded px-3 py-2">
-                  This address is only reachable from your machine. The openobs gateway runs in a container/cluster and cannot reach it. Use <code className="font-mono">kubectl config view --flatten --minify</code> from a reachable jump host, or use In-cluster mode.
+                  This address is only reachable from your machine. The Rounds gateway runs in a container/cluster and cannot reach it. Use <code className="font-mono">kubectl config view --flatten --minify</code> from a reachable jump host, or use In-cluster mode.
                 </p>
               )}
               <Field label="Context" hint="Optional. Leave blank to use the kubeconfig's current-context.">
@@ -951,7 +951,7 @@ function OpsIntegrationsTab({ canWrite }: { canWrite: boolean }) {
               </Field>
               {isLocalhostApiServer(form.apiServer) && (
                 <p className="text-xs text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/20 rounded px-3 py-2">
-                  This address is only reachable from your machine. The openobs gateway runs in a container/cluster and cannot reach it. Use <code className="font-mono">kubectl config view --flatten --minify</code> from a reachable jump host, or use In-cluster mode.
+                  This address is only reachable from your machine. The Rounds gateway runs in a container/cluster and cannot reach it. Use <code className="font-mono">kubectl config view --flatten --minify</code> from a reachable jump host, or use In-cluster mode.
                 </p>
               )}
               <Field label="Bearer Token">
@@ -971,7 +971,7 @@ function OpsIntegrationsTab({ canWrite }: { canWrite: boolean }) {
             <div className="rounded-lg border border-[#22C55E]/20 bg-[#22C55E]/10 px-3 py-2">
               <p className="text-xs text-[#22C55E] font-medium">Service account detected</p>
               <p className="text-xs text-[var(--color-on-surface-variant)] mt-0.5">
-                OpenObs will build a kubeconfig from the gateway pod's mounted token and certificate.
+                Rounds will build a kubeconfig from the gateway pod's mounted token and certificate.
               </p>
             </div>
           )}
@@ -1438,7 +1438,7 @@ export default function Settings() {
             {tab === 'ops' && 'Connect Kubernetes clusters for diagnostics and approved remediation.'}
             {tab === 'llm' && 'Configure the AI model used for investigations and analysis.'}
             {tab === 'notifications' && 'Set up alert delivery channels.'}
-            {tab === 'danger' && 'Irreversible actions for your OpenObs instance.'}
+            {tab === 'danger' && 'Irreversible actions for your Rounds instance.'}
           </p>
 
           {tab === 'datasources' && (

@@ -106,7 +106,7 @@ spec:
     spec:
       containers:
         - name: app
-          image: ghcr.io/openobs/this-image-does-not-exist:v9.9.9
+          image: ghcr.io/syntropize/this-image-does-not-exist:v9.9.9
 ---
 # Pending — requests more CPU than any node has.
 apiVersion: apps/v1

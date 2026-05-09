@@ -1,4 +1,4 @@
--- Consolidated Postgres schema for openobs.
+-- Consolidated Postgres schema for Rounds.
 -- Generated from the SQLite schema shape so both backends expose the same tables.
 
 -- ============================================================================

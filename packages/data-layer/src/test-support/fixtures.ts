@@ -100,7 +100,7 @@ export function makeServiceAccount(orgId: string, overrides: Partial<User> = {})
   return makeUser({
     id,
     login: id,
-    email: `${id}@svc.openobs.local`,
+    email: `${id}@svc.rounds.local`,
     name: 'Fixture Service Account',
     orgId,
     isServiceAccount: true,
@@ -283,7 +283,7 @@ export async function seedServerAdmin(
 ): Promise<{ user: User; orgUser: OrgUser }> {
   await seedDefaultOrg(db);
   const login = opts.login ?? 'admin';
-  const email = opts.email ?? 'admin@openobs.local';
+  const email = opts.email ?? 'admin@rounds.local';
   const userRepo = new UserRepository(db);
   const orgUserRepo = new OrgUserRepository(db);
 

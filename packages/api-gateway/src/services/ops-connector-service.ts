@@ -50,9 +50,9 @@ export function synthesizeKubeconfig(input: {
   clusterName?: string;
   namespace?: string;
 }): string {
-  const cluster = input.clusterName ?? 'openobs-cluster';
-  const ctx = input.contextName ?? 'openobs-context';
-  const user = 'openobs-user';
+  const cluster = input.clusterName ?? 'rounds-cluster';
+  const ctx = input.contextName ?? 'rounds-context';
+  const user = 'rounds-user';
   const lines: string[] = [
     'apiVersion: v1',
     'kind: Config',
@@ -187,7 +187,7 @@ async function runKubectlVersion(
   spawnFn: KubectlSpawnFn = spawn as unknown as KubectlSpawnFn,
   timeoutMs = 5000,
 ): Promise<{ ok: boolean; stdout: string; stderr: string; timedOut: boolean }> {
-  const dir = mkdtempSync(join(tmpdir(), 'openobs-test-kc-'));
+  const dir = mkdtempSync(join(tmpdir(), 'rounds-test-kc-'));
   const kubeconfigPath = join(dir, 'kubeconfig');
   try {
     writeFileSync(kubeconfigPath, kubeconfig, { mode: 0o600 });

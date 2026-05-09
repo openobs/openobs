@@ -10,11 +10,11 @@ export interface User {
   email: string;
   name: string;
   login: string;
-  /** scrypt hash (salt embedded per openobs format); null for SA rows. */
+  /** scrypt hash (salt embedded per Rounds format); null for SA rows. */
   password: string | null;
   /** Present for Grafana parity but unused — see 01-database-schema.md §user. */
   salt: string | null;
-  /** Grafana uses for session cookie; openobs retains column for parity only. */
+  /** Grafana uses for session cookie; Rounds retains column for parity only. */
   rands: string | null;
   company: string | null;
   /** User's default / current org. FKs to org(id). */

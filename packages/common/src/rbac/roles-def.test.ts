@@ -63,7 +63,7 @@ describe('basic role definitions', () => {
 });
 
 describe('fixed role definitions', () => {
-  it('has between 40 and 100 roles (Grafana v11.3.0 + openobs extensions)', () => {
+  it('has between 40 and 100 roles (Grafana v11.3.0 + rounds extensions)', () => {
     expect(FIXED_ROLE_DEFINITIONS.length).toBeGreaterThanOrEqual(40);
     expect(FIXED_ROLE_DEFINITIONS.length).toBeLessThanOrEqual(100);
   });

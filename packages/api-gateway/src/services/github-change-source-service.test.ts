@@ -16,7 +16,7 @@ function deploymentPayload(patch: Record<string, unknown> = {}) {
       created_at: new Date().toISOString(),
       creator: { login: 'octocat' },
     },
-    repository: { full_name: 'openobs/openobs' },
+    repository: { full_name: 'syntropize/rounds' },
     ...patch,
   };
 }
@@ -47,8 +47,8 @@ describe('GitHubChangeSourceRegistry', () => {
     const source = await registry.create({
       orgId: 'org_a',
       name: 'Prod deploys',
-      owner: 'openobs',
-      repo: 'openobs',
+      owner: 'syntropize',
+      repo: 'rounds',
       secret: 'super-secret',
     });
 
@@ -70,7 +70,7 @@ describe('GitHubChangeSourceRegistry', () => {
       ok: true,
       ignored: false,
       record: {
-        service: 'openobs/openobs',
+        service: 'syntropize/rounds',
         kind: 'deploy',
         summary: 'Deploy main to production',
       },
@@ -81,7 +81,7 @@ describe('GitHubChangeSourceRegistry', () => {
     const records = await adapters[0]!.adapter.listRecent({ windowMinutes: 60 });
     expect(records).toHaveLength(1);
     expect(records[0]).toMatchObject({
-      service: 'openobs/openobs',
+      service: 'syntropize/rounds',
       metadata: { author: 'octocat', version: 'abc123' },
     });
   });

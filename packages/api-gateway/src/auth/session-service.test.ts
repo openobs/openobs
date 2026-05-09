@@ -15,7 +15,7 @@ import {
 async function seedUser(db: ReturnType<typeof createTestDb>) {
   const users = new UserRepository(db);
   const user = await users.create({
-    email: 'test@openobs.local',
+    email: 'test@rounds.local',
     name: 'Test User',
     login: 'test',
     orgId: 'org_main',

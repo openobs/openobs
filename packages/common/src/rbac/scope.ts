@@ -34,7 +34,7 @@ export const SCOPE_KINDS = [
   'annotations',
   'server',
   'apikeys',
-  // openobs-specific kinds — same wildcard semantics.
+  // rounds-specific kinds — same wildcard semantics.
   'investigations',
   'approvals',
   'chat',

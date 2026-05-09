@@ -8,7 +8,7 @@ import { pollUntil } from '../helpers/wait.js';
 import { scaleDeployment } from '../helpers/scale.js';
 import { skipWithoutLLMQuality } from '../helpers/llm.js';
 
-const NS = 'openobs-e2e';
+const NS = 'rounds-e2e';
 const DEPLOY = 'web-api';
 // Same caveat as manual-investigate-reuses: rule.investigationId is only set
 // after the agent finishes and finalize runs, and free-tier models often

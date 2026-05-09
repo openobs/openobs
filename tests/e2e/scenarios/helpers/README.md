@@ -7,7 +7,7 @@ they don't need to be a separate workspace package.
 | ---- | ------- |
 | `api-client.ts` | Bearer-auth `fetch` wrapper. Reads `tests/e2e/.state/sa-token` once at module load. Base URL from `OPENOBS_TEST_BASE_URL` (default `http://127.0.0.1:3000`). Throws `ApiError` with status + body excerpt on non-2xx. |
 | `wait.ts` | `pollUntil(fn, { timeoutMs, intervalMs, label })`. Returns the first non-null/undefined value `fn` produces. Always prefer this over bare `setTimeout` so timeouts produce a labelled error. |
-| `prom-helpers.ts` | `promQuery(promQL)` and `awaitRate(promQL, predicate, timeoutMs)`. Talks to prometheus directly via `OPENOBS_TEST_PROM_DIRECT_URL` (default `http://127.0.0.1:9090`, typically a `kit.sh` port-forward). Used for fixture-state assertions, not as a substitute for what openobs sees. |
+| `prom-helpers.ts` | `promQuery(promQL)` and `awaitRate(promQL, predicate, timeoutMs)`. Talks to prometheus directly via `OPENOBS_TEST_PROM_DIRECT_URL` (default `http://127.0.0.1:9090`, typically a `kit.sh` port-forward). Used for fixture-state assertions, not as a substitute for what Rounds sees. |
 | `scale.ts` | `scaleDeployment(ns, name, replicas)`. Shells out to `kubectl scale` and waits for the deployment to converge. Requires a working `kubectl` in `PATH` pointed at the kind cluster — `kit.sh up` does this. |
 
 ## State contract

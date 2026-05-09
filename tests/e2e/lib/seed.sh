@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# seed.sh - first-time setup of an openobs instance for e2e tests.
+# seed.sh - first-time setup of an Rounds instance for e2e tests.
 #
 # Idempotent. Safe to run multiple times. Walks the bootstrap wizard,
 # configures the LLM datasource, attaches the in-cluster prometheus
@@ -15,8 +15,8 @@
 #
 # Optional env:
 #   OPENOBS_TEST_BASE_URL          (default http://127.0.0.1:3000)
-#   OPENOBS_TEST_PROM_URL          (default http://prometheus.openobs-e2e:9090)
-#   OPENOBS_TEST_OPS_NAMESPACE     (default openobs-e2e)
+#   OPENOBS_TEST_PROM_URL          (default http://prometheus.rounds-e2e:9090)
+#   OPENOBS_TEST_OPS_NAMESPACE     (default rounds-e2e)
 #   OPENOBS_TEST_ADMIN_EMAIL       (default admin@example.com)
 #   OPENOBS_TEST_ADMIN_PASSWORD    (default: random hex stored in .state/admin-password)
 #
@@ -28,8 +28,8 @@ STATE_DIR="$E2E_DIR/.state"
 mkdir -p "$STATE_DIR"
 
 BASE_URL="${OPENOBS_TEST_BASE_URL:-http://127.0.0.1:3000}"
-PROM_URL="${OPENOBS_TEST_PROM_URL:-http://prometheus.openobs-e2e:9090}"
-OPS_NS="${OPENOBS_TEST_OPS_NAMESPACE:-openobs-e2e}"
+PROM_URL="${OPENOBS_TEST_PROM_URL:-http://prometheus.rounds-e2e:9090}"
+OPS_NS="${OPENOBS_TEST_OPS_NAMESPACE:-rounds-e2e}"
 ADMIN_EMAIL="${OPENOBS_TEST_ADMIN_EMAIL:-admin@example.com}"
 
 : "${OPENOBS_TEST_LLM_PROVIDER:?OPENOBS_TEST_LLM_PROVIDER is required}"
@@ -229,18 +229,18 @@ printf "%s" "$ops_id" > "$OPS_CONNECTOR_FILE"
 
 # --- 6. service account + token -----------------------------------------
 phase "service account + token"
-# Find or create the SA named "openobs".
+# Find or create the SA named "Rounds".
 sa_list=$(api GET "/api/serviceaccounts/search?perpage=100" "${CURL_AUTH[@]}")
 sa_id=$(printf '%s' "$sa_list" | python3 -c '
 import json,sys
 data = json.load(sys.stdin)
 for s in data.get("serviceAccounts", []):
-    if s.get("name") == "openobs-e2e":
+    if s.get("name") == "rounds-e2e":
         print(s["id"]); break
 ')
 if [[ -z "$sa_id" ]]; then
   sa_create=$(api POST "/api/serviceaccounts" "${CURL_AUTH[@]}" \
-    --data '{"name":"openobs-e2e","role":"Admin"}')
+    --data '{"name":"rounds-e2e","role":"Admin"}')
   sa_id=$(printf '%s' "$sa_create" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
   printf "[seed] service account created id=%s\n" "$sa_id" >&2
 fi

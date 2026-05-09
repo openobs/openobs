@@ -1,18 +1,18 @@
 # shellcheck shell=bash
-# Shared defaults for the openobs e2e testkit. Source this from any kit script.
+# Shared defaults for the rounds e2e testkit. Source this from any kit script.
 # All variables can be overridden by the caller's environment.
 
-: "${CLUSTER:=openobs-e2e}"
-: "${NS:=openobs-e2e}"
-: "${GATEWAY_NS:=openobs}"
+: "${CLUSTER:=rounds-e2e}"
+: "${NS:=rounds-e2e}"
+: "${GATEWAY_NS:=rounds}"
 : "${GATEWAY_PORT:=3000}"
-: "${GATEWAY_RELEASE:=openobs}"
+: "${GATEWAY_RELEASE:=rounds}"
 
 # IMAGE_TAG defaults to the short git sha; falls back to "test" outside a repo.
 if [[ -z "${IMAGE_TAG:-}" ]]; then
   IMAGE_TAG="$(git rev-parse --short HEAD 2>/dev/null || echo test)"
 fi
-: "${IMAGE_REPO:=ghcr.io/openobs/openobs}"
+: "${IMAGE_REPO:=ghcr.io/syntropize/rounds}"
 : "${IMAGE:=${IMAGE_REPO}:${IMAGE_TAG}}"
 
 # LLM config supplied by the user. Required for kit.sh up to deploy meaningfully,

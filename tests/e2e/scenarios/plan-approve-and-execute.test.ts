@@ -2,7 +2,7 @@
  * Scenario 4 — marquee. Plan approve + execute end-to-end.
  *
  * Full chain: alert fires -> investigation -> plan proposed -> approve
- * -> execute -> web-api scaled back up by openobs -> alert resolves.
+ * -> execute -> web-api scaled back up by Rounds -> alert resolves.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { apiPost, apiGet, apiDelete } from './helpers/api-client.js';
@@ -10,7 +10,7 @@ import { createAlertRuleFixture, WEB_API_DOWN_QUERY } from './helpers/alert-rule
 import { pollUntil } from './helpers/wait.js';
 import { scaleDeployment } from './helpers/scale.js';
 
-const NS = 'openobs-e2e';
+const NS = 'rounds-e2e';
 const DEPLOY = 'web-api';
 
 interface AlertRule { id: string; state: string; investigationId?: string }

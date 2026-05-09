@@ -1,6 +1,6 @@
 # Architecture
 
-OpenObs is a TypeScript monorepo with distinct package boundaries between UI, API, agents, data access, and adapters.
+Rounds is a TypeScript monorepo with distinct package boundaries between UI, API, agents, data access, and adapters.
 
 ## Package layout
 

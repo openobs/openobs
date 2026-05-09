@@ -209,7 +209,7 @@ export class KubectlExecutionAdapter implements ExecutionAdapter {
    */
   private async run(argv: readonly string[]): Promise<RunResult> {
     const kubeconfig = await this.opts.resolveKubeconfig();
-    const dir = mkdtempSync(join(tmpdir(), 'openobs-kubeconfig-'));
+    const dir = mkdtempSync(join(tmpdir(), 'rounds-kubeconfig-'));
     const kubeconfigPath = join(dir, 'kubeconfig');
     try {
       writeFileSync(kubeconfigPath, kubeconfig, { mode: 0o600 });

@@ -102,7 +102,7 @@ export class GitHubProvider {
     const headers = {
       Authorization: `Bearer ${accessToken}`,
       Accept: 'application/vnd.github+json',
-      'User-Agent': 'openobs',
+      'User-Agent': 'rounds',
     };
     const userRes = await fetch(GITHUB_USER_ENDPOINT, { headers });
     if (!userRes.ok) {
@@ -144,7 +144,7 @@ export class GitHubProvider {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: 'application/vnd.github+json',
-        'User-Agent': 'openobs',
+        'User-Agent': 'rounds',
       },
     });
     if (!res.ok) {

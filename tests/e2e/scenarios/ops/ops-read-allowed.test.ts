@@ -15,7 +15,7 @@ import { describe, it } from 'vitest';
 describe.skip('ops/ops-read-allowed', () => {
   it('read intent on allow-listed namespace succeeds (agent-mediated)', () => {
     // Recipe: open a chat session scoped to the e2e workspace, prompt
-    //   "kubectl get deploy/web-api -n openobs-e2e (read-only)" and
+    //   "kubectl get deploy/web-api -n rounds-e2e (read-only)" and
     //   inspect the agent's ops_run_command tool call.
   });
 });

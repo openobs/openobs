@@ -44,16 +44,16 @@ function fakeAgentCtxBase(opts: { adapters?: AdapterRegistry } = {}) {
     findByWorkspace: vi.fn(async () => []),
     update: vi.fn(),
     delete: vi.fn(),
-  } as never;
+  };
   const folderRepository = {
     create: vi.fn(),
     findByUid: vi.fn(async () => ({ uid: 'alerts' })),
-  } as never;
+  };
   const ctx = makeFakeActionContext({
     alertRuleStore,
     folderRepository,
     ...(opts.adapters ? { adapters: opts.adapters } : {}),
-  });
+  } as unknown as Parameters<typeof makeFakeActionContext>[0]);
   return { ctx, alertRuleStore };
 }
 

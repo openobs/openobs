@@ -31,7 +31,7 @@ export interface PermissionsDialogProps {
  *
  * License hygiene: design semantics are from our design docs and Grafana's
  * public API surface; no Grafana frontend code was read or ported. UX
- * primitives (modal + scrim + list) are idiomatic openobs.
+ * primitives (modal + scrim + list) are idiomatic Rounds.
  */
 export function PermissionsDialog(props: PermissionsDialogProps): React.ReactElement | null {
   const { resource, uid, resourceName, onClose, onSaved } = props;

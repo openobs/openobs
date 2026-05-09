@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { apiPost, apiGet, apiDelete, ApiError } from '../helpers/api-client.js';
 import { scaleDeployment } from '../helpers/scale.js';
 
-const NS = 'openobs-e2e';
+const NS = 'rounds-e2e';
 const DEPLOY = 'web-api';
 
 interface AlertRule { id: string; state: string }

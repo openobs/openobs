@@ -12,7 +12,7 @@ import { apiPost, ApiError } from '../helpers/api-client.js';
 interface TestResult { ok: boolean; message: string }
 
 const PROM_URL =
-  process.env['OPENOBS_TEST_PROM_URL'] ?? 'http://prometheus.openobs-e2e:9090';
+  process.env['OPENOBS_TEST_PROM_URL'] ?? 'http://prometheus.rounds-e2e:9090';
 
 describe('setup/datasource-test-connection', () => {
   it('healthy prometheus URL -> ok=true', async () => {
@@ -30,7 +30,7 @@ describe('setup/datasource-test-connection', () => {
     try {
       result = await apiPost<TestResult>('/api/datasources/test', {
         type: 'prometheus',
-        url: 'http://nonexistent.invalid.openobs-e2e:9090',
+        url: 'http://nonexistent.invalid.rounds-e2e:9090',
       });
     } catch (err) {
       if (err instanceof ApiError) {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ACTIONS, ALL_ACTIONS, isKnownAction, type RbacAction } from './actions.js';
 
 describe('rbac/actions catalog', () => {
-  it('exposes at least 90 actions (parity with Grafana v11.3.0 + openobs extensions)', () => {
+  it('exposes at least 90 actions (parity with Grafana v11.3.0 + rounds extensions)', () => {
     expect(ALL_ACTIONS.length).toBeGreaterThanOrEqual(90);
   });
 
@@ -34,7 +34,7 @@ describe('rbac/actions catalog', () => {
       'roles:read',
       'server.stats:read',
       'annotations:read',
-      // openobs extensions
+      // rounds extensions
       'investigations:read',
       'approvals:read',
       'chat:use',

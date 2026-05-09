@@ -2,7 +2,7 @@
 layout: home
 
 hero:
-  name: OpenObs
+  name: Rounds
   text: An open-source AI SRE
   tagline: Investigate incidents, build dashboards, tune alerts, and approve remediations from a single chat-driven SRE loop.
   actions:
