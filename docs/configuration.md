@@ -1,6 +1,6 @@
 # Configuration
 
-OpenObs is configured through environment variables.
+Rounds is configured through environment variables.
 
 ## Core settings
 
@@ -33,7 +33,7 @@ OpenObs is configured through environment variables.
 | `DATA_DIR` | No | Local data directory for containerized or SQLite mode. |
 | `SQLITE_PATH` | No | Explicit SQLite file path. Overrides `DATA_DIR`. |
 
-OpenObs selects its database before the server starts. The setup wizard writes
+Rounds selects its database before the server starts. The setup wizard writes
 application settings into the active backend; it does not switch databases.
 
 Supported backends:
@@ -43,12 +43,12 @@ Supported backends:
 | SQLite | Leave `DATABASE_URL` unset | Local development, npm installs, single-process evaluation |
 | Postgres | Set `DATABASE_URL=postgresql://...` before first start | Production, Kubernetes, multi-replica deployments |
 
-By default, OpenObs uses SQLite:
+By default, Rounds uses SQLite:
 
-- npm: `~/.openobs/openobs.db`
-- Helm/container: `${DATA_DIR}/openobs.db`, which defaults to `/var/lib/openobs/openobs.db`
+- npm: `~/.syntropize/rounds.db`
+- Helm/container: `${DATA_DIR}/rounds.db`, which defaults to `/var/lib/syntropize/rounds.db`
 
-When `DATABASE_URL` starts with `postgres://` or `postgresql://`, OpenObs uses
+When `DATABASE_URL` starts with `postgres://` or `postgresql://`, Rounds uses
 Postgres for the full repository layer: auth, RBAC, settings, datasources,
 dashboards, investigations, alerts, notifications, chat, and feed data. The
 repository boundary is database-agnostic so additional SQL backends can be added
@@ -57,8 +57,8 @@ backends today.
 
 Choose the database backend before first startup. The setup wizard can store
 application settings such as the LLM provider, but it cannot switch databases
-because OpenObs must connect to its database before the wizard can load. Changing
-`DATABASE_URL` later starts OpenObs against a different empty or pre-existing
+because Rounds must connect to its database before the wizard can load. Changing
+`DATABASE_URL` later starts Rounds against a different empty or pre-existing
 database; it does not migrate data from SQLite to Postgres.
 
 ## Docs note

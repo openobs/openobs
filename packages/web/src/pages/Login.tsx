@@ -118,7 +118,7 @@ export default function Login() {
           <div className="inline-flex items-center justify-center w-16 h-16 text-on-surface text-xl mb-4">
             <RoundsLogo className="w-9 h-9" />
           </div>
-          <h1 className="text-2xl font-bold text-on-surface">OpenObs</h1>
+          <h1 className="text-2xl font-bold text-on-surface">Rounds</h1>
           <p className="text-on-surface-variant mt-1">AI-native observability platform</p>
         </div>
 

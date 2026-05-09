@@ -9,7 +9,7 @@ import { pollUntil } from '../helpers/wait.js';
 import { scaleDeployment } from '../helpers/scale.js';
 import { skipWithoutLLMQuality } from '../helpers/llm.js';
 
-const NS = 'openobs-e2e';
+const NS = 'rounds-e2e';
 const DEPLOY = 'web-api';
 // rule.investigationId is only written by the dispatcher's finalize step,
 // which runs AFTER the agent's run returns. Free-tier models often skip the

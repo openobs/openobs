@@ -12,7 +12,7 @@
  *   3. Investigation correlates the latency rise with CPU saturation
  *      (process_cpu_seconds_total approaching the limit).
  *   4. Investigation files a remediation plan with a `kubectl scale
- *      deploy/web-api -n openobs-e2e --replicas=N` step (N > 1).
+ *      deploy/web-api -n rounds-e2e --replicas=N` step (N > 1).
  *   5. Test approves the plan. Executor runs the scale.
  *   6. Per-pod CPU pressure drops, p99 latency falls, alert resolves.
  *
@@ -42,7 +42,7 @@ import { apiPost, apiGet, apiDelete } from '../helpers/api-client.js';
 import { pollUntil } from '../helpers/wait.js';
 import { scaleDeployment } from '../helpers/scale.js';
 
-const NS = 'openobs-e2e';
+const NS = 'rounds-e2e';
 const TARGET = 'web-api';
 const LOAD = 'load-200';
 const BASELINE_LOAD_REPLICAS = 1;

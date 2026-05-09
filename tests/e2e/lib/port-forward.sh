@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# Manage the kubectl port-forward to the openobs gateway service.
+# Manage the kubectl port-forward to the Rounds gateway service.
 
 pf_down() {
   pkill -f "port-forward.*${GATEWAY_RELEASE}" 2>/dev/null || true

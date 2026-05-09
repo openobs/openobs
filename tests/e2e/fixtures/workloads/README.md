@@ -1,12 +1,12 @@
 # e2e workload fixtures
 
 Manifests for the workloads the e2e testkit asserts against. All resources live
-in the `openobs-e2e` namespace, alongside openobs itself.
+in the `rounds-e2e` namespace, alongside Rounds itself.
 
 ## Files
 
 - **`prometheus.yaml`** — single-replica Prometheus with pod-role service
-  discovery scoped to `openobs-e2e`. Picks up any pod with the
+  discovery scoped to `rounds-e2e`. Picks up any pod with the
   `prometheus.io/scrape=true` annotation. Service exposes `:9090` ClusterIP.
 - **`web-api.yaml`** — `prometheus-example-app` (3 replicas) on `:8080`. The
   primary scrape target; killing it is what drives the "metric drops to zero"
@@ -24,11 +24,11 @@ once web-api is up.
 
 ## Namespace
 
-These manifests do **not** create the `openobs-e2e` namespace — `kit.sh`
+These manifests do **not** create the `rounds-e2e` namespace — `kit.sh`
 handles namespace creation (sibling agent A's `deploy.sh`). For ad-hoc use:
 
 ```bash
-kubectl create namespace openobs-e2e
+kubectl create namespace rounds-e2e
 kubectl apply -f tests/e2e/fixtures/workloads/
 ```
 

@@ -208,7 +208,7 @@ describe('AnthropicProvider — request body', () => {
         {
           role: 'user',
           content: [
-            // tool_name is required by openobs's internal ContentBlock (used
+            // tool_name is required by Rounds's internal ContentBlock (used
             // by OpenAI/Gemini providers) but MUST NOT appear on the wire.
             {
               type: 'tool_result',

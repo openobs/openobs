@@ -91,7 +91,7 @@ export interface OrgServiceDeps {
   /**
    * Raw repository database — needed to seed RBAC into a freshly-created org and
    * to clean up org-scoped resource rows on delete (SQLite ALTER-added org_id
-   * columns have no FK cascade — see migration 015's `[openobs-deviation]`
+   * columns have no FK cascade — see migration 015's `[rounds-deviation]`
    * note).
    */
   db: QueryClient;

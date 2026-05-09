@@ -4,7 +4,7 @@
  * Covers three callers:
  *   - Service-account tokens (`openobs_sa_<b64>`): owned by an SA user row.
  *   - Personal access tokens (`openobs_pat_<b64>`): owned by a human user.
- *     [openobs-extension] — Grafana deprecated PATs in favour of SA tokens.
+ *     [rounds-extension] — Grafana deprecated PATs in favour of SA tokens.
  *   - Legacy `/api/auth/keys` — thin back-compat shim over issueServiceAccountToken
  *     (created on demand against a synthetic SA per the T9 cutover spec).
  *

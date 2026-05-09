@@ -1,6 +1,6 @@
-# openobs e2e testkit
+# rounds e2e testkit
 
-Real-cluster end-to-end harness. Builds the openobs image, brings up a kind
+Real-cluster end-to-end harness. Builds the rounds image, brings up a kind
 cluster, helm-installs the chart, and runs vitest + chainsaw scenarios against
 it.
 
@@ -48,7 +48,7 @@ colima start --cgroup-manager systemd --cpu 4 --memory 8
 
 `tests/e2e/kit.sh down` will delete the cluster named by `CLUSTER`. If
 you set `CLUSTER=kind` to reuse a long-running shared cluster, prefer
-`helm uninstall openobs -n openobs && kubectl delete ns openobs` for
+`helm uninstall rounds -n rounds && kubectl delete ns rounds` for
 cleanup so the shared cluster stays up.
 
 `e2e:full` is `up -> run -> down`. The intermediate steps are also exposed:
@@ -67,7 +67,7 @@ npm run e2e:down   # delete cluster + kill port-forward
 | `OPENOBS_TEST_LLM_API_KEY`   | LLM API key (stored in the release Secret)               |
 | `OPENOBS_TEST_LLM_MODEL`     | LLM model id                                             |
 | `OPENOBS_TEST_KEEP=1`        | Skip teardown in `full` for debugging                    |
-| `CLUSTER`                    | kind cluster name (default `openobs-e2e`)                |
+| `CLUSTER`                    | kind cluster name (default `rounds-e2e`)                |
 | `IMAGE_TAG`                  | Image tag (default: short git sha)                       |
 | `GATEWAY_PORT`               | Local port-forward (default `3000`)                      |
 | `NO_COLOR=1`                 | Disable color output                                     |

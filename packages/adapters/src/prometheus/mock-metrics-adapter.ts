@@ -1,5 +1,5 @@
 // MockMetricsAdapter — deterministic in-memory IMetricsAdapter for the
-// `openobs demo` zero-credential demo path. Never wired into normal mode;
+// `rounds demo` zero-credential demo path. Never wired into normal mode;
 // the api-gateway only constructs it when OPENOBS_DEMO=1 is set.
 //
 // The fixture covers the canonical "API latency spike" investigation:

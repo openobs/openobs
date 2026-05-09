@@ -1,6 +1,6 @@
 # Datasources & connectors
 
-OpenObs reads metrics, logs, and change events from your existing infrastructure, and talks to ops systems (Kubernetes today, more planned) through **connectors**. Every dashboard panel, alert rule, and investigation query talks to a configured datasource — there's no second copy of the data.
+Rounds reads metrics, logs, and change events from your existing infrastructure, and talks to ops systems (Kubernetes today, more planned) through **connectors**. Every dashboard panel, alert rule, and investigation query talks to a configured datasource — there's no second copy of the data.
 
 Datasources can be added through the setup wizard, the Settings page, the REST API, **or by chatting with the agent** (e.g. "connect my prod Prometheus at http://..."). The agent uses the AI-first config tools to validate the URL, test connectivity, and save under your RBAC.
 
@@ -35,7 +35,7 @@ Any backend exposing the Prometheus HTTP API works.
 
 ### Ops connectors
 
-Ops connectors let OpenObs read state and (with approval) act on the systems running your workloads.
+Ops connectors let Rounds read state and (with approval) act on the systems running your workloads.
 
 | Connector | Status | Used for |
 |---|---|---|
@@ -54,7 +54,7 @@ UI: Admin → Datasources → **+ New datasource** → pick the type → fill in
 Or via API:
 
 ```bash
-curl -X POST https://your-openobs/api/datasources \
+curl -X POST https://your-rounds-host/api/datasources \
   -H "Authorization: Bearer openobs_sa_..." \
   -H "Content-Type: application/json" \
   -d '{
@@ -68,7 +68,7 @@ curl -X POST https://your-openobs/api/datasources \
 
 ### Test connectivity
 
-After adding, click **Save & test** in the UI. OpenObs hits `GET /api/v1/labels` (Prometheus) or `GET /loki/api/v1/labels` (Loki) and shows the response.
+After adding, click **Save & test** in the UI. Rounds hits `GET /api/v1/labels` (Prometheus) or `GET /loki/api/v1/labels` (Loki) and shows the response.
 
 ### Use it in chat
 
@@ -131,7 +131,7 @@ After this, the agent picks it up and you can ask: "Search logs for OOM kills in
 
 - Auth methods supported: bearer token, basic auth, custom headers, mTLS (via cert + key in `secureJsonData`).
 - The agent caps result-set size at 20 series per metric query to keep the conversation snappy. Override per-call if needed.
-- No write-back to datasources — OpenObs reads only. Recording rules and alerting rules live in OpenObs's own database.
+- No write-back to datasources — Rounds reads only. Recording rules and alerting rules live in Rounds's own database.
 - Datasource configs are stored encrypted (`SECRET_KEY` for credentials). Datasource definitions are org-scoped — separate orgs cannot see each other's connections.
 
 ## Related

@@ -2,7 +2,7 @@
  * Grafana ref: pkg/services/org/model.go::Org
  * See docs/auth-perm-design/01-database-schema.md §org
  *
- * The openobs "workspace" concept is being renamed to Org in T4.5. Until then,
+ * The Rounds "workspace" concept is being renamed to Org in T4.5. Until then,
  * both exist; fresh installs use `org_main` seeded by migration 001.
  */
 export interface Org {

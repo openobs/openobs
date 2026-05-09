@@ -67,7 +67,7 @@ function githubDeploymentBody(): string {
       created_at: new Date().toISOString(),
       creator: { login: 'octocat' },
     },
-    repository: { full_name: 'openobs/openobs' },
+    repository: { full_name: 'syntropize/rounds' },
   });
 }
 
@@ -95,8 +95,8 @@ describe('GitHub change source routes', () => {
       .post('/api/change-sources/github')
       .send({
         name: 'Prod deploys',
-        owner: 'openobs',
-        repo: 'openobs',
+        owner: 'syntropize',
+        repo: 'rounds',
         secret: 'super-secret',
       })
       .expect(201);
@@ -129,7 +129,7 @@ describe('GitHub change source routes', () => {
 
     const records = await (await registry.listAdapters('org_a'))[0]!.adapter.listRecent({ windowMinutes: 60 });
     expect(records).toHaveLength(1);
-    expect(records[0]).toMatchObject({ service: 'openobs/openobs', kind: 'deploy' });
+    expect(records[0]).toMatchObject({ service: 'syntropize/rounds', kind: 'deploy' });
   });
 
   it('rejects webhook requests with invalid signatures', async () => {

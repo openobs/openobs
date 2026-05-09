@@ -5,7 +5,7 @@ metadata:
   name: cluster-ready
 spec:
   description: |
-    All e2e workloads (prometheus, web-api x3, load-200, load-500) and openobs
+    All e2e workloads (prometheus, web-api x3, load-200, load-500) and rounds
     itself are running, and the in-cluster Services have the expected number of
     endpoints. Workloads are left in place for downstream tests.
   steps:
@@ -17,7 +17,7 @@ spec:
               kind: Deployment
               metadata:
                 name: prometheus
-                namespace: openobs-e2e
+                namespace: rounds-e2e
               status:
                 readyReplicas: 1
     - name: web-api-ready
@@ -28,7 +28,7 @@ spec:
               kind: Deployment
               metadata:
                 name: web-api
-                namespace: openobs-e2e
+                namespace: rounds-e2e
               status:
                 readyReplicas: 3
     - name: load-generators-ready
@@ -39,7 +39,7 @@ spec:
               kind: Deployment
               metadata:
                 name: load-200
-                namespace: openobs-e2e
+                namespace: rounds-e2e
               status:
                 readyReplicas: 1
         - assert:
@@ -48,25 +48,25 @@ spec:
               kind: Deployment
               metadata:
                 name: load-500
-                namespace: openobs-e2e
+                namespace: rounds-e2e
               status:
                 readyReplicas: 1
-    - name: openobs-ready
+    - name: rounds-ready
       try:
         - assert:
             resource:
               apiVersion: apps/v1
               kind: Deployment
               metadata:
-                name: openobs
-                namespace: openobs
+                name: rounds
+                namespace: rounds
               status:
                 (readyReplicas > `0`): true
     - name: prometheus-service-has-endpoint
       try:
         - script:
             content: |
-              count=$(kubectl get endpoints prometheus -n openobs-e2e \
+              count=$(kubectl get endpoints prometheus -n rounds-e2e \
                 -o jsonpath='{range .subsets[*]}{range .addresses[*]}{.ip}{"\n"}{end}{end}' \
                 | grep -c .)
               if [ "$count" -lt 1 ]; then
@@ -78,7 +78,7 @@ spec:
       try:
         - script:
             content: |
-              count=$(kubectl get endpoints web-api -n openobs-e2e \
+              count=$(kubectl get endpoints web-api -n rounds-e2e \
                 -o jsonpath='{range .subsets[*]}{range .addresses[*]}{.ip}{"\n"}{end}{end}' \
                 | grep -c .)
               if [ "$count" -ne 3 ]; then

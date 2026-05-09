@@ -27,7 +27,7 @@ import { apiPost, apiGet, apiDelete } from '../helpers/api-client.js';
 import { pollUntil } from '../helpers/wait.js';
 import { scaleDeployment } from '../helpers/scale.js';
 
-const NS = 'openobs-e2e';
+const NS = 'rounds-e2e';
 const TARGET = 'web-api';
 const LOAD = 'load-200';
 const BASELINE_TARGET_REPLICAS = 3;

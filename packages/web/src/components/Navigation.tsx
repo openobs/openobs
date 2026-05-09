@@ -414,7 +414,7 @@ export default function Navigation() {
             <div className="flex items-center justify-center w-10 h-10 text-on-surface shrink-0">
               <RoundsLogo className="w-7 h-7" />
             </div>
-            <span className="text-sm font-bold text-on-surface truncate">OpenObs</span>
+            <span className="text-sm font-bold text-on-surface truncate">Rounds</span>
           </div>
         ) : (
           <button

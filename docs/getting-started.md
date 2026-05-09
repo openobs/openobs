@@ -1,6 +1,6 @@
 # Getting Started
 
-OpenObs is an **AI SRE** that lives next to your existing telemetry and operations tools. Get it running in under five minutes — no schema changes, no second copy of your data.
+Rounds is an **AI SRE** that lives next to your existing telemetry and operations tools. Get it running in under five minutes — no schema changes, no second copy of your data.
 
 ## 1. Install
 
@@ -9,12 +9,12 @@ Pick the install path that matches your environment:
 ::: code-group
 
 ```bash [npm (single machine)]
-npx openobs
+npx @syntropize/rounds
 ```
 
 ```bash [Helm (Kubernetes)]
-helm upgrade --install openobs \
-  oci://ghcr.io/openobs/charts/openobs \
+helm upgrade --install rounds \
+  oci://ghcr.io/syntropize/charts/rounds \
   --namespace observability \
   --create-namespace \
   --set secretEnv.LLM_API_KEY='replace-with-your-provider-key'
@@ -35,7 +35,7 @@ The setup wizard walks you through the minimum needed to start asking questions:
 3. **Add a metrics datasource** — Prometheus, VictoriaMetrics, Mimir, Thanos, Cortex, or any Prometheus-API-compatible backend
 4. **Optionally add Loki** for log search and a **Kubernetes ops connector** so investigations can inspect pods, events, rollouts, and prepare approval-gated remediations
 
-You don't have to do step 3 or 4 in the wizard — once OpenObs is running, you can also **add datasources, ops connectors, and low-risk org settings by chatting with the agent** ("connect my prod Prometheus at http://..."). The agent collects what it needs, previews the change, and applies it under your RBAC and the GuardedAction risk model.
+You don't have to do step 3 or 4 in the wizard — once Rounds is running, you can also **add datasources, ops connectors, and low-risk org settings by chatting with the agent** ("connect my prod Prometheus at http://..."). The agent collects what it needs, previews the change, and applies it under your RBAC and the GuardedAction risk model.
 
 ## 3. Try a prompt
 
@@ -43,13 +43,13 @@ Once setup is complete, click the chat button and ask:
 
 > *Create a dashboard for HTTP latency*
 
-OpenObs will discover your metrics, build queries, validate them, and create a dashboard with overview stats, trend charts, and per-handler breakdowns — all grounded in your actual data.
+Rounds will discover your metrics, build queries, validate them, and create a dashboard with overview stats, trend charts, and per-handler breakdowns — all grounded in your actual data.
 
 Then try an investigation prompt:
 
 > *Why is checkout latency high right now?*
 
-If metrics, logs, and a Kubernetes connector are configured, OpenObs will query telemetry, inspect cluster state, write a report with citations on every claim, and recommend next actions. Mutating cluster actions are never executed silently:
+If metrics, logs, and a Kubernetes connector are configured, Rounds will query telemetry, inspect cluster state, write a report with citations on every claim, and recommend next actions. Mutating cluster actions are never executed silently:
 
 - When **you** ask the agent to do something risky, it surfaces a **Run / Confirm / Apply** prompt inline in chat.
 - When the agent is running **unattended** (auto-investigation triggered by a firing alert), the proposed fix is delivered as a `RemediationPlan` with formal **Approve / Reject / Modify** controls; the owning team / on-call is notified.

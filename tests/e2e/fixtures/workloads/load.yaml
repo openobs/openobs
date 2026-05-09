@@ -4,7 +4,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: load-200
-  namespace: openobs-e2e
+  namespace: rounds-e2e
   labels:
     app: load-200
 spec:
@@ -22,7 +22,7 @@ spec:
           image: curlimages/curl:8.10.1
           command: ["/bin/sh", "-c"]
           args:
-            - while true; do curl -sfo /dev/null http://web-api.openobs-e2e:8080/; sleep 0.2; done
+            - while true; do curl -sfo /dev/null http://web-api.rounds-e2e:8080/; sleep 0.2; done
           resources:
             requests: { cpu: 20m, memory: 32Mi }
             limits:   { cpu: 100m, memory: 64Mi }
@@ -33,7 +33,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: load-500
-  namespace: openobs-e2e
+  namespace: rounds-e2e
   labels:
     app: load-500
 spec:
@@ -51,7 +51,7 @@ spec:
           image: curlimages/curl:8.10.1
           command: ["/bin/sh", "-c"]
           args:
-            - while true; do curl -so /dev/null http://web-api.openobs-e2e:8080/err; sleep 0.5; done
+            - while true; do curl -so /dev/null http://web-api.rounds-e2e:8080/err; sleep 0.5; done
           resources:
             requests: { cpu: 20m, memory: 32Mi }
             limits:   { cpu: 100m, memory: 64Mi }

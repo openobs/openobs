@@ -1,6 +1,6 @@
 # Dashboards
 
-Build observability dashboards by describing what you want in plain language. OpenObs discovers your metrics, picks visualizations, validates the queries, and ships a working dashboard grounded in real values.
+Build observability dashboards by describing what you want in plain language. Rounds discovers your metrics, picks visualizations, validates the queries, and ships a working dashboard grounded in real values.
 
 ## What you can do
 
@@ -18,7 +18,7 @@ In the chat panel:
 
 > Create a dashboard for HTTP latency
 
-OpenObs runs the orchestrator agent through a multi-step plan:
+Rounds runs the orchestrator agent through a multi-step plan:
 
 1. `datasources.list` — find available metrics backends
 2. `metrics.metric_names` + `web.search` — discover relevant metric names + best practices

@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# Build the openobs image, load it into kind, and helm install.
+# Build the rounds image, load it into kind, and helm install.
 
 image_build_and_load() {
   phase "building docker image ${IMAGE}"
@@ -30,7 +30,7 @@ helm_install() {
     sets+=(--set "secretEnv.LLM_API_KEY=${OPENOBS_TEST_LLM_API_KEY}")
   fi
 
-  helm upgrade --install "${GATEWAY_RELEASE}" "${REPO_ROOT}/helm/openobs" \
+  helm upgrade --install "${GATEWAY_RELEASE}" "${REPO_ROOT}/helm/rounds" \
     -n "${GATEWAY_NS}" --create-namespace \
     -f "${values_file}" \
     "${sets[@]}"
@@ -39,7 +39,7 @@ helm_install() {
 }
 
 wait_ready() {
-  phase "waiting for openobs deployment to roll out"
+  phase "waiting for Rounds deployment to roll out"
   kubectl rollout status -n "${GATEWAY_NS}" deploy/"${GATEWAY_RELEASE}" --timeout=300s
-  ok "openobs is ready"
+  ok "Rounds is ready"
 }

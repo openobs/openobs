@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# openobs e2e testkit entry point. See tests/e2e/README.md.
+# rounds e2e testkit entry point. See tests/e2e/README.md.
 set -euo pipefail
 
 KIT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -37,11 +37,11 @@ cmd_up() {
   wait_ready
   pf_up
   apply_workloads
-  ok "openobs e2e cluster up at $(cat "${STATE_DIR}/url")"
+  ok "rounds e2e cluster up at $(cat "${STATE_DIR}/url")"
 }
 
 apply_workloads() {
-  local ns="${WORKLOADS_NS:-openobs-e2e}"
+  local ns="${WORKLOADS_NS:-rounds-e2e}"
   phase "applying workload fixtures to namespace ${ns}"
   kubectl get namespace "${ns}" >/dev/null 2>&1 || kubectl create namespace "${ns}"
   kubectl apply -n "${ns}" -f "${E2E_ROOT}/fixtures/workloads/" >/dev/null

@@ -1,11 +1,11 @@
-# OpenObs end-to-end demo workload.
+# Rounds end-to-end demo workload.
 # 创建一个独立的 namespace 包含：
 #   - prom/prometheus（带 in-cluster pod discovery）
 #   - nginx + nginx-prometheus-exporter（提供可观测指标）
 #   - load-generator deployment（持续打流量，便于触发 alert）
 #
 # 之后用 kubectl port-forward 把 Prometheus 9090 forward 出来，
-# OpenObs 就用 http://localhost:9090 当数据源。
+# Rounds 就用 http://localhost:9090 当数据源。
 
 apiVersion: v1
 kind: Namespace

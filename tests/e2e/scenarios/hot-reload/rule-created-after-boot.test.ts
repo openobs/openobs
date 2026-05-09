@@ -9,7 +9,7 @@ import { apiPost, apiGet, apiDelete } from '../helpers/api-client.js';
 import { pollUntil } from '../helpers/wait.js';
 import { scaleDeployment } from '../helpers/scale.js';
 
-const NS = 'openobs-e2e';
+const NS = 'rounds-e2e';
 const DEPLOY = 'web-api';
 
 interface AlertRule { id: string; state: string }

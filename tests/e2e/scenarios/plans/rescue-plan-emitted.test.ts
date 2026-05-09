@@ -10,7 +10,7 @@ import { pollUntil } from '../helpers/wait.js';
 import { scaleDeployment } from '../helpers/scale.js';
 import { skipWithoutLLM } from '../helpers/llm.js';
 
-const NS = 'openobs-e2e';
+const NS = 'rounds-e2e';
 const DEPLOY = 'web-api';
 const itLLM = skipWithoutLLM(it);
 

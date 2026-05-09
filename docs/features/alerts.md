@@ -1,6 +1,6 @@
 # Alert rules
 
-Define, manage, and tune alert rules through chat — or click through the UI. OpenObs handles the lifecycle: rule creation, evaluation, notification, history, silencing, and alert-to-investigation handoff.
+Define, manage, and tune alert rules through chat — or click through the UI. Rounds handles the lifecycle: rule creation, evaluation, notification, history, silencing, and alert-to-investigation handoff.
 
 ## What you can do
 

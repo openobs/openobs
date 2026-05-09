@@ -1,5 +1,5 @@
 /**
- * Map LDAP group DNs → openobs org memberships / server-admin flag.
+ * Map LDAP group DNs → Rounds org memberships / server-admin flag.
  *
  * Each server config declares `[[servers.group_mappings]]` entries. A user
  * who is a member of `group_dn` gets `org_role` in `org_id` (or `grafana_admin

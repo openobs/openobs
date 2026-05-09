@@ -5,7 +5,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: web-api
-  namespace: openobs-e2e
+  namespace: rounds-e2e
   labels:
     app: web-api
 spec:
@@ -41,7 +41,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: web-api
-  namespace: openobs-e2e
+  namespace: rounds-e2e
   labels:
     app: web-api
 spec:
