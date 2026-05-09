@@ -12,6 +12,7 @@ import type {
   Identity,
   IFolderRepository,
   InvestigationReportSection,
+  Provenance,
 } from '@agentic-obs/common';
 import type { LLMGateway } from '@agentic-obs/llm-gateway';
 import type { AdapterRegistry, IWebSearchAdapter } from '../../adapters/index.js';
@@ -112,6 +113,16 @@ export interface ActionContext {
    * concurrently with reused investigation ids.
    */
   investigationSections: Map<string, InvestigationReportSection[]>;
+  /**
+   * Per-investigation provenance accumulator. Populated by `investigation_create`
+   * (model + runId + start time) and incremented by `investigation_add_section`
+   * (toolCalls + evidenceCount). `investigation_complete` finalises latencyMs and
+   * persists the row alongside the report. Cost is not tracked here — Task 04's
+   * `llm_audit` table is the source of truth and the UI joins by sessionId when
+   * it needs cost. Optional shape mirrors `Provenance` so the UI degrades when
+   * fields are missing.
+   */
+  investigationProvenance: Map<string, Provenance & { startedAt?: number }>;
   /**
    * Active investigation id for this session. Set by `investigation_create`,
    * cleared by `investigation_complete`. `add_section` and `complete` read

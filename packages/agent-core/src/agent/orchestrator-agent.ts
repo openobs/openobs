@@ -7,6 +7,7 @@ import type {
   Identity,
   IFolderRepository,
   InvestigationReportSection,
+  Provenance,
 } from '@agentic-obs/common'
 import type {
   IDashboardAgentStore,
@@ -126,6 +127,8 @@ export class OrchestratorAgent {
    * sections into each other when investigation ids collide.
    */
   private readonly investigationSections = new Map<string, InvestigationReportSection[]>()
+  /** Per-investigation provenance accumulator (Task 10). See ActionContext docs. */
+  private readonly investigationProvenance = new Map<string, Provenance & { startedAt?: number }>()
   /**
    * Active investigation id for this session. Implicit context for
    * investigation_add_section / investigation_complete so the LLM doesn't
@@ -338,6 +341,7 @@ export class OrchestratorAgent {
       pushConversationAction: (action) => this.pendingConversationActions.push(action),
       setNavigateTo: (path) => { this.pendingNavigateTo = path },
       investigationSections: this.investigationSections,
+      investigationProvenance: this.investigationProvenance,
       activeInvestigationIdRef: this.activeInvestigationIdRef,
       activeDashboardIdRef: this.activeDashboardIdRef,
       freshlyCreatedDashboards: this.freshlyCreatedDashboards,

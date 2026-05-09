@@ -70,6 +70,7 @@ export function makeFakeActionContext(
     pushConversationAction,
     setNavigateTo,
     investigationSections: new Map(),
+    investigationProvenance: new Map(),
     activeInvestigationId: null,
     activeDashboardId: null,
     freshlyCreatedDashboards: new Set<string>(),

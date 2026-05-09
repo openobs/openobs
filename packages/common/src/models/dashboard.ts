@@ -185,6 +185,12 @@ export interface SavedInvestigationReport {
   summary: string;
   sections: InvestigationReportSection[];
   createdAt: string;
+  /**
+   * Provenance metadata for the AI-generated report (model, runId, toolCalls,
+   * evidence count, cost, latency, inline citations). Optional — older rows
+   * predate Task 10 and the UI header degrades to "—" for missing fields.
+   */
+  provenance?: import('./evidence.js').Provenance;
 }
 
 /**

@@ -467,7 +467,8 @@ CREATE TABLE IF NOT EXISTS investigation_reports (
   goal         TEXT NOT NULL,
   summary      TEXT NOT NULL,
   sections     TEXT NOT NULL,
-  created_at   TEXT NOT NULL
+  created_at   TEXT NOT NULL,
+  provenance   TEXT
 );
 
 CREATE INDEX IF NOT EXISTS ix_investigation_reports_org_id ON investigation_reports(org_id);

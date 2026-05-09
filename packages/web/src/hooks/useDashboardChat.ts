@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import type { Provenance } from '@agentic-obs/common';
 import { apiClient } from '../api/client.js';
 import type { PanelConfig } from '../components/DashboardPanelCard.js';
 
@@ -84,6 +85,9 @@ export interface InvestigationReportSection {
 export interface InvestigationReport {
   summary: string;
   sections: InvestigationReportSection[];
+  /** Optional provenance metadata; when present the <ProvenanceHeader /> shows
+   *  model / runId / tool-call count / cost / latency for this report. */
+  provenance?: Provenance;
 }
 
 export interface ChatEvent {
