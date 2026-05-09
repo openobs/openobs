@@ -50,8 +50,22 @@ export function splitSqlStatements(script: string): string[] {
  * already-built database is a no-op.
  */
 export function applySchema(db: SqliteClient): void {
+  // One-shot rename for instances created before the `user` -> `users` rename.
+  // Runs before CREATE TABLE IF NOT EXISTS so the existing data is preserved
+  // instead of a fresh empty `users` table appearing alongside it.
+  renameLegacyUserTable(db);
   const statements = splitSqlStatements(loadSchemaSql());
   for (const stmt of statements) {
     db.run(sql.raw(stmt));
+  }
+}
+
+function renameLegacyUserTable(db: SqliteClient): void {
+  const rows = db.all<{ name: string }>(
+    sql`SELECT name FROM sqlite_master WHERE type='table' AND name IN ('user','users')`,
+  );
+  const names = new Set(rows.map((r) => r.name));
+  if (names.has('user') && !names.has('users')) {
+    db.run(sql.raw('ALTER TABLE user RENAME TO users'));
   }
 }

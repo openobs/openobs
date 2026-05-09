@@ -33,7 +33,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_org_name ON org(name);
 INSERT OR IGNORE INTO org (id, name, created, updated)
 VALUES ('org_main', 'Main Org', datetime('now'), datetime('now'));
 
-CREATE TABLE IF NOT EXISTS user (
+CREATE TABLE IF NOT EXISTS users (
   id                 TEXT PRIMARY KEY,
   version            INTEGER NOT NULL DEFAULT 0,
   email              TEXT NOT NULL,
@@ -56,10 +56,10 @@ CREATE TABLE IF NOT EXISTS user (
   FOREIGN KEY (org_id) REFERENCES org(id) ON DELETE RESTRICT
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS ux_user_email ON user(email);
-CREATE UNIQUE INDEX IF NOT EXISTS ux_user_login ON user(login);
-CREATE INDEX IF NOT EXISTS ix_user_org_id ON user(org_id);
-CREATE INDEX IF NOT EXISTS ix_user_is_service_account ON user(is_service_account);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_user_email ON users(email);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_user_login ON users(login);
+CREATE INDEX IF NOT EXISTS ix_user_org_id ON users(org_id);
+CREATE INDEX IF NOT EXISTS ix_user_is_service_account ON users(is_service_account);
 
 CREATE TABLE IF NOT EXISTS user_auth (
   id                   TEXT PRIMARY KEY,
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS user_auth (
   o_auth_token_type    TEXT NULL,
   o_auth_expiry        INTEGER NULL,
   o_auth_id_token      TEXT NULL,
-  FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_user_auth_module_authid ON user_auth(auth_module, auth_id);
@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS user_auth_token (
   created_at      TEXT NOT NULL,
   updated_at      TEXT NOT NULL,
   revoked_at      TEXT NULL,
-  FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_user_auth_token_authtoken ON user_auth_token(auth_token);
@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS org_user (
   created TEXT NOT NULL,
   updated TEXT NOT NULL,
   FOREIGN KEY (org_id)  REFERENCES org(id)  ON DELETE CASCADE,
-  FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_org_user_org_user ON org_user(org_id, user_id);
@@ -137,7 +137,7 @@ CREATE TABLE IF NOT EXISTS team_member (
   updated    TEXT NOT NULL,
   FOREIGN KEY (org_id)  REFERENCES org(id)  ON DELETE CASCADE,
   FOREIGN KEY (team_id) REFERENCES team(id) ON DELETE CASCADE,
-  FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_team_member_team_user ON team_member(team_id, user_id);
@@ -158,8 +158,8 @@ CREATE TABLE IF NOT EXISTS api_key (
   owner_user_id      TEXT NULL,
   is_revoked         INTEGER NOT NULL DEFAULT 0,
   FOREIGN KEY (org_id)             REFERENCES org(id)  ON DELETE CASCADE,
-  FOREIGN KEY (service_account_id) REFERENCES user(id) ON DELETE CASCADE,
-  FOREIGN KEY (owner_user_id)      REFERENCES user(id) ON DELETE SET NULL
+  FOREIGN KEY (service_account_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (owner_user_id)      REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_api_key_key ON api_key(key);
@@ -219,7 +219,7 @@ CREATE TABLE IF NOT EXISTS user_role (
   user_id TEXT NOT NULL,
   role_id TEXT NOT NULL,
   created TEXT NOT NULL,
-  FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (role_id) REFERENCES role(id) ON DELETE CASCADE
 );
 
@@ -254,7 +254,7 @@ CREATE TABLE IF NOT EXISTS preferences (
   created            TEXT NOT NULL,
   updated            TEXT NOT NULL,
   FOREIGN KEY (org_id)  REFERENCES org(id)  ON DELETE CASCADE,
-  FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (team_id) REFERENCES team(id) ON DELETE CASCADE
 );
 
@@ -313,8 +313,8 @@ CREATE TABLE IF NOT EXISTS folder (
   created_by  TEXT NULL,
   updated_by  TEXT NULL,
   FOREIGN KEY (org_id)     REFERENCES org(id)  ON DELETE CASCADE,
-  FOREIGN KEY (created_by) REFERENCES user(id) ON DELETE SET NULL,
-  FOREIGN KEY (updated_by) REFERENCES user(id) ON DELETE SET NULL
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS ux_folder_org_uid    ON folder(org_id, uid);
