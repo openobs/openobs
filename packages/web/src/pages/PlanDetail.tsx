@@ -21,6 +21,7 @@ import { useAuth } from '../contexts/AuthContext.js';
 import { relativeTime } from '../utils/time.js';
 import RiskAwareConfirm from '../components/RiskAwareConfirm.js';
 import type { RiskAwareRisk } from '../components/RiskAwareConfirm.js';
+import StatusPill from '../components/StatusPill.js';
 
 /**
  * Pick a display risk for the plan as a whole.
@@ -43,34 +44,40 @@ function pickPlanRisk(plan: RemediationPlan): RiskAwareRisk {
   return 'medium';
 }
 
-const PLAN_STATUS_STYLES: Record<RemediationPlanStatus, string> = {
-  draft: 'bg-[var(--color-surface-high)] text-on-surface-variant',
-  pending_approval: 'bg-[#F59E0B]/10 text-[#F59E0B]',
-  approved: 'bg-[#3B82F6]/10 text-[#3B82F6]',
-  executing: 'bg-[#3B82F6]/10 text-[#3B82F6]',
-  completed: 'bg-[#22C55E]/10 text-[#22C55E]',
-  failed: 'bg-[#EF4444]/10 text-[#EF4444]',
-  rejected: 'bg-[#EF4444]/10 text-[#EF4444]',
-  expired: 'bg-[var(--color-surface-high)] text-[var(--color-outline)]',
-  cancelled: 'bg-[var(--color-surface-high)] text-[var(--color-outline)]',
-};
+// Map remediation plan/step statuses to a StatusPill (kind, value).
+// Statuses without a semantic colour (draft/expired/cancelled/skipped)
+// render as a neutral surface chip.
+type Tone =
+  | { kind: 'severity'; value: 'critical' | 'info' }
+  | { kind: 'state'; value: 'firing' | 'pending' | 'resolved' }
+  | null;
 
-const STEP_STATUS_STYLES: Record<RemediationPlanStepStatus, string> = {
-  pending: 'bg-[#F59E0B]/10 text-[#F59E0B]',
-  approved: 'bg-[#3B82F6]/10 text-[#3B82F6]',
-  executing: 'bg-[#3B82F6]/10 text-[#3B82F6]',
-  done: 'bg-[#22C55E]/10 text-[#22C55E]',
-  failed: 'bg-[#EF4444]/10 text-[#EF4444]',
-  skipped: 'bg-[var(--color-surface-high)] text-[var(--color-outline)]',
+const STATUS_TONE: Record<string, Tone> = {
+  draft: null,
+  pending_approval: { kind: 'state', value: 'pending' },
+  approved: { kind: 'severity', value: 'info' },
+  executing: { kind: 'severity', value: 'info' },
+  completed: { kind: 'state', value: 'resolved' },
+  failed: { kind: 'state', value: 'firing' },
+  rejected: { kind: 'state', value: 'firing' },
+  expired: null,
+  cancelled: null,
+  pending: { kind: 'state', value: 'pending' },
+  done: { kind: 'state', value: 'resolved' },
+  skipped: null,
 };
 
 function StatusBadge({ status }: { status: RemediationPlanStatus | RemediationPlanStepStatus }) {
-  const style = (PLAN_STATUS_STYLES as Record<string, string>)[status] ?? (STEP_STATUS_STYLES as Record<string, string>)[status] ?? '';
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold uppercase tracking-wide ${style}`}>
-      {String(status).replace(/_/g, ' ')}
-    </span>
-  );
+  const tone = STATUS_TONE[status] ?? null;
+  const label = String(status).replace(/_/g, ' ');
+  if (tone === null) {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold uppercase tracking-wide bg-[var(--color-surface-high)] text-[var(--color-outline)]">
+        {label}
+      </span>
+    );
+  }
+  return <StatusPill kind={tone.kind} value={tone.value} label={label} size="md" />;
 }
 
 function StepRow({ step, onRetry, retrying }: {
@@ -225,7 +232,7 @@ export default function PlanDetail() {
   if (loading) return <div className="p-6 text-on-surface-variant">Loading plan…</div>;
   if (error && !plan) return (
     <div className="p-6">
-      <p className="text-[#EF4444]">{error}</p>
+      <p className="text-severity-critical">{error}</p>
       <button type="button" onClick={() => navigate('/actions')} className="mt-4 underline">Back</button>
     </div>
   );
@@ -245,7 +252,7 @@ export default function PlanDetail() {
           <h1 className="text-2xl font-bold text-on-surface">Remediation Plan</h1>
           <StatusBadge status={plan.status} />
           {plan.autoEdit && plan.status !== 'pending_approval' && (
-            <span className="text-xs px-2 py-0.5 rounded bg-[#3B82F6]/10 text-[#3B82F6] font-semibold uppercase">auto-edit</span>
+            <StatusPill kind="severity" value="info" label="auto-edit" size="md" />
           )}
         </div>
         <p className="text-on-surface">{plan.summary}</p>
@@ -266,7 +273,7 @@ export default function PlanDetail() {
         )}
       </div>
 
-      {error && <p className="text-[#EF4444]">{error}</p>}
+      {error && <p className="text-severity-critical">{error}</p>}
 
       <div>
         <h2 className="text-lg font-semibold text-on-surface mb-3">Steps</h2>

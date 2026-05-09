@@ -15,21 +15,24 @@ const PAGE_LIMIT = 20;
 
 const SEVERITY_LEVELS: FeedSeverity[] = ['critical', 'high', 'medium', 'low'];
 
+// Filter buttons reuse the severity tokens; the `active` variant uses the
+// solid token color as background, the `inactive` variant the soft 10%
+// fill. `low` falls back to a neutral surface treatment.
 const SEVERITY_PILL_STYLES: Record<
   FeedSeverity,
   { active: string; inactive: string }
 > = {
   critical: {
-    active: 'bg-[#EF4444] text-[#ffffff]',
-    inactive: 'bg-[#EF4444]/10 text-[#EF4444] hover:bg-[#EF4444]/20',
+    active: 'bg-severity-critical text-white',
+    inactive: 'bg-severity-critical/10 text-severity-critical hover:bg-severity-critical/20',
   },
   high: {
-    active: 'bg-[#F97316] text-[#ffffff]',
-    inactive: 'bg-[#F97316]/10 text-[#F97316] hover:bg-[#F97316]/20',
+    active: 'bg-severity-high text-white',
+    inactive: 'bg-severity-high/10 text-severity-high hover:bg-severity-high/20',
   },
   medium: {
-    active: 'bg-[#F59E0B] text-[#ffffff]',
-    inactive: 'bg-[#F59E0B]/10 text-[#F59E0B] hover:bg-[#F59E0B]/20',
+    active: 'bg-severity-medium text-white',
+    inactive: 'bg-severity-medium/10 text-severity-medium hover:bg-severity-medium/20',
   },
   low: {
     active: 'bg-[var(--color-on-surface-variant)] text-[var(--color-surface-low)]',
@@ -200,7 +203,7 @@ export default function Feed() {
         </div>
 
         {error && (
-          <div className="mb-4 px-4 py-3 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/20 text-sm text-[#EF4444]">
+          <div className="mb-4 px-4 py-3 rounded-xl bg-severity-critical/10 border border-severity-critical/20 text-sm text-severity-critical">
             {error}
           </div>
         )}
