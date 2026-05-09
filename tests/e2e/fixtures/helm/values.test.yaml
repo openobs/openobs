@@ -1,4 +1,4 @@
-# Helm values for the e2e testkit. Layered on top of helm/openobs/values.yaml
+# Helm values for the e2e testkit. Layered on top of helm/rounds/values.yaml
 # via `-f`. Image tag, LLM provider/model/api key are injected by deploy.sh
 # from $OPENOBS_TEST_LLM_* env vars.
 replicaCount: 1

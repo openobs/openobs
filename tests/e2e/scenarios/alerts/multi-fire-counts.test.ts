@@ -7,7 +7,7 @@ import { createAlertRuleFixture, WEB_API_DOWN_QUERY } from '../helpers/alert-rul
 import { pollUntil } from '../helpers/wait.js';
 import { scaleDeployment } from '../helpers/scale.js';
 
-const NS = 'openobs-e2e';
+const NS = 'rounds-e2e';
 const DEPLOY = 'web-api';
 
 interface AlertRule { id: string; state: string; fireCount?: number }

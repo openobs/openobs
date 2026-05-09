@@ -72,7 +72,7 @@ const VIEWER_PERMISSIONS: BuiltinPermission[] = [
   // Read own user quotas (Grafana: Viewer can see their quota).
   { action: ACTIONS.UsersQuotasList, scope: 'global.users:*' },
 
-  // openobs-specific read.
+  // rounds-specific read.
   { action: ACTIONS.InvestigationsRead, scope: 'investigations:*' },
   { action: ACTIONS.ApprovalsRead, scope: 'approvals:*' },
   { action: ACTIONS.PlansRead, scope: 'plans:*' },
@@ -110,7 +110,7 @@ const EDITOR_ONLY_PERMISSIONS: BuiltinPermission[] = [
   { action: ACTIONS.AlertSilencesCreate, scope: '' },
   { action: ACTIONS.AlertSilencesWrite, scope: '' },
 
-  // openobs-specific write (investigations + approvals interaction).
+  // rounds-specific write (investigations + approvals interaction).
   { action: ACTIONS.InvestigationsWrite, scope: 'investigations:*' },
   { action: ACTIONS.InvestigationsCreate, scope: '' },
   { action: ACTIONS.InvestigationsDelete, scope: 'investigations:*' },
@@ -175,7 +175,7 @@ const ADMIN_ONLY_PERMISSIONS: BuiltinPermission[] = [
   { action: ACTIONS.AlertProvisioningRead, scope: '' },
   { action: ACTIONS.AlertProvisioningWrite, scope: '' },
 
-  // openobs-specific admin.
+  // rounds-specific admin.
   { action: ACTIONS.ApprovalsOverride, scope: 'approvals:*' },
   // Plans:auto_edit is deliberately NOT granted by default — even Admins. The
   // executor will refuse autoEdit unless the caller has been *explicitly*

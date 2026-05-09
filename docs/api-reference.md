@@ -1,6 +1,6 @@
 # API Reference
 
-Complete list of OpenObs authentication and authorization endpoints.
+Complete list of Rounds authentication and authorization endpoints.
 
 ## Conventions
 

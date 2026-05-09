@@ -1,5 +1,5 @@
 /**
- * POST /api/query/instant routes through openobs's prometheus adapter
+ * POST /api/query/instant routes through Rounds's prometheus adapter
  * pipeline. Asserting we get a numeric `up` sample back proves the full
  * datasource resolution + adapter path.
  */
@@ -23,7 +23,7 @@ function promDsId(): string {
   return raw;
 }
 
-describe('datasources/prometheus-query-via-openobs', () => {
+describe('datasources/prometheus-query-via-rounds', () => {
   it('instant query for up{app="web-api"} returns a numeric sample', async () => {
     const result = await apiPost<InstantResp>('/api/query/instant', {
       query: 'up{app="web-api"}',

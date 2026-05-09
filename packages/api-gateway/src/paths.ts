@@ -8,13 +8,13 @@
  *
  * Directory layout:
  *   <DATA_DIR>/
- *     openobs.db          ← SQLite: users, orgs, dashboards, all business state
- *     openobs.db-wal / -shm
+ *     rounds.db          ← SQLite: users, orgs, dashboards, all business state
+ *     rounds.db-wal / -shm
  *     secrets.json        ← JWT_SECRET + SECRET_KEY (0600, auto-generated)
  *
  * Resolution order for DATA_DIR:
  *   1. process.env.DATA_DIR  (explicit operator override)
- *   2. <cwd>/.openobs        (canonical default)
+ *   2. <cwd>/.rounds        (canonical default)
  *
  * Legacy dir-name fallbacks (`.agentic-obs`, `.uname-data`) and
  * `legacyHomeConfigPath()` / `legacyStoresPath()` were removed during the
@@ -25,7 +25,7 @@
 
 import { join } from 'node:path';
 
-const CANONICAL_NAME = '.openobs';
+const CANONICAL_NAME = '.rounds';
 
 let cached: string | undefined;
 
@@ -42,7 +42,7 @@ export function dataDir(): string {
 }
 
 export function dbPath(): string {
-  return process.env['SQLITE_PATH'] ?? join(dataDir(), 'openobs.db');
+  return process.env['SQLITE_PATH'] ?? join(dataDir(), 'rounds.db');
 }
 
 export function secretsPath(): string {

@@ -31,7 +31,7 @@ export function buildTestWebhookBody(
   contactPointName: string,
 ): { text: string; username: string } {
   return {
-    text: `Test notification from OpenObs - contact point "${contactPointName}" is working correctly.`,
+    text: `Test notification from Rounds - contact point "${contactPointName}" is working correctly.`,
     username: 'Agentic Obs',
   };
 }

@@ -32,8 +32,8 @@ describe('SqliteChangeSourceRepository', () => {
       orgId: 'org_a',
       type: 'github',
       name: 'Prod deploys',
-      owner: 'openobs',
-      repo: 'openobs',
+      owner: 'syntropize',
+      repo: 'rounds',
       events: ['deployment'],
       secret: 'super-secret',
     });
@@ -49,8 +49,8 @@ describe('SqliteChangeSourceRepository', () => {
     expect(orgA[0]).toMatchObject({
       id: 'gh-a',
       orgId: 'org_a',
-      owner: 'openobs',
-      repo: 'openobs',
+      owner: 'syntropize',
+      repo: 'rounds',
       events: ['deployment'],
       secret: '••••••cret',
     });
@@ -68,7 +68,7 @@ describe('SqliteChangeSourceRepository', () => {
       id: 'chg-a',
       orgId: 'org_a',
       sourceId: 'gh-a',
-      serviceId: 'openobs/openobs',
+      serviceId: 'syntropize/rounds',
       type: 'deploy',
       timestamp: '2026-04-30T10:00:00.000Z',
       author: 'octocat',
@@ -80,7 +80,7 @@ describe('SqliteChangeSourceRepository', () => {
     const events = await repo.listEvents({
       orgId: 'org_a',
       sourceId: 'gh-a',
-      serviceId: 'openobs/openobs',
+      serviceId: 'syntropize/rounds',
       startTime: '2026-04-30T09:00:00.000Z',
       endTime: '2026-04-30T11:00:00.000Z',
     });
@@ -90,7 +90,7 @@ describe('SqliteChangeSourceRepository', () => {
       id: 'chg-a',
       orgId: 'org_a',
       sourceId: 'gh-a',
-      serviceId: 'openobs/openobs',
+      serviceId: 'syntropize/rounds',
       version: 'abc123',
       payload: { action: 'created' },
     });

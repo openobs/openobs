@@ -3,7 +3,7 @@
 export const investigationOpenApiSpec = {
   openapi: '3.0.3',
   info: {
-    title: 'OpenObs - Investigation API',
+    title: 'Rounds - Investigation API',
     version: '1.0.0',
     description: 'REST API for creating and managing agentic investigations.',
   },

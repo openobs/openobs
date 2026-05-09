@@ -1,4 +1,4 @@
--- Consolidated SQLite schema for openobs.
+-- Consolidated SQLite schema for Rounds.
 --
 -- Single source of truth for the SQLite schema. Applied on startup via
 -- `applySchema(db)`; every statement is `CREATE TABLE IF NOT EXISTS` or

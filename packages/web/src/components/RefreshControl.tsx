@@ -23,7 +23,7 @@ import ReactDOM from 'react-dom';
  * The parent only supplies the refresh callback.
  */
 
-const STORAGE_KEY = 'openobs.dashboard.autoRefreshMs';
+const STORAGE_KEY = 'rounds.dashboard.autoRefreshMs';
 
 interface RefreshOption { label: string; ms: number; }
 const OPTIONS: readonly RefreshOption[] = [

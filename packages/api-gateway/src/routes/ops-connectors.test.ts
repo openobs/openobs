@@ -132,13 +132,13 @@ describe('ops connectors routes', () => {
         id: 'k8s-a',
         name: 'Prod K8s',
         config: { apiServer: 'https://k8s.example.com' },
-        secretRef: 'vault://openobs/k8s/prod',
+        secretRef: 'vault://rounds.k8s/prod',
         allowedNamespaces: ['default'],
       })
       .expect(201);
 
     expect(created.body.connector.orgId).toBe('org_a');
-    expect(created.body.connector.secretRef).toBe('vault://openobs/k8s/prod');
+    expect(created.body.connector.secretRef).toBe('vault://rounds.k8s/prod');
 
     const listed = await request(app).get('/api/ops/connectors').expect(200);
     expect(listed.body.connectors).toHaveLength(1);

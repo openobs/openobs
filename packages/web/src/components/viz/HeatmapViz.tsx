@@ -1,5 +1,5 @@
 /**
- * HeatmapViz — canvas-rendered heatmap for openobs.
+ * HeatmapViz — canvas-rendered heatmap for Rounds.
  *
  * Why canvas: heatmaps routinely hit thousands of cells (e.g. 300 timestamps ×
  * 40 buckets = 12k rects). SVG/DOM nodes at that count hurt scroll and layout;
@@ -45,7 +45,7 @@ export interface HeatmapVizProps {
    */
   colorScale?: 'linear' | 'sqrt' | 'log';
   /**
-   * Cross-panel cursor sync key. Defaults to `'openobs-panels'`, the same key
+   * Cross-panel cursor sync key. Defaults to `'rounds-panels'`, the same key
    * uPlot-based panels use, so a heatmap shares its crosshair time with every
    * time-series panel on the dashboard.
    */
@@ -309,7 +309,7 @@ export default function HeatmapViz({
   hue = 'blue',
   height: heightProp,
   colorScale = 'sqrt',
-  syncKey = 'openobs-panels',
+  syncKey = 'rounds-panels',
   collapseEmptyBuckets = true,
 }: HeatmapVizProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);

@@ -23,7 +23,7 @@ describe('DefaultOpsSecretRefResolver', () => {
   });
 
   it('resolves file:// refs with absolute paths', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'openobs-secret-ref-test-'));
+    const dir = await mkdtemp(join(tmpdir(), 'rounds-secret-ref-test-'));
     tempDirs.push(dir);
     const path = join(dir, 'kubeconfig.yaml');
     await writeFile(path, 'apiVersion: v1\nkind: Config\n', 'utf8');

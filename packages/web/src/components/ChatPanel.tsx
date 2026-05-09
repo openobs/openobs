@@ -146,7 +146,7 @@ export default function ChatPanel({ events, isGenerating, onSendMessage, onStop,
             animated={isGenerating}
           />
           <div>
-            <p className="text-xs font-semibold text-on-surface">OpenObs</p>
+            <p className="text-xs font-semibold text-on-surface">Rounds</p>
             <p className="text-[10px] text-on-surface-variant">
               {isGenerating ? 'Working' : 'Ready'}
             </p>

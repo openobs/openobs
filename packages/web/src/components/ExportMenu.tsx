@@ -22,7 +22,7 @@ function toGrafana(dash: Dashboard): unknown {
     __inputs: [{ name: 'DS_PROMETHEUS', label: 'Prometheus', type: 'datasource', pluginId: 'prometheus' }],
     title: dash.title,
     description: dash.description ?? '',
-    tags: ['openobs-export'],
+    tags: ['rounds-export'],
     timezone: 'browser',
     editable: true,
     panels: (dash.panels ?? []).map((p, i) => ({
@@ -100,7 +100,7 @@ export default function ExportMenu({ dashboard }: { dashboard: Dashboard }) {
 
   const slug = dashboard.title.replace(/[^a-zA-Z0-9_-]/g, '_');
   const formats = [
-    { label: 'OpenObs JSON', desc: 'Native format', onClick: () => { downloadFile(JSON.stringify(dashboard, null, 2), `${slug}.json`, 'application/json'); setOpen(false); } },
+    { label: 'Rounds JSON', desc: 'Native format', onClick: () => { downloadFile(JSON.stringify(dashboard, null, 2), `${slug}.json`, 'application/json'); setOpen(false); } },
     { label: 'Grafana JSON', desc: 'Import into Grafana', onClick: () => { downloadFile(JSON.stringify(toGrafana(dashboard), null, 2), `${slug}_grafana.json`, 'application/json'); setOpen(false); } },
     { label: 'Prometheus Rules', desc: 'Recording rules YAML', onClick: () => { downloadFile(toPrometheusRules(dashboard), `${slug}_rules.yml`, 'text/yaml'); setOpen(false); } },
   ];

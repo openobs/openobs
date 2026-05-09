@@ -1,6 +1,6 @@
 # tests/e2e/scenarios
 
-End-to-end scenarios that exercise openobs through real LLM rounds
+End-to-end scenarios that exercise Rounds through real LLM rounds
 against the kind cluster brought up by `tests/e2e/kit.sh`.
 
 ## What runs
@@ -47,11 +47,11 @@ npx vitest run tests/e2e/scenarios/plan-approve-and-execute.test.ts \
   -c vitest.e2e.config.ts
 
 # Inspect cluster state with the same kubeconfig kit.sh provisioned.
-kubectl -n openobs-e2e get pods,deploy
-kubectl -n openobs-e2e logs deploy/openobs --tail=200
-kubectl -n openobs-e2e logs deploy/web-api --tail=200
+kubectl -n rounds-e2e get pods,deploy
+kubectl -n rounds-e2e logs deploy/rounds --tail=200
+kubectl -n rounds-e2e logs deploy/web-api --tail=200
 
-# Tail the openobs API directly with the seeded SA token.
+# Tail the Rounds API directly with the seeded SA token.
 TOKEN=$(cat tests/e2e/.state/sa-token)
 curl -H "authorization: Bearer $TOKEN" http://127.0.0.1:3000/api/alert-rules
 curl -H "authorization: Bearer $TOKEN" http://127.0.0.1:3000/api/plans

@@ -1,6 +1,6 @@
 /**
  * SAML Assertion Consumer Service (ACS) — turn an IdP POSTback into an
- * openobs identity. Validation (signature, audience, expiry) is delegated to
+ * Rounds identity. Validation (signature, audience, expiry) is delegated to
  * `@node-saml/node-saml`; we map attributes + call `resolveIdentity`.
  */
 

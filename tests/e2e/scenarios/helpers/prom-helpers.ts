@@ -1,7 +1,7 @@
 /**
  * Direct prometheus helpers for fixture-state assertions.
  *
- * We go through openobs's `/api/query` proxy when possible (which uses
+ * We go through Rounds's `/api/query` proxy when possible (which uses
  * the prometheus datasource id seeded by seed.sh), but fall back to a
  * direct HTTP call on `OPENOBS_TEST_PROM_DIRECT_URL` (typically a kit.sh
  * port-forward at http://127.0.0.1:9090) for raw shape checks.

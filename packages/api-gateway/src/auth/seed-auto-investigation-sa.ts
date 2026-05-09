@@ -1,5 +1,5 @@
 /**
- * Seed the `openobs` auto-investigation service account on first boot.
+ * Seed the `rounds` auto-investigation service account on first boot.
  *
  * Phase 8 / O1 of the auto-remediation design. The dispatcher uses this
  * SA's identity in-process to run agent tools with the right permissions
@@ -7,7 +7,7 @@
  * is a system feature like the alert evaluator itself: no operator setup
  * required.
  *
- * Idempotent: if a user with login `openobs` and `is_service_account=1`
+ * Idempotent: if a user with login `rounds` and `is_service_account=1`
  * already exists, no-op. Org membership and the
  * `fixed:ops.commands:runner` role assignment are also idempotent.
  *
@@ -39,8 +39,8 @@ const OPS_COMMANDS_RUNNER_ROLE_UID = 'fixed_ops_commands_runner';
 
 const log = createLogger('seed-auto-investigation-sa');
 
-export const AUTO_INVESTIGATION_SA_LOGIN = 'openobs';
-export const AUTO_INVESTIGATION_SA_NAME = 'OpenObs Auto-Investigation';
+export const AUTO_INVESTIGATION_SA_LOGIN = 'rounds';
+export const AUTO_INVESTIGATION_SA_NAME = 'Rounds Auto-Investigation';
 /** SA users always live under a synthetic email; matches serviceaccount-service.ts's convention. */
 export const AUTO_INVESTIGATION_SA_EMAIL = `${AUTO_INVESTIGATION_SA_LOGIN}@serviceaccount.local`;
 
@@ -95,7 +95,7 @@ export async function seedAutoInvestigationSaIfNeeded(
     if (!existing.isServiceAccount) {
       log.warn(
         { userId: existing.id },
-        'a regular user with login=openobs already exists; refusing to overwrite. ' +
+        'a regular user with login=rounds already exists; refusing to overwrite. ' +
         'Rename or delete that user, or set the auto-investigation SA up under a different login.',
       );
       return null;

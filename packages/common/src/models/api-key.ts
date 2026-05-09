@@ -22,7 +22,7 @@ export interface ApiKey {
   expires: string | null;
   /** FK to user.id where isServiceAccount=true. null = personal access token. */
   serviceAccountId: string | null;
-  /** openobs-only: user who minted the token. */
+  /** rounds-only: user who minted the token. */
   ownerUserId: string | null;
   isRevoked: boolean;
 }

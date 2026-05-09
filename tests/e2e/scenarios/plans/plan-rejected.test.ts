@@ -11,7 +11,7 @@ import { scaleDeployment } from '../helpers/scale.js';
 import { skipWithoutLLM } from '../helpers/llm.js';
 import { spawn } from 'node:child_process';
 
-const NS = 'openobs-e2e';
+const NS = 'rounds-e2e';
 const DEPLOY = 'web-api';
 const itLLM = skipWithoutLLM(it);
 

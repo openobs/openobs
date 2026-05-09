@@ -11,7 +11,7 @@
  *
  * Identity, agent dispatch, and investigation finalization are
  * unchanged from the prior dispatcher: the agent runs as the seeded
- * `openobs` service account, and the consumer post-processes the
+ * `rounds` service account, and the consumer post-processes the
  * investigation row created by `investigation_create` to flip pre-
  * terminal statuses to `completed`/`failed` and link the row back to
  * the alert rule.
@@ -99,7 +99,7 @@ export function buildSaIdentityResolverFromRepos(deps: {
   saLogin?: string;
   orgId?: string;
 }): SaIdentityResolver {
-  const saLogin = deps.saLogin ?? 'openobs';
+  const saLogin = deps.saLogin ?? 'rounds';
   const orgId = deps.orgId ?? 'org_main';
   return async () => {
     const sa = await deps.users.findByLogin(saLogin);
@@ -220,7 +220,7 @@ export class AutoInvestigationConsumer {
         log.warn(
           { ruleId: payload.ruleId, ruleName: payload.ruleName },
           'no service-account identity available for auto-investigation; skipping. ' +
-          'Ensure the openobs SA user is seeded and not disabled.',
+          'Ensure the rounds SA user is seeded and not disabled.',
         );
         this.lastNoTokenWarnAt = now;
       }

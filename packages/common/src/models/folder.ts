@@ -5,7 +5,7 @@
  * Hierarchical folder. `parentUid` null => root. Depth limit = 8 (enforced in
  * FolderRepository per Grafana convention).
  *
- * This is distinct from the legacy openobs `folders` (plural) table kept in
+ * This is distinct from the legacy Rounds `folders` (plural) table kept in
  * db/sqlite-schema.ts until T9.6 cleanup.
  */
 export interface GrafanaFolder {

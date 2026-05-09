@@ -30,13 +30,13 @@ describe('loadSamlConfig', () => {
     const cfg = loadSamlConfig({
       SAML_ENABLED: 'true',
       SAML_ENTRY_POINT: 'https://idp/sso',
-      SAML_ISSUER: 'openobs',
+      SAML_ISSUER: 'rounds',
       SAML_CALLBACK_URL: 'https://app/acs',
       SAML_IDP_CERT: '-----BEGIN CERT-----x-----END CERT-----',
     } as NodeJS.ProcessEnv);
     expect(cfg).not.toBeNull();
     expect(cfg!.entryPoint).toBe('https://idp/sso');
-    expect(cfg!.issuer).toBe('openobs');
+    expect(cfg!.issuer).toBe('rounds');
     expect(cfg!.attributeMapping.email).toBe('email');
     expect(cfg!.signatureAlgorithm).toBe('sha256');
     expect(cfg!.wantAssertionsSigned).toBe(true);
@@ -46,7 +46,7 @@ describe('loadSamlConfig', () => {
     const cfg = loadSamlConfig({
       SAML_ENABLED: 'true',
       SAML_ENTRY_POINT: 'https://idp/sso',
-      SAML_ISSUER: 'openobs',
+      SAML_ISSUER: 'rounds',
       SAML_CALLBACK_URL: 'https://app/acs',
       SAML_IDP_CERT: '-----BEGIN CERT-----x-----END CERT-----',
       SAML_ATTRIBUTE_MAPPING_EMAIL: 'urn:email',
