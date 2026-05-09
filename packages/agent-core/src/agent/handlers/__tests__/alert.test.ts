@@ -49,26 +49,22 @@ function fakeAgentCtxBase(opts: { adapters?: AdapterRegistry } = {}) {
     create: vi.fn(),
     findByUid: vi.fn(async () => ({ uid: 'alerts' })),
   } as never;
-  const alertRuleAgent = {
-    generate: vi.fn(async () => ({
-      rule: {
-        name: 'HighErrorRate',
-        description: '',
-        condition: { query: 'up', operator: '>', threshold: 0.5, forDurationSec: 0 },
-        evaluationIntervalSec: 60,
-        severity: 'high',
-        labels: {},
-      },
-    })),
-  } as never;
   const ctx = makeFakeActionContext({
     alertRuleStore,
     folderRepository,
-    alertRuleAgent,
     ...(opts.adapters ? { adapters: opts.adapters } : {}),
   });
-  return { ctx, alertRuleStore, alertRuleAgent };
+  return { ctx, alertRuleStore };
 }
+
+const createSpec = {
+  name: 'HighErrorRate',
+  description: 'Alert when up is above 0.5.',
+  condition: { query: 'up', operator: '>', threshold: 0.5, forDurationSec: 0 },
+  evaluationIntervalSec: 60,
+  severity: 'high',
+  labels: {},
+};
 
 describe('alert_rule_write op=create — preview summary', () => {
   it('includes preview "would have fired" line when a metrics datasource is registered', async () => {
@@ -84,7 +80,7 @@ describe('alert_rule_write op=create — preview summary', () => {
     });
     const { ctx } = fakeAgentCtxBase({ adapters });
 
-    const observation = await handleAlertRuleWrite(ctx, { op: 'create', prompt: 'alert when up > 0.5' });
+    const observation = await handleAlertRuleWrite(ctx, { op: 'create', spec: createSpec });
 
     expect(observation).toContain('Created alert rule "HighErrorRate"');
     expect(observation).toContain('Preview: would have fired 2 time(s) across 1 series in the last 24h.');
@@ -93,10 +89,25 @@ describe('alert_rule_write op=create — preview summary', () => {
   it('omits the preview line when no metrics datasource is registered (no fabrication)', async () => {
     const { ctx } = fakeAgentCtxBase({ adapters: new AdapterRegistry() });
 
-    const observation = await handleAlertRuleWrite(ctx, { op: 'create', prompt: 'alert when up > 0.5' });
+    const observation = await handleAlertRuleWrite(ctx, { op: 'create', spec: createSpec });
 
     expect(observation).toContain('Created alert rule "HighErrorRate"');
     expect(observation).not.toContain('Preview:');
     expect(observation).not.toContain('would have fired');
+  });
+
+  it('rejects malformed create specs instead of coercing them', async () => {
+    const { ctx, alertRuleStore } = fakeAgentCtxBase({ adapters: new AdapterRegistry() });
+
+    const observation = await handleAlertRuleWrite(ctx, {
+      op: 'create',
+      spec: {
+        ...createSpec,
+        condition: { ...createSpec.condition, threshold: '0.5' },
+      },
+    });
+
+    expect(observation).toContain('Error: alert_rule_write create spec requires numeric condition.threshold.');
+    expect(alertRuleStore.create).not.toHaveBeenCalled();
   });
 });

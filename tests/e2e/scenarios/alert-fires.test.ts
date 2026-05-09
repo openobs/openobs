@@ -2,17 +2,16 @@
  * Scenario 1 — alert fires.
  *
  * 1. Scale web-api up so the metric exists and rate > 0.
- * 2. Generate an alert rule with a PromQL that triggers when web-api is
+ * 2. Create an alert rule with a PromQL that triggers when web-api is
  *    serving zero traffic.
  * 3. Scale web-api to 0; rate falls; rule transitions normal -> pending
  *    -> firing within 90s.
  *
- * No LLM dependency for the assertion path itself, but the
- * `/api/alert-rules/generate` endpoint does need an LLM configured (the
- * test cluster is set up that way by seed.sh).
+ * The rule is created from a structured fixture; no LLM generation is involved.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { apiPost, apiGet, apiDelete } from './helpers/api-client.js';
+import { apiGet, apiDelete } from './helpers/api-client.js';
+import { createAlertRuleFixture, WEB_API_DOWN_QUERY } from './helpers/alert-rule.js';
 import { pollUntil } from './helpers/wait.js';
 import { scaleDeployment } from './helpers/scale.js';
 
@@ -43,9 +42,14 @@ describe('alert-fires', () => {
   }, 180_000);
 
   it('rule transitions normal -> firing when web-api is scaled to 0', async () => {
-    const prompt =
-      'create alert web-api-down: PromQL (sum(rate(http_requests_total{app="web-api"}[1m])) or vector(0)) < 1 for 30s severity critical';
-    const created = await apiPost<AlertRule>('/api/alert-rules/generate', { prompt });
+    const created = await createAlertRuleFixture({
+      name: 'web-api-down',
+      query: WEB_API_DOWN_QUERY,
+      operator: '<',
+      threshold: 1,
+      forDurationSec: 30,
+      severity: 'critical',
+    });
     expect(created.id).toBeTruthy();
     ruleId = created.id;
 

@@ -70,7 +70,7 @@ Agents follow a delegation model:
 - **OrchestratorAgent** classifies user intent and dispatches to sub-agents
 - **DashboardGeneratorAgent** creates dashboards via research → plan → build phases
 - **InvestigationAgent** runs plan → query → analyze → report pipeline
-- **AlertRuleAgent** generates alert rules from natural language
+- **OrchestratorAgent** creates alert rules by discovering metrics, validating queries, and passing structured specs to `alert_rule_write`
 - **VerifierAgent** validates generated artifacts before applying them
 
 The orchestrator uses a **ReAct loop** (reason → act → observe) for multi-step conversations.

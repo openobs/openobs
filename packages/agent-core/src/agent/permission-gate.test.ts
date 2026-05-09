@@ -19,7 +19,6 @@ function makeCtx(allowAll = true): ActionContext {
     identity: makeTestIdentity(),
     accessControl: new AccessControlStub(() => allowAll),
     actionExecutor: {} as ActionContext['actionExecutor'],
-    alertRuleAgent: {} as ActionContext['alertRuleAgent'],
     emitAgentEvent: () => {},
     makeAgentEvent: ((type: string) => ({ type, agentType: 'orchestrator', timestamp: '' })) as ActionContext['makeAgentEvent'],
     pushConversationAction: () => {},
@@ -56,7 +55,7 @@ const readOnlyAgent: AgentDefinition = {
 
 const proposeOnlyAgent: AgentDefinition = {
   ...writeAgent,
-  type: 'alert-rule-builder',
+  type: 'orchestrator',
   permissionMode: 'propose_only',
 };
 

@@ -23,7 +23,8 @@
  * rule, and the investigation reaches `completed` within the budget.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { apiPost, apiGet, apiDelete } from '../helpers/api-client.js';
+import { apiGet, apiDelete } from '../helpers/api-client.js';
+import { createAlertRuleFixture } from '../helpers/alert-rule.js';
 import { pollUntil } from '../helpers/wait.js';
 import { scaleDeployment } from '../helpers/scale.js';
 
@@ -63,14 +64,16 @@ describe.skipIf(!process.env['OPENOBS_TEST_LLM_API_KEY'])('cpu-saturated investi
   }, 180_000);
 
   it('CPU-saturation alert drives investigation to completion', async () => {
-    // Spell out the PromQL explicitly so the alert generator preserves it
-    // verbatim instead of inventing a different expression. Threshold 0.05
+    // Pin the PromQL explicitly. Threshold 0.05
     // = 50m CPU sustained for 30s on a single pod under heavy load.
-    const prompt =
-      'create alert web-api-cpu-saturated: ' +
-      'PromQL rate(process_cpu_seconds_total{app="web-api"}[1m]) > 0.05 ' +
-      'for 30s severity high';
-    const created = await apiPost<AlertRule>('/api/alert-rules/generate', { prompt });
+    const created = await createAlertRuleFixture({
+      name: 'web-api-cpu-saturated',
+      query: 'rate(process_cpu_seconds_total{app="web-api"}[1m])',
+      operator: '>',
+      threshold: 0.05,
+      forDurationSec: 30,
+      severity: 'high',
+    });
     expect(created.id).toBeTruthy();
     ruleId = created.id;
 

@@ -5,6 +5,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { apiPost, apiGet, apiDelete } from '../helpers/api-client.js';
+import { createAlertRuleFixture, WEB_API_DOWN_QUERY } from '../helpers/alert-rule.js';
 import { pollUntil } from '../helpers/wait.js';
 import { scaleDeployment } from '../helpers/scale.js';
 import { skipWithoutLLMQuality } from '../helpers/llm.js';
@@ -35,9 +36,14 @@ describe('investigations/manual-investigate-reuses', () => {
   }, 180_000);
 
   itLLM('manual investigate returns existing dispatcher-created investigation', async () => {
-    const prompt =
-      'create alert web-api-reuse: PromQL (sum(rate(http_requests_total{app="web-api"}[1m])) or vector(0)) < 1 for 30s severity critical';
-    const created = await apiPost<AlertRule>('/api/alert-rules/generate', { prompt });
+    const created = await createAlertRuleFixture({
+      name: 'web-api-reuse',
+      query: WEB_API_DOWN_QUERY,
+      operator: '<',
+      threshold: 1,
+      forDurationSec: 30,
+      severity: 'critical',
+    });
     ruleId = created.id;
     await scaleDeployment(NS, DEPLOY, 0);
 

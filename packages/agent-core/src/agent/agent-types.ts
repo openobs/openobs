@@ -1,6 +1,5 @@
 export type AgentType =
   | 'orchestrator'
-  | 'alert-rule-builder'
   | 'verification';
 
 export type AgentToolName =

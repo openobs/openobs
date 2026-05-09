@@ -10,7 +10,6 @@ import type { LLMGateway } from '@agentic-obs/llm-gateway';
 import type { AdapterRegistry, IWebSearchAdapter } from '../adapters/index.js';
 import type { ActionExecutor } from './action-executor.js';
 import type { AgentEvent } from './agent-events.js';
-import type { AlertRuleAgent } from './alert-rule-agent.js';
 import type { ActionContext } from './orchestrator-action-handlers.js';
 import type {
   DatasourceConfig,
@@ -57,7 +56,6 @@ export interface OrchestratorActionContextDeps {
 export interface OrchestratorActionRuntime {
   sessionId: string;
   actionExecutor: ActionExecutor;
-  alertRuleAgent: AlertRuleAgent;
   emitAgentEvent(event: AgentEvent): void;
   makeAgentEvent(type: AgentEvent['type'], metadata?: Record<string, unknown>): AgentEvent;
   pushConversationAction(action: DashboardAction): void;
@@ -106,7 +104,6 @@ export function buildActionContext(
     identity: deps.identity,
     accessControl: deps.accessControl,
     actionExecutor: runtime.actionExecutor,
-    alertRuleAgent: runtime.alertRuleAgent,
     emitAgentEvent: runtime.emitAgentEvent,
     makeAgentEvent: runtime.makeAgentEvent,
     pushConversationAction: runtime.pushConversationAction,

@@ -39,6 +39,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { apiPost, apiGet, apiDelete } from '../helpers/api-client.js';
+import { createAlertRuleFixture } from '../helpers/alert-rule.js';
 import { pollUntil } from '../helpers/wait.js';
 import { scaleDeployment } from '../helpers/scale.js';
 
@@ -86,15 +87,17 @@ describe.skipIf(!process.env['OPENOBS_TEST_LLM_API_KEY'])('latency-cpu-autoscale
   }, 180_000);
 
   it('latency alert → investigation → plan scales web-api → alert resolves', async () => {
-    // Spell out the PromQL explicitly so the alert generator preserves it
-    // verbatim. p99 over a 1-minute window > 50ms sustained for 30s.
+    // Pin the PromQL explicitly. p99 over a 1-minute window > 50ms sustained for 30s.
     // Idle baseline is sub-millisecond; the 50ms threshold has ~50× margin
     // above noise but is reachable under sustained CPU throttling.
-    const prompt =
-      'create alert web-api-latency-high: ' +
-      'PromQL histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{app="web-api"}[1m]))) > 0.05 ' +
-      'for 30s severity high';
-    const created = await apiPost<AlertRule>('/api/alert-rules/generate', { prompt });
+    const created = await createAlertRuleFixture({
+      name: 'web-api-latency-high',
+      query: 'histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{app="web-api"}[1m])))',
+      operator: '>',
+      threshold: 0.05,
+      forDurationSec: 30,
+      severity: 'high',
+    });
     expect(created.id).toBeTruthy();
     ruleId = created.id;
 

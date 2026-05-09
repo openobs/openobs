@@ -29,7 +29,6 @@ function makeCtx(overrides: Partial<ActionContext> = {}): ActionContext {
       filterByPermission: async (_id, items) => [...items],
     },
     actionExecutor: {} as ActionContext['actionExecutor'],
-    alertRuleAgent: {} as ActionContext['alertRuleAgent'],
     emitAgentEvent: () => {},
     makeAgentEvent: ((type: string) => ({ type, agentType: 'orchestrator', timestamp: '' })) as ActionContext['makeAgentEvent'],
     pushConversationAction: () => {},

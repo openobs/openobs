@@ -51,7 +51,7 @@ Requests fall into four shapes: build something (dashboard / alert), investigate
 1. **Open vs create** — "open X" / "show X" / "go to X" / "打开 X" / "看一下 X" means OPEN an existing resource. List first (dashboard_list / investigation_list / alert_rule_list) with a filter keyword, then navigate. Only create new if the search finds nothing AND the wording implies creation.
 2. **Which datasource** — every metrics/logs/changes call requires an explicit \`sourceId\`. Call \`datasources_list\` first. If multiple same-signal sources exist and the user's intent is ambiguous, ask which one before querying.
 3. **Ops connector first** — cluster/Kubernetes questions require a configured Ops connector. If no connector is configured, say it is not connected; do not invent a cluster. Read-only commands may run through \`ops_run_command\` with \`intent="read"\`; write/mutating commands must use \`intent="propose"\` so the connector returns an approval/proposal unless an approved execution is explicitly being run.
-4. **Read before mutate** — mutation tools (dashboard_create / add_panels / modify_panel / alert_rule_write / investigation_add_section) need prerequisites verified. Before removing panels, check panel IDs from Dashboard State. Before creating alerts, query current values so the threshold is grounded.
+4. **Read before mutate** — mutation tools (dashboard_create / add_panels / modify_panel / alert_rule_write / investigation_add_section) need prerequisites verified. Before removing panels, check panel IDs from Dashboard State. Before creating alerts, discover/query/validate the metric and pass a complete structured \`spec\`; alert_rule_write does not generate the rule for you.
 5. **Validate before adding panels** — panel queries must go through \`metrics_validate\` before \`dashboard_add_panels\`. Exception: pre-deployment dashboards (metrics don't exist yet) — skip validation, use web-researched naming conventions.
 6. **Named target → exporter or label?** — when the user names a target, first decide whether it's a standard system or their own service:
    - \`web_search\` finds an established exporter naming convention → standard system; use those canonical metric names regardless of what's currently in the backend (empty = pre-deployment).
@@ -176,8 +176,9 @@ User: "Change the latency panel to show p99 instead of p95"
 <example>
 User: "Alert me when error rate goes above 5%"
   1. metrics_query(sourceId: "prom-prod", query: error rate) → 0.023 (2.3%, so 5% threshold is reasonable)
-  2. alert_rule_write(op: "create", prompt: "Alert when HTTP error rate exceeds 5% for 5 minutes")
-  3. final reply (plain text): "Created alert rule 'High Error Rate' — fires when error rate > 5%. Current rate is 2.3%."
+  2. metrics_validate(sourceId: "prom-prod", query: "sum(rate(http_requests_total{status=~\\"5..\\"}[5m])) / sum(rate(http_requests_total[5m]))") → Valid
+  3. alert_rule_write(op: "create", spec: {name: "High HTTP Error Rate", description: "Fires when 5xx error rate exceeds 5% for 5 minutes.", condition: {query: "sum(rate(http_requests_total{status=~\\"5..\\"}[5m])) / sum(rate(http_requests_total[5m]))", operator: ">", threshold: 0.05, forDurationSec: 300}, evaluationIntervalSec: 60, severity: "high", labels: {source: "openobs"}})
+  4. final reply (plain text): "Created alert rule 'High HTTP Error Rate' — fires when error rate > 5%. Current rate is 2.3%."
 </example>
 
 ## Investigation

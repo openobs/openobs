@@ -17,6 +17,15 @@ import { handleAlertRuleWrite } from '../alert.js';
 import { makeFakeActionContext } from '../_test-helpers.js';
 import { makeTestIdentity } from '../../test-helpers.js';
 
+const createSpec = {
+  name: 'CPUHigh',
+  description: 'Alert when up is above 0.5.',
+  condition: { query: 'up', operator: '>', threshold: 0.5, forDurationSec: 0 },
+  evaluationIntervalSec: 60,
+  severity: 'high',
+  labels: {},
+};
+
 describe('regression: alert handler default Alerts folder (agent-core handler path)', () => {
   it('creates the "alerts" folder when it does not exist and uses it for the rule', async () => {
     const create = vi.fn(async () => ({ uid: 'alerts' }));
@@ -37,29 +46,15 @@ describe('regression: alert handler default Alerts folder (agent-core handler pa
       update: vi.fn(),
       delete: vi.fn(),
     } as never;
-    const alertRuleAgent = {
-      generate: vi.fn(async () => ({
-        rule: {
-          name: 'CPUHigh',
-          description: '',
-          condition: { query: 'up', operator: '>', threshold: 0.5, forDurationSec: 0 },
-          evaluationIntervalSec: 60,
-          severity: 'high',
-          labels: {},
-        },
-      })),
-    } as never;
-
     const ctx = makeFakeActionContext({
       identity: makeTestIdentity({ orgId: 'org-7', userId: 'u-1' }),
       alertRuleStore,
-      alertRuleAgent,
       folderRepository,
     });
 
     const observation = await handleAlertRuleWrite(ctx, {
       op: 'create',
-      prompt: 'alert when up > 0.5',
+      spec: createSpec,
     });
 
     expect(observation).toContain('Created alert rule "CPUHigh"');
@@ -98,27 +93,19 @@ describe('regression: alert handler default Alerts folder (agent-core handler pa
       update: vi.fn(),
       delete: vi.fn(),
     } as never;
-    const alertRuleAgent = {
-      generate: vi.fn(async () => ({
-        rule: {
-          name: 'X',
-          description: '',
-          condition: { query: 'up', operator: '>', threshold: 0, forDurationSec: 0 },
-          evaluationIntervalSec: 60,
-          severity: 'low',
-          labels: {},
-        },
-      })),
-    } as never;
     const ctx = makeFakeActionContext({
       alertRuleStore,
-      alertRuleAgent,
       folderRepository,
     });
 
     await handleAlertRuleWrite(ctx, {
       op: 'create',
-      prompt: 'alert',
+      spec: {
+        ...createSpec,
+        name: 'X',
+        severity: 'low',
+        condition: { query: 'up', operator: '>', threshold: 0, forDurationSec: 0 },
+      },
       folderUid: 'team-payments',
     });
     expect(findByUid).not.toHaveBeenCalled();

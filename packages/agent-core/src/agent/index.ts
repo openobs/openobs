@@ -3,9 +3,6 @@
 export { OrchestratorAgent } from './orchestrator-agent.js'
 export type { OrchestratorDeps } from './orchestrator-agent.js'
 
-export { AlertRuleAgent } from './alert-rule-agent.js'
-export type { AlertRuleContext, AlertRuleGenerationResult } from './alert-rule-agent.js'
-
 export { ActionExecutor } from './action-executor.js'
 
 export { ReActLoop } from './react-loop.js'

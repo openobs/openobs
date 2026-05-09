@@ -25,7 +25,6 @@ import type {
 import type { AdapterRegistry, IWebSearchAdapter } from '../adapters/index.js'
 import type { LLMGateway } from '@agentic-obs/llm-gateway'
 import { ActionExecutor } from './action-executor.js'
-import { AlertRuleAgent } from './alert-rule-agent.js'
 import { ReActLoop } from './react-loop.js'
 import type { ReActStep } from './react-loop.js'
 import { agentRegistry } from './agent-registry.js'
@@ -114,7 +113,6 @@ export class OrchestratorAgent {
   static readonly definition = agentRegistry.get('orchestrator')!;
 
   private readonly actionExecutor: ActionExecutor
-  private readonly alertRuleAgent: AlertRuleAgent
   private readonly reactLoop: ReActLoop
   private readonly agentDef: AgentDefinition
   private readonly auditReporter: ToolAuditReporter
@@ -171,21 +169,7 @@ export class OrchestratorAgent {
       makeAgentEvent: (eventType, metadata) => this.makeAgentEvent(eventType, metadata),
     })
 
-    // AlertRuleAgent still needs a single metrics adapter for its PromQL
-    // grounding / validation step. Pick the default metrics source (or the
-    // first one registered) — the generator is a helper scoped to one
-    // backend per call, not a multi-source tool.
     const metricsSources = deps.adapters.list({ signalType: 'metrics' })
-    const defaultMetricsSource = metricsSources.find((d) => d.isDefault) ?? metricsSources[0]
-    const metricsForAlertRule = defaultMetricsSource
-      ? deps.adapters.metrics(defaultMetricsSource.id)
-      : undefined
-
-    this.alertRuleAgent = new AlertRuleAgent({
-      gateway: deps.gateway,
-      model: deps.model,
-      metrics: metricsForAlertRule,
-    })
 
     this.reactLoop = new ReActLoop({
       gateway: deps.gateway,
@@ -335,7 +319,6 @@ export class OrchestratorAgent {
     const ctx = buildActionContext(this.deps, {
       sessionId: this.sessionId,
       actionExecutor: this.actionExecutor,
-      alertRuleAgent: this.alertRuleAgent,
       emitAgentEvent: (event) => this.emitAgentEvent(event),
       makeAgentEvent: (type, metadata) => this.makeAgentEvent(type, metadata),
       pushConversationAction: (action) => this.pendingConversationActions.push(action),
