@@ -645,7 +645,7 @@ export const TOOL_REGISTRY: Record<string, ToolRegistryEntry> = {
       name: 'alert_rule_write',
       description:
         'Create, update, or delete an alert rule — three verbs share one tool. Required: op. Per op:\n' +
-        ' - op="create": requires `prompt` (natural-language description). The rule generator produces PromQL, threshold, severity, labels. Query the current metric value first so the threshold is grounded in real data. Optional `dashboardId` reuses that dashboard\'s queries/variables. Optional `folderUid` only when the user explicitly names a folder; otherwise the rule lands in the default Alerts folder.\n' +
+        ' - op="create": requires `prompt` (natural-language description). The rule generator produces PromQL, threshold, severity, labels. Query the current metric value first so the threshold is grounded in real data. Optional `dashboardId` reuses that dashboard\'s queries/variables. Optional `folderUid` only when the user explicitly names a folder; otherwise the rule lands in the default Alerts folder. When a metrics datasource is registered, the tool result includes a backtest preview ("would have fired N time(s) ... in the last 24h") computed against real data; when no metrics datasource is wired, the preview is omitted (no fabrication).\n' +
         ' - op="update": requires `ruleId`. Pass only the fields to change (threshold, operator, severity, forDurationSec, evaluationIntervalSec, query, name). Resolve "it"/"this alert" via Active Alert Rule Context.\n' +
         ' - op="delete": requires `ruleId`. Irreversible.',
       input_schema: {
