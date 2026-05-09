@@ -1,6 +1,13 @@
-<svg width="32" height="32" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect x="2" y="2" width="60" height="60" rx="16" fill="#ffffff"/>
-  <path d="M32 7L55 20.5v23L32 57 9 43.5v-23L32 7z" stroke="#020617" stroke-width="4" fill="none" stroke-linejoin="round"/>
-  <path d="M18.5 29.5h6.5l3-6 4 10.5 4-10.5 3 6h6.5" stroke="#020617" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M18.5 36.5h6.5l3 6 4-10.5 4 10.5 3-6h6.5" stroke="#020617" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<svg width="32" height="32" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" stroke-linecap="round">
+  <!-- 2-ring favicon — rings adapt to browser tab theme (dark on light bg,
+       light on dark bg); dot stays severity-critical red. -->
+  <style>
+    .ring { stroke: #1f2937; }
+    @media (prefers-color-scheme: dark) {
+      .ring { stroke: #e7e7ee; }
+    }
+  </style>
+  <path class="ring" d="M 18 7.75 A 28 28 0 1 1 7.75 46" stroke-width="7.8"/>
+  <path class="ring" d="M 45 32 A 13 13 0 1 1 32 19" stroke-width="7.8"/>
+  <circle cx="32" cy="32" r="5" fill="#EF4444"/>
 </svg>

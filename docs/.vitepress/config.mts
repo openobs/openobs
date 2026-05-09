@@ -10,7 +10,10 @@ export default defineConfig({
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
   ],
   themeConfig: {
-    logo: '/openobs-logo.svg',
+    logo: {
+      light: '/openobs-logo.svg',
+      dark: '/openobs-logo-dark.svg',
+    },
     siteTitle: 'OpenObs',
     nav: [
       { text: 'Get Started', link: '/getting-started' },

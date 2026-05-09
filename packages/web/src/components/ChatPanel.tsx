@@ -141,8 +141,9 @@ export default function ChatPanel({ events, isGenerating, onSendMessage, onStop,
       <div className="flex items-center justify-between px-4 py-4 border-b border-outline-variant shrink-0">
         <div className="flex items-center gap-3 flex-1">
           <OpenObsLogo
-            className={`w-7 h-7 text-on-surface${isGenerating ? ' animate-spin-slow' : ''}`}
+            className="w-7 h-7 text-on-surface"
             size={28}
+            animated={isGenerating}
           />
           <div>
             <p className="text-xs font-semibold text-on-surface">OpenObs</p>
