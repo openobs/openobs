@@ -27,6 +27,11 @@ function makeCtx(allowAll = true): ActionContext {
     investigationSections: new Map(),
     activeInvestigationId: null,
     activeDashboardId: null,
+    dashboardBuildEvidence: {
+      webSearchCount: 0,
+      metricDiscoveryCount: 0,
+      validatedQueries: new Set<string>(),
+    },
   } as ActionContext;
 }
 
