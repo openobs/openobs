@@ -224,7 +224,7 @@ export interface ChatServiceDeps {
 }
 
 /**
- * openobs runs a single full-capability agent (`orchestrator`) for every
+ * Rounds runs a single full-capability agent (`orchestrator`) for every
  * chat, regardless of the page the user started from. Early Wave 7
  * thinking had four specialized agents (dashboard-assistant,
  * alert-advisor, incident-responder, readonly-analyst) with narrower

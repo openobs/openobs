@@ -105,7 +105,7 @@ export interface MountAlertsDeps {
    */
   runner?: BackgroundRunnerDeps;
   /**
-   * Auth repositories used by the dispatcher to resolve the `openobs` SA
+   * Auth repositories used by the dispatcher to resolve the `rounds` SA
    * identity per `alert.fired` event. Without these the dispatcher
    * cannot run; if absent the dispatcher is skipped.
    */
@@ -246,7 +246,7 @@ export async function startAlerts(deps: MountAlertsDeps): Promise<{
     if (!resolveSaIdentity) {
       log.warn(
         'auth repos not provided to startAlerts — auto-investigation consumer NOT started. ' +
-        'Pass `authRepos` so the consumer can resolve the openobs SA identity per event.',
+        'Pass `authRepos` so the consumer can resolve the Rounds SA identity per event.',
       );
     } else {
       consumer = new AutoInvestigationConsumer({

@@ -1,6 +1,6 @@
 # Security, Authentication & Authorization
 
-This guide covers everything related to controlling who can do what in OpenObs — how identities work, how to wire up your SSO provider, how to scope permissions, and how to harden a production deployment.
+This guide covers everything related to controlling who can do what in Rounds — how identities work, how to wire up your SSO provider, how to scope permissions, and how to harden a production deployment.
 
 ## Quick recipes
 
@@ -26,7 +26,7 @@ All dashboards and alert rules in that folder (and sub-folders) are now editable
 1. Admin → Service accounts → **+ New service account** → name `ci-bot`, role: `Viewer` (or whatever the script needs).
 2. Click the SA → **Add token** → name it, optional expiry → **Generate**.
 3. Copy the `openobs_sa_...` value — **shown exactly once**. Store it in your CI secret manager.
-4. Use it: `curl -H "Authorization: Bearer openobs_sa_..." https://your-openobs/api/dashboards`.
+4. Use it: `curl -H "Authorization: Bearer openobs_sa_..." https://your-rounds-host/api/dashboards`.
 
 ### Restrict who can create alert rules
 
@@ -109,11 +109,11 @@ Assign it instead of `basic:admin`.
 
 ## First-time bootstrap
 
-openobs has two ways to create the first administrator:
+Rounds has two ways to create the first administrator:
 
 ### Option 1 — Setup wizard (recommended)
 
-On a fresh install, visit `/` in the browser. If no users exist, openobs
+On a fresh install, visit `/` in the browser. If no users exist, Rounds
 auto-redirects to `/setup` and the wizard begins with the
 **Create administrator** step. Fill in name, email, login, and password
 (min 12 chars). After submit:
@@ -136,12 +136,12 @@ export SEED_ADMIN_PASSWORD='at-least-12-chars'
 ```
 
 On boot, if the `user` table is empty and `SEED_ADMIN_PASSWORD` meets the
-min-length requirement, openobs creates the user and prints
+min-length requirement, Rounds creates the user and prints
 `seed admin created` to the log. Subsequent boots are no-ops.
 
 ## Authentication methods
 
-openobs ships with five authentication clients. Each is independently
+Rounds ships with five authentication clients. Each is independently
 toggleable; multiple can be enabled at once. The **login page** renders one
 button per enabled provider plus the local form (unless explicitly
 disabled).
@@ -183,14 +183,14 @@ OAUTH_GENERIC_EMAIL_ATTRIBUTE_NAME=email
 ```
 
 Redirect URLs to register with the provider:
-`https://<your-openobs>/api/login/github/callback`,
+`https://<your-rounds-host>/api/login/github/callback`,
 `/api/login/google/callback`, `/api/login/generic/callback`.
 
 Identity flow:
 
 1. User clicks "Sign in with GitHub" → `GET /api/login/github`.
 2. State cookie set, browser redirected to GitHub's authorize URL.
-3. GitHub redirects back with `code`. openobs validates state, exchanges
+3. GitHub redirects back with `code`. Rounds validates state, exchanges
    code, fetches userinfo.
 4. Lookup `user_auth WHERE auth_module='oauth_github' AND auth_id=<sub>`.
    If found, use the linked user. Otherwise: if email matches an existing
@@ -206,8 +206,8 @@ Configuration via environment:
 ```sh
 SAML_ENABLED=true
 SAML_ENTRY_POINT=https://idp.example.com/sso
-SAML_ISSUER=openobs
-SAML_CALLBACK_URL=https://openobs.example.com/api/saml/acs
+SAML_ISSUER=rounds
+SAML_CALLBACK_URL=https://rounds.example.com/api/saml/acs
 SAML_IDP_CERT=/path/to/idp-cert.pem      # or inline PEM
 SAML_PRIVATE_KEY=/path/to/sp-key.pem
 SAML_WANT_ASSERTIONS_SIGNED=true
@@ -408,7 +408,7 @@ These managed roles are invisible in the Roles UI but visible in
 
 ### Legacy `dashboard_acl` table
 
-For backward compatibility with Grafana exports, openobs reads the legacy
+For backward compatibility with Grafana exports, Rounds reads the legacy
 `dashboard_acl` table as a fallback during permission evaluation. Grants
 recorded there still apply. Toggle off with
 `LEGACY_ACL_ENABLED=false` after migrating all grants to the RBAC model.
@@ -430,7 +430,7 @@ logs if a token ever leaks.
 
 ```sh
 curl -H "Authorization: Bearer openobs_sa_<token>" \
-  https://openobs.example.com/api/dashboards
+  https://rounds.example.com/api/dashboards
 ```
 
 Or `X-Api-Key: <token>` for clients that don't speak Bearer.
@@ -449,7 +449,7 @@ Or `X-Api-Key: <token>` for clients that don't speak Bearer.
 
 ### Personal access tokens (PATs)
 
-openobs also supports per-user PATs (openobs-extension — not a standard
+Rounds also supports per-user PATs (rounds-extension — not a standard
 Grafana concept). Users manage them via Profile → Access tokens. PATs
 inherit the owning user's permissions — the SA pattern is preferred for
 production, PATs are handy for CLI tools.
@@ -460,7 +460,7 @@ production, PATs are handy for CLI tools.
 environment, migrate once via:
 
 ```sh
-curl -b cookies.txt -X POST https://openobs.example.com/api/serviceaccounts/migrate
+curl -b cookies.txt -X POST https://rounds.example.com/api/serviceaccounts/migrate
 ```
 
 This creates one SA per legacy key and returns the mapping. After
@@ -581,18 +581,18 @@ principal's effective permissions.
 The `state` cookie is `SameSite=Lax` and short-lived. If your browser or
 reverse proxy strips cookies across the redirect, state mismatch fires.
 Common culprits: cookies blocked, `SESSION_COOKIE_SECURE` required but
-serving over HTTP, or mismatched `<openobs-base-url>` vs registered
+serving over HTTP, or mismatched `<rounds-base-url>` vs registered
 redirect URL.
 
 ## Production security checklist
 
-Run through this list before exposing OpenObs to the public internet or production users.
+Run through this list before exposing Rounds to the public internet or production users.
 
 ### Transport & secrets
 
 - [ ] **HTTPS only.** Terminate TLS at your Ingress / load balancer. Set `SESSION_COOKIE_SECURE=true` so the session cookie refuses HTTP.
 - [ ] **Strong `JWT_SECRET`.** At least 32 characters of random data. Rotate by setting a new value and forcing a global session revoke (`POST /api/admin/users/:id/logout` per user, or restart with `INVALIDATE_ALL_SESSIONS_ON_BOOT=true` for a one-shot wipe).
-- [ ] **Encrypt OAuth tokens at rest.** Set `SECRET_KEY` (32 bytes hex) before any user logs in via OAuth/SAML. OpenObs uses this key to AES-256-GCM the provider tokens stored in `user_auth`.
+- [ ] **Encrypt OAuth tokens at rest.** Set `SECRET_KEY` (32 bytes hex) before any user logs in via OAuth/SAML. Rounds uses this key to AES-256-GCM the provider tokens stored in `user_auth`.
 - [ ] **Database SSL.** If using Postgres, set `DATABASE_SSL=true` and verify CA. SQLite mode: ensure the data directory is on an encrypted volume.
 - [ ] **Secrets in env, not config files.** Never commit `.env` files. Use Kubernetes secrets, AWS Secrets Manager, Vault, etc.
 
@@ -610,7 +610,7 @@ Run through this list before exposing OpenObs to the public internet or producti
 
 - [ ] **Tighten idle timeout** for high-sensitivity environments: `SESSION_IDLE_TIMEOUT_MS=3600000` (1h).
 - [ ] **Enable session rotation** (default on). Confirm `SESSION_ROTATION_INTERVAL_MS` is set (default 10 min).
-- [ ] **Force logout on disable.** OpenObs does this automatically — but verify by disabling a test account and confirming their session 401s on next request.
+- [ ] **Force logout on disable.** Rounds does this automatically — but verify by disabling a test account and confirming their session 401s on next request.
 
 ### Authorization
 
@@ -622,14 +622,14 @@ Run through this list before exposing OpenObs to the public internet or producti
 
 ### Network & API
 
-- [ ] **`CORS_ORIGINS` set to your actual domain(s).** Empty / `*` allows any origin to call your API in a browser context. Set to `https://openobs.example.com`.
-- [ ] **Rate-limit at the edge.** OpenObs has a built-in 5-attempt-per-5-min lockout on login. For everything else, put your CDN / WAF in front.
+- [ ] **`CORS_ORIGINS` set to your actual domain(s).** Empty / `*` allows any origin to call your API in a browser context. Set to `https://rounds.example.com`.
+- [ ] **Rate-limit at the edge.** Rounds has a built-in 5-attempt-per-5-min lockout on login. For everything else, put your CDN / WAF in front.
 - [ ] **API keys via header, not query string.** Both work; the query-string form leaks into logs. Audit your reverse proxy logs to confirm tokens aren't being captured.
 
 ### Auditing
 
 - [ ] **Audit log retention ≥ 90 days.** `AUDIT_RETENTION_DAYS=180` for regulated environments.
-- [ ] **Forward audit log to SIEM.** OpenObs writes to `audit_log` table; tail and ship via your standard log pipeline. Look for `outcome=failure` spikes on `user.login`, `permission.granted`, `service_account.token_issued`.
+- [ ] **Forward audit log to SIEM.** Rounds writes to `audit_log` table; tail and ship via your standard log pipeline. Look for `outcome=failure` spikes on `user.login`, `permission.granted`, `service_account.token_issued`.
 - [ ] **Backup `audit_log` separately.** Keep it on append-only / immutable storage if compliance requires it.
 
 ### Incident response

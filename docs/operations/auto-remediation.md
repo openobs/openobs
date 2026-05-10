@@ -1,6 +1,6 @@
 # Auto-remediation
 
-Configure OpenObs to automatically investigate firing alerts, propose
+Configure Rounds to automatically investigate firing alerts, propose
 remediation plans, and execute approved plans against a Kubernetes
 cluster.
 
@@ -10,7 +10,7 @@ mutating step requires a formal **Approve / Reject / Modify** decision
 delivered to the owning team / on-call. This is intentionally heavier
 than the inline **Run / Confirm / Apply** flow used when you ask the
 agent to do something interactively in chat — see
-[Chat & agents](/features/chat) and [The OpenObs SRE loop](/features/operator-loop)
+[Chat & agents](/features/chat) and [The Rounds SRE loop](/features/operator-loop)
 for that path.
 
 Kubernetes is the first ops connector to ship plan execution. GitHub PR,
@@ -22,7 +22,7 @@ The pipeline:
 ```
 alert rule fires
    ↓ (AlertEvaluatorService)
-auto-investigation runs as the openobs service account
+auto-investigation runs as the rounds service account
    ↓ (AutoInvestigationDispatcher → background OrchestratorAgent)
 investigation report saved
    ↓ (optional, only when there's an actionable in-scope fix)
@@ -40,7 +40,7 @@ and what to check when something goes wrong.
 
 ## Prerequisites
 
-- OpenObs running with persistence (SQLite default; Postgres also works).
+- Rounds running with persistence (SQLite default; Postgres also works).
 - A Prometheus-compatible datasource configured in the setup wizard.
 - At least one Kubernetes ops connector configured under
   Settings → Ops connectors. The connector needs:
@@ -53,12 +53,12 @@ and what to check when something goes wrong.
 
 ### 1. Service account and API token
 
-OpenObs seeds a service account named `openobs` on first boot. It owns
+Rounds seeds a service account named `@syntropize/rounds` on first boot. It owns
 the auto-investigation runs.
 
 1. Sign in as a server admin.
 2. **Admin → Service accounts**.
-3. Find the `openobs` row (display name *OpenObs Auto-Investigation*).
+3. Find the `@syntropize/rounds` row (display name *Rounds Auto-Investigation*).
 4. Click **Create token**.
 
 That's it — no restart required. The dispatcher reads the live api_key
@@ -217,7 +217,7 @@ Each is logged with a distinct line — read the log to tell which.
 ### "no live service-account token found for auto-investigation"
 
 The dispatcher subscribed but the operator hasn't minted an SA token
-yet, or every existing token for the `openobs` SA is revoked or expired.
+yet, or every existing token for the `@syntropize/rounds` SA is revoked or expired.
 Mint a new token under **Admin → Service accounts**; the next firing
 alert will use it. The warning is rate-limited to once per minute.
 
@@ -285,4 +285,4 @@ project if you need any:
 ## Reference: design doc
 
 The full design (state machine, file map, intentional non-goals) is in
-[`docs/design/auto-remediation.md`](https://github.com/openobs/openobs/blob/main/docs/design/auto-remediation.md).
+[`docs/design/auto-remediation.md`](https://github.com/syntropize/rounds/blob/main/docs/design/auto-remediation.md).

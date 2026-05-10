@@ -24,7 +24,7 @@ describe('seedAdminIfNeeded', () => {
       deps,
       {},
       {
-        SEED_ADMIN_EMAIL: 'admin@openobs.local',
+        SEED_ADMIN_EMAIL: 'admin@rounds.local',
         SEED_ADMIN_PASSWORD: 'correcthorsebatterystaple',
       } as NodeJS.ProcessEnv,
     );
@@ -51,7 +51,7 @@ describe('seedAdminIfNeeded', () => {
       deps,
       {},
       {
-        SEED_ADMIN_EMAIL: 'admin@openobs.local',
+        SEED_ADMIN_EMAIL: 'admin@rounds.local',
         SEED_ADMIN_PASSWORD: 'correcthorsebatterystaple',
       } as NodeJS.ProcessEnv,
     );

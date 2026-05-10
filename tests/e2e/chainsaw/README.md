@@ -1,6 +1,6 @@
 # chainsaw tests
 
-Kubernetes-topology assertions for the openobs e2e testkit. These tests cover
+Kubernetes-topology assertions for the rounds e2e testkit. These tests cover
 **cluster-state shape and scrape readiness**, not application logic — the
 application-level scenarios live alongside the vitest scenarios in
 `tests/e2e/scenarios/`.
@@ -8,11 +8,11 @@ application-level scenarios live alongside the vitest scenarios in
 ## What's covered
 
 - `01-cluster-ready` — prometheus, web-api (x3), load-200, load-500, and
-  openobs itself are all running; their Services have the expected endpoint
+  Rounds itself are all running; their Services have the expected endpoint
   counts.
 - `02-prometheus-scrapes-web-api` — the in-cluster Prometheus is actually
   scraping web-api (`count(up{app="web-api"}==1) > 0`).
-- `03-openobs-reachable` — openobs answers HTTP 200 on `/api/health/ready`
+- `03-rounds-reachable` — Rounds answers HTTP 200 on `/api/health/ready`
   from inside the cluster.
 
 ## Running standalone

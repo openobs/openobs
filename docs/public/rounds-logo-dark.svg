@@ -1,0 +1,6 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" stroke-linecap="round">
+  <!-- 2-ring · dark theme variant (light strokes for dark backgrounds) -->
+  <path d="M 18 7.75 A 28 28 0 1 1 7.75 46" stroke="#e7e7ee" stroke-width="7.8"/>
+  <path d="M 45 32 A 13 13 0 1 1 32 19" stroke="#e7e7ee" stroke-width="7.8"/>
+  <circle cx="32" cy="32" r="5" fill="#EF4444"/>
+</svg>

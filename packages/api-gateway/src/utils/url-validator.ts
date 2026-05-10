@@ -6,9 +6,9 @@ const DNS_LOOKUP_TIMEOUT_MS = 2_500;
 /**
  * SSRF posture
  * ============
- * openobs has two deployment shapes:
+ * Rounds has two deployment shapes:
  *
- *  - **Self-hosted / single-host** (npm install -g openobs, docker run, helm
+ *  - **Self-hosted / single-host** (npm install -g @syntropize/rounds, docker run, helm
  *    chart on a workload cluster with Prometheus sidecar). Operators
  *    routinely point at http://localhost:9090 / http://prometheus.monitoring
  *    — blocking RFC1918 or loopback here is a bug, not a feature.
@@ -27,7 +27,7 @@ const DNS_LOOKUP_TIMEOUT_MS = 2_500;
  *
  * Operators running a hardened self-hosted install can still opt into
  * strict mode with `OPENOBS_ALLOW_PRIVATE_URLS=false`; operators running
- * a multi-tenant openobs who need to reach an internal service from a
+ * a multi-tenant Rounds who need to reach an internal service from a
  * public deploy can opt out with `OPENOBS_ALLOW_PRIVATE_URLS=true`.
  */
 

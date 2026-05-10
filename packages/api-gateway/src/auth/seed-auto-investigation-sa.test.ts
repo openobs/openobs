@@ -157,7 +157,7 @@ describe('seedAutoInvestigationSaIfNeeded', () => {
     });
   });
 
-  it('refuses to overwrite a non-SA user with login=openobs', async () => {
+  it('refuses to overwrite a non-SA user with login=rounds', async () => {
     await users.create({
       email: 'real@example.com',
       name: 'Real Person',

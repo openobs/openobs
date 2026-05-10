@@ -1,7 +1,7 @@
 /**
  * /api/user/access-tokens — personal access token endpoints.
  *
- * [openobs-extension] — Grafana deprecated PATs in favour of SA tokens. We
+ * [rounds-extension] — Grafana deprecated PATs in favour of SA tokens. We
  * keep them for CLI/scripts that need to impersonate a specific human user.
  * Permissions derive from the owning user's org role + role assignments, so
  * a PAT never grants more than its owner already has.

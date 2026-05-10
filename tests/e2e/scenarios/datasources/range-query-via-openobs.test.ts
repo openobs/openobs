@@ -25,7 +25,7 @@ function promDsId(): string {
   return raw;
 }
 
-describe('datasources/range-query-via-openobs', () => {
+describe('datasources/range-query-via-rounds', () => {
   it('range query returns at least one series with sample points', async () => {
     const end = new Date();
     const start = new Date(end.getTime() - 5 * 60 * 1000);

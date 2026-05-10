@@ -2,7 +2,7 @@
 
 ## Problem
 
-OpenObs chat currently behaves like the conversation is attached to the page
+Rounds chat currently behaves like the conversation is attached to the page
 or resource that the user lands on after an agent action. That creates two UX
 and security problems:
 

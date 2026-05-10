@@ -1,6 +1,6 @@
 # Architecture
 
-OpenObs is an open-source AI SRE: an LLM-driven agent that investigates incidents, builds dashboards, manages alert rules, and (with approval) remediates. Kubernetes is the first deep ops connector; Prometheus alerting rules, Loki routing, GitHub PR-based fixes, Jira / PagerDuty incident sync, CI/CD systems, and database read connectors are planned. It is structured as a TypeScript monorepo with 9 packages.
+Rounds is an open-source AI SRE: an LLM-driven agent that investigates incidents, builds dashboards, manages alert rules, and (with approval) remediates. Kubernetes is the first deep ops connector; Prometheus alerting rules, Loki routing, GitHub PR-based fixes, Jira / PagerDuty incident sync, CI/CD systems, and database read connectors are planned. It is structured as a TypeScript monorepo with 9 packages.
 
 ## Layer Diagram
 

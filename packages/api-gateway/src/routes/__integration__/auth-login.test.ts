@@ -90,7 +90,7 @@ async function buildTestApp(): Promise<{
 async function seed(users: UserRepository, orgUsers: OrgUserRepository) {
   const pw = await hashPassword('correcthorsebatterystaple');
   const user = await users.create({
-    email: 'alice@openobs.local',
+    email: 'alice@rounds.local',
     name: 'Alice',
     login: 'alice',
     password: pw,

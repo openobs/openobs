@@ -1,6 +1,6 @@
 # Install with npm
 
-The fastest way to try OpenObs on a single machine. Good for laptops, evaluation, and small self-hosted setups.
+The fastest way to try Rounds on a single machine. Good for laptops, evaluation, and small self-hosted setups.
 
 ## Requirements
 
@@ -11,7 +11,7 @@ The fastest way to try OpenObs on a single machine. Good for laptops, evaluation
 No install — every invocation pulls the latest published version:
 
 ```bash
-npx openobs
+npx @syntropize/rounds
 ```
 
 The first run downloads the package, then starts the API on `http://localhost:3000` and the web UI on `http://localhost:5173`. Open the web URL in your browser; the setup wizard walks you through:
@@ -22,14 +22,14 @@ The first run downloads the package, then starts the API on `http://localhost:30
 
 ## Install globally
 
-If you'll run OpenObs more than once, install it once and call it directly:
+If you'll run Rounds more than once, install it once and call it directly:
 
 ```bash
-npm install -g openobs
-openobs
+npm install -g @syntropize/rounds
+rounds
 ```
 
-Upgrade with the same command — `npm install -g openobs` re-fetches the latest.
+Upgrade with the same command — `npm install -g @syntropize/rounds` re-fetches the latest.
 
 ## Configure via environment variables
 
@@ -43,47 +43,47 @@ export SEED_ADMIN=true
 export SEED_ADMIN_EMAIL=admin@example.com
 export SEED_ADMIN_LOGIN=admin
 export SEED_ADMIN_PASSWORD='at-least-12-chars'
-openobs
+rounds
 ```
 
 See [Configuration](/configuration) for the complete environment variable reference.
 
 ## Where data lives
 
-By default OpenObs uses an embedded SQLite database stored in:
+By default Rounds uses an embedded SQLite database stored in:
 
-- macOS / Linux: `~/.openobs/openobs.db`
-- Windows: `%USERPROFILE%\.openobs\openobs.db`
+- macOS / Linux: `~/.syntropize/rounds.db`
+- Windows: `%USERPROFILE%\.rounds\rounds.db`
 
-Override with `DATA_DIR=/path/to/dir` or `SQLITE_PATH=/path/to/openobs.db`.
+Override with `DATA_DIR=/path/to/dir` or `SQLITE_PATH=/path/to/rounds.db`.
 
-The npm package is intended for a single local OpenObs process and defaults to
+The npm package is intended for a single local Rounds process and defaults to
 SQLite. If you want npm to use Postgres, set `DATABASE_URL` before the first
 start:
 
 ```bash
-export DATABASE_URL='postgresql://openobs:password@localhost:5432/openobs'
-openobs
+export DATABASE_URL='postgresql://rounds:password@localhost:5432/rounds'
+rounds
 ```
 
 For multi-instance deployments, use Kubernetes and an external Postgres
 database. See [Configuration → Storage settings](/configuration#storage-settings).
 
 SQLite and Postgres are the supported database backends today. Database
-selection happens before OpenObs starts, not in the setup wizard.
+selection happens before Rounds starts, not in the setup wizard.
 
 ## Upgrading
 
 ```bash
-npm install -g openobs@latest
-openobs
+npm install -g @syntropize/rounds@latest
+rounds
 ```
 
-OpenObs runs database migrations automatically on start. Back up `openobs.db` (or your Postgres database) before a major version bump.
+Rounds runs database migrations automatically on start. Back up `rounds.db` (or your Postgres database) before a major version bump.
 
 ## Uninstalling
 
 ```bash
-npm uninstall -g openobs
-rm -rf ~/.openobs        # delete the data directory if you want a clean wipe
+npm uninstall -g @syntropize/rounds
+rm -rf ~/.rounds        # delete the data directory if you want a clean wipe
 ```

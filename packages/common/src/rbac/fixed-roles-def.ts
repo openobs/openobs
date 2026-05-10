@@ -608,9 +608,9 @@ const APIKEYS_WRITER = def(
   ],
 );
 
-// -- openobs-specific ---------------------------------------------------
+// -- rounds-specific ---------------------------------------------------
 
-// Roles for openobs-specific features: investigation, approval, chat.
+// Roles for rounds-specific features: investigation, approval, chat.
 
 const INVESTIGATIONS_READER = def(
   'fixed:investigations:reader',
@@ -812,7 +812,7 @@ export const FIXED_ROLE_DEFINITIONS: readonly FixedRoleDefinition[] =
     SERVER_USAGESTATS_REPORT_READER,
     APIKEYS_READER,
     APIKEYS_WRITER,
-    // openobs extensions
+    // rounds extensions
     INVESTIGATIONS_READER,
     INVESTIGATIONS_WRITER,
     APPROVALS_READER,

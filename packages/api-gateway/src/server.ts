@@ -55,7 +55,7 @@ function mountStaticAssets(app: Application): void {
     // Source-tree layout (packages/api-gateway/dist/server.js → packages/web/dist)
     join(here, '../../web/dist'),
     join(here, '../../../web/dist'),
-    // Published npm layout (node_modules/openobs/dist/server.mjs → node_modules/openobs/web-dist)
+    // Published npm layout (node_modules/@syntropize/rounds/dist/server.mjs → node_modules/@syntropize/rounds/web-dist)
     join(here, '../web-dist'),
   ];
   const webDist = webDistCandidates.find((p) => existsSync(p));
@@ -351,7 +351,7 @@ export async function startServer(port = 3000): Promise<void> {
       process.stderr.write(
         `\nopenobs: port ${port} is already in use.\n\n` +
         `  • Kill what's holding it:   lsof -ti :${port} | xargs kill\n` +
-        `  • Or run on another port:   PORT=${port + 1} openobs\n\n`,
+        `  • Or run on another port:   PORT=${port + 1} rounds\n\n`,
       );
       process.exit(1);
     }
@@ -359,7 +359,7 @@ export async function startServer(port = 3000): Promise<void> {
       process.stderr.write(
         `\nopenobs: permission denied to bind port ${port}.\n` +
         `Pick a port ≥1024 or run with elevated privileges.\n` +
-        `  PORT=8080 openobs\n\n`,
+        `  PORT=8080 rounds\n\n`,
       );
       process.exit(1);
     }

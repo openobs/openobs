@@ -1,4 +1,4 @@
-// Runtime config for openobs lives in SQLite — per-org `instance_settings`
+// Runtime config for Rounds lives in SQLite — per-org `instance_settings`
 // and `preferences`, plus the instance-scoped `instance_llm_config`,
 // and `notification_channels` tables added in
 // migration 019. The YAML/dotenv `ConfigLoader` + `AppConfigSchema` that

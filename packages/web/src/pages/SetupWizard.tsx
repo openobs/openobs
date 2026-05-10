@@ -57,7 +57,7 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
           AI
         </span>
       </div>
-      <h1 className="text-3xl font-bold text-on-surface mb-2">Welcome to OpenObs</h1>
+      <h1 className="text-3xl font-bold text-on-surface mb-2">Welcome to Rounds</h1>
       <p className="text-lg text-on-surface-variant font-medium mb-2">An open-source AI SRE</p>
       <p className="text-on-surface-variant max-w-2xl mx-auto mb-10">
         Investigate incidents, build dashboards, tune alerts, and approve remediations from one chat-driven loop. Kubernetes is the first deep workflow; more integrations are on the way.
@@ -102,7 +102,7 @@ function StepReady({
         ✓
       </div>
       <h2 className="text-2xl font-bold text-on-surface mb-2">You're all set!</h2>
-      <p className="text-on-surface-variant mb-8">OpenObs is configured and ready to investigate.</p>
+      <p className="text-on-surface-variant mb-8">Rounds is configured and ready to investigate.</p>
 
       <div className="text-left bg-surface-high rounded-xl border border-outline-variant p-4 mb-8 max-w-md mx-auto space-y-3">
         <div className="flex justify-between text-sm">

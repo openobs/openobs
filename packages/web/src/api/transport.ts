@@ -55,7 +55,7 @@ export class ApiClient {
       const abortedByTimeout = controller.signal.aborted && !upstreamSignal?.aborted;
       const message = abortedByTimeout
         ? 'Request timed out. Check that the API server and upstream service are reachable.'
-        : 'Cannot reach the OpenObs API. Check that the API server is running.';
+        : 'Cannot reach the Rounds API. Check that the API server is running.';
       return {
         data: null as T,
         error: requestError(abortedByTimeout ? 'REQUEST_TIMEOUT' : 'NETWORK_ERROR', message),

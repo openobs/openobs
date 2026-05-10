@@ -7,12 +7,12 @@
  * See docs/auth-perm-design/03-rbac-model.md §action-catalog for the full
  * list. Actions are operator-facing vocabulary — the strings themselves are
  * interface facts and are allowed to match Grafana's (per §99 license hygiene).
- * Only the TypeScript enumeration below is original to openobs.
+ * Only the TypeScript enumeration below is original to Rounds.
  *
  * Adding a new action:
  *   1. Add a constant below with a descriptive key.
- *   2. If it's openobs-specific (no Grafana counterpart), prefix the comment
- *      with `[openobs-extension]`.
+ *   2. If it's rounds-specific (no Grafana counterpart), prefix the comment
+ *      with `[rounds-extension]`.
  *   3. If it should appear in a built-in role, update `roles-def.ts` and/or
  *      `fixed-roles-def.ts`.
  */
@@ -134,8 +134,8 @@ export const ACTIONS = {
   AnnotationsCreate: 'annotations:create',
   AnnotationsDelete: 'annotations:delete',
 
-  // -- openobs-specific ----------------------------------------------------
-  // [openobs-extension] — investigations / approvals / chat / agents config
+  // -- rounds-specific ----------------------------------------------------
+  // [rounds-extension] — investigations / approvals / chat / agents config
   // are not present in Grafana. Naming follows the `kind:verb` Grafana
   // convention so the same evaluator + scope grammar works for them.
   InvestigationsRead: 'investigations:read',
@@ -157,7 +157,7 @@ export const ACTIONS = {
   PlansRead: 'plans:read',
   PlansApprove: 'plans:approve',
   PlansAutoEdit: 'plans:auto_edit',
-  // [openobs-extension] — instance-wide config: LLM provider, notification
+  // [rounds-extension] — instance-wide config: LLM provider, notification
   // channels, and dev reset. Granted to Admin+ via ADMIN_ONLY_PERMISSIONS.
   // Lives in the `instance_config` SQLite table (see migration 019). No
   // Grafana counterpart — Grafana scatters these across `settings:*` +

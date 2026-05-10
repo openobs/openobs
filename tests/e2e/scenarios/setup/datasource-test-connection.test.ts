@@ -13,7 +13,7 @@ interface TestResult { ok: boolean; message: string }
 interface CreateConnectorResponse { connector: { id: string } }
 
 const PROM_URL =
-  process.env['OPENOBS_TEST_PROM_URL'] ?? 'http://prometheus.openobs-e2e:9090';
+  process.env['OPENOBS_TEST_PROM_URL'] ?? 'http://prometheus.rounds-e2e:9090';
 
 describe('setup/connector-test-connection', () => {
   const cleanup: Array<() => Promise<void>> = [];
@@ -43,7 +43,7 @@ describe('setup/connector-test-connection', () => {
       const created = await apiPost<CreateConnectorResponse>('/api/connectors', {
         type: 'prometheus',
         name: `e2e-prom-bad-${Date.now()}`,
-        config: { url: 'http://nonexistent.invalid.openobs-e2e:9090' },
+        config: { url: 'http://nonexistent.invalid.rounds-e2e:9090' },
       });
       cleanup.push(() => apiDelete(`/api/connectors/${created.connector.id}`));
       result = await apiPost<TestResult>(`/api/connectors/${created.connector.id}/test`, {});

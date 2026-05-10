@@ -1,6 +1,6 @@
 # Investigations
 
-Ask OpenObs to figure out what's wrong. The investigation agent collects evidence, evaluates hypotheses, checks configured telemetry and Kubernetes context, and writes a structured report you can share with the rest of the team.
+Ask Rounds to figure out what's wrong. The investigation agent collects evidence, evaluates hypotheses, checks configured telemetry and Kubernetes context, and writes a structured report you can share with the rest of the team.
 
 ## What you can do
 

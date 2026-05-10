@@ -43,7 +43,7 @@ export async function seedAdminIfNeeded(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<string | null> {
   // Exclude service accounts. Without this filter, seed-auto-
-  // investigation-sa (which runs at every boot) creates the openobs SA
+  // investigation-sa (which runs at every boot) creates the Rounds SA
   // first, this check sees total > 0 and bails — meaning a fresh
   // install with SEED_ADMIN_EMAIL/PASSWORD set would never seed the
   // human admin. Boot order is: migrations → seed-admin → seed SA.

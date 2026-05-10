@@ -1,6 +1,6 @@
 # Chat & agents
 
-The chat panel is how you operate OpenObs as an **AI SRE**. Behind it is a multi-agent system: the **orchestrator** picks the right tool for each turn, the **alert-rule agent** handles alert lifecycle, and the **investigation agent** runs structured incident workflows across telemetry and (when configured) cluster state.
+The chat panel is how you operate Rounds as an **AI SRE**. Behind it is a multi-agent system: the **orchestrator** picks the right tool for each turn, the **alert-rule agent** handles alert lifecycle, and the **investigation agent** runs structured incident workflows across telemetry and (when configured) cluster state.
 
 The agent talks SRE: incidents, metrics, logs, traces, dashboards, alerts, runbooks, remediations. Internally those map to "connectors" and "tools" — but you don't need that vocabulary to use the product. Connector terminology only shows up where it actually matters: settings, capabilities, and the auto-remediation reference docs.
 
@@ -18,11 +18,11 @@ The agent talks SRE: incidents, metrics, logs, traces, dashboards, alerts, runbo
 
 ## How it works
 
-OpenObs implements a **ReAct loop** (Reason + Act). On each turn:
+Rounds implements a **ReAct loop** (Reason + Act). On each turn:
 
 1. Model receives conversation history + tool definitions
 2. Model emits one or more `tool_use` calls (native function-calling, no prose JSON parsing)
-3. OpenObs executes each tool, returns the result as `tool_result`
+3. Rounds executes each tool, returns the result as `tool_result`
 4. Loop repeats until the model emits `reply` / `finish` / `ask_user`
 
 Because tool calls are native (not prompted JSON), the model picks tools more accurately and you can swap in any provider that supports function calling.

@@ -478,7 +478,7 @@ export default function Settings() {
             {tab === 'ai' && 'Configure the AI model used for investigations and analysis.'}
             {tab === 'notifications' && 'Set up alert delivery channels.'}
             {tab === 'account' && 'Review your account details.'}
-            {tab === 'danger' && 'Irreversible actions for your OpenObs instance.'}
+            {tab === 'danger' && 'Irreversible actions for your Rounds instance.'}
           </p>
 
           {tab === 'connectors' && <ConnectorsTab canWrite={canWriteConnectors} />}

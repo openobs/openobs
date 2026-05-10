@@ -143,8 +143,8 @@ async function callOpenAI(model: string, apiKey: string, baseUrl: string, messag
       'content-type': 'application/json',
       authorization: `Bearer ${apiKey}`,
       // OpenRouter headers — harmless for native OpenAI, identifies traffic.
-      'HTTP-Referer': 'https://github.com/openobs/openobs',
-      'X-Title': 'openobs tool_search measurement',
+      'HTTP-Referer': 'https://github.com/syntropize/rounds',
+      'X-Title': 'rounds tool_search measurement',
     },
     body: JSON.stringify(body),
   });
