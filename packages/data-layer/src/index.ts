@@ -88,6 +88,7 @@ export {
   // Share
   ShareStore,
   defaultShareStore,
+  type ShareLookupResult,
 
   // Dashboard
   DashboardStore,
