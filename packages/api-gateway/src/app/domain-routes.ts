@@ -44,6 +44,8 @@ import { createDashboardRouter } from '../routes/dashboard/router.js';
 import { createAlertRulesRouter } from '../routes/alert-rules.js';
 import { createResourcesPromoteRouter } from '../routes/resources-promote.js';
 import { PromoteService } from '../services/promote-service.js';
+import { createSuggestionsRouter } from '../routes/suggestions.js';
+import { defaultGenerators } from '../services/suggestion-generators.js';
 import { createNotificationsRouter } from '../routes/notifications.js';
 import { createVersionRouter } from '../routes/versions.js';
 import { createSearchRouter } from '../routes/search.js';
@@ -255,6 +257,17 @@ export function mountDomainRoutes(deps: MountDomainRoutesDeps): void {
       accessControl,
       audit: authSub.audit,
     }),
+  }));
+  // Wave 2 step 3 — AI Suggestions inbox (one inbox on Home).
+  app.use('/api/suggestions', createSuggestionsRouter({
+    repo: repos.aiSuggestions,
+    generators: defaultGenerators(),
+    generatorDeps: {
+      dashboards: repos.dashboards,
+      alertRules: eventAlertRuleStore,
+    },
+    actionDeps: {},
+    audit: authSub.audit,
   }));
   app.use('/api/search', createSearchRouter({
     dashboardStore: repos.dashboards,
