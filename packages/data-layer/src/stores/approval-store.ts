@@ -1,4 +1,7 @@
 import { randomUUID } from 'crypto';
+import { createLogger } from '@agentic-obs/common/logging';
+
+const log = createLogger('approval-store');
 
 // -- Types
 
@@ -165,8 +168,27 @@ export class ApprovalStore {
   }
 
   private notify(request: ApprovalRequest): void {
-    for (const cb of this.callbacks)
-      cb(request);
+    // Each callback runs in isolation: a throwing listener is logged with
+    // structured context but must not block the remaining listeners (the
+    // plan executor's onResolved hook is one of these — losing its signal
+    // because an unrelated subscriber threw would leave plan steps stuck
+    // in 'paused_for_approval' forever).
+    for (const cb of this.callbacks) {
+      try {
+        cb(request);
+      } catch (err) {
+        log.warn(
+          {
+            requestId: request.id,
+            action: request.action.type,
+            status: request.status,
+            errClass: err instanceof Error ? err.constructor.name : typeof err,
+            err: err instanceof Error ? err.message : String(err),
+          },
+          'approval-store: onResolved callback threw — continuing',
+        );
+      }
+    }
   }
 }
 

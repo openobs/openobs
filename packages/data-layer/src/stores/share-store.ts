@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { createLogger } from '@agentic-obs/common/logging';
 import type { Persistable } from './persistence.js';
 import { markDirty } from './persistence.js';
 
@@ -12,6 +13,20 @@ export interface ShareLink {
   createdAt: string;
   expiresAt: string | null;
 }
+
+/**
+ * Result type that distinguishes the three terminal states for a share-link
+ * lookup: hit, expired (so the UI can say "this link expired"), and absent
+ * (typo / revoked). Returned by `findByTokenStatus`. The legacy
+ * `findByToken` collapses expired and not-found to `undefined` and is kept
+ * for callers that don't need the distinction.
+ */
+export type ShareLookupResult =
+  | { kind: 'ok'; link: ShareLink }
+  | { kind: 'expired' }
+  | { kind: 'not_found' };
+
+const log = createLogger('share-store');
 
 export class ShareStore implements Persistable {
   private readonly shares = new Map<string, ShareLink>();
@@ -40,17 +55,36 @@ export class ShareStore implements Persistable {
   }
 
   findByToken(token: string): ShareLink | undefined {
+    const result = this.findByTokenStatus(token);
+    return result.kind === 'ok' ? result.link : undefined;
+  }
+
+  /**
+   * Distinguishes `expired` from `not_found` so the route layer can return a
+   * specific 410 / "this link expired" message instead of a generic 404. We
+   * also log a structured warn on expiry so operators can correlate failed
+   * share visits to expired links.
+   */
+  findByTokenStatus(token: string): ShareLookupResult {
     const link = this.shares.get(token);
     if (!link)
-      return undefined;
+      return { kind: 'not_found' };
 
-    // Check expiration
     if (link.expiresAt && new Date(link.expiresAt).getTime() < Date.now()) {
       this.shares.delete(token);
-      return undefined;
+      markDirty();
+      log.warn(
+        {
+          token,
+          investigationId: link.investigationId,
+          expiresAt: link.expiresAt,
+        },
+        'share-store: token expired — purging',
+      );
+      return { kind: 'expired' };
     }
 
-    return link;
+    return { kind: 'ok', link };
   }
 
   findByInvestigation(investigationId: string): ShareLink[] {
