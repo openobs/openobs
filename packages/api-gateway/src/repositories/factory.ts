@@ -16,8 +16,7 @@ import {
   feedStore,
   ApprovalStore,
   approvalStore,
-  ShareStore,
-  defaultShareStore,
+  InMemoryShareLinkRepository,
   DashboardStore,
   defaultDashboardStore,
 } from '@agentic-obs/data-layer'
@@ -30,7 +29,7 @@ export function createInMemoryStores(): GatewayStores {
     incidents: new IncidentStore(),
     feed: new FeedStore(),
     approvals: new ApprovalStore(),
-    shares: new ShareStore(),
+    shares: new InMemoryShareLinkRepository(),
     dashboards: new DashboardStore(),
   }
 }
@@ -46,7 +45,7 @@ export function createDefaultStores(): GatewayStores {
     incidents: incidentStore,
     feed: feedStore,
     approvals: approvalStore,
-    shares: defaultShareStore,
+    shares: new InMemoryShareLinkRepository(),
     dashboards: defaultDashboardStore,
   }
 }
