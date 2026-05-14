@@ -179,6 +179,86 @@ describe('dashboard handlers', () => {
       expect(observation).toMatch(/no active dashboard/);
       expect(ctx.actionExecutor.execute).not.toHaveBeenCalled();
     });
+
+    // ── T0.2 regression: status state machine never sticks at 'generating'
+    it('flips status to ready after a successful panel add', async () => {
+      const updateStatus = vi.fn().mockResolvedValue(undefined);
+      const ctx = makeFakeActionContext({
+        activeDashboardId: 'd1',
+        freshlyCreatedDashboards: new Set(['d1']),
+        store: {
+          findById: vi.fn().mockResolvedValue(undefined),
+          update: vi.fn(),
+          updatePanels: vi.fn(),
+          updateVariables: vi.fn(),
+          updateStatus,
+        } as never,
+      });
+
+      await handleDashboardAddPanels(ctx, {
+        panels: [{ title: 'p1', visualization: 'time_series', queries: [] }],
+      });
+
+      expect(updateStatus).toHaveBeenCalledWith('d1', 'ready', undefined);
+    });
+
+    it('flips status to failed when panel generation throws partway through', async () => {
+      const updateStatus = vi.fn().mockResolvedValue(undefined);
+      const ctx = makeFakeActionContext({
+        activeDashboardId: 'd1',
+        freshlyCreatedDashboards: new Set(['d1']),
+        store: {
+          findById: vi.fn().mockResolvedValue(undefined),
+          update: vi.fn(),
+          updatePanels: vi.fn(),
+          updateVariables: vi.fn(),
+          updateStatus,
+        } as never,
+        actionExecutor: {
+          execute: vi.fn().mockRejectedValue(new Error('boom: adapter blew up')),
+        } as never,
+      });
+
+      await expect(
+        handleDashboardAddPanels(ctx, {
+          panels: [{ title: 'p1', visualization: 'time_series', queries: [] }],
+        }),
+      ).rejects.toThrow(/boom/);
+
+      // No path leaves status at 'generating': failure must land at 'failed'.
+      const statusCalls = updateStatus.mock.calls.map((c) => c[1]);
+      expect(statusCalls).toContain('failed');
+      expect(statusCalls).not.toContain('ready');
+      // The error message rides along so the UI can render an actionable state.
+      const failedCall = updateStatus.mock.calls.find((c) => c[1] === 'failed');
+      expect(failedCall?.[2]).toMatch(/boom/);
+    });
+
+    it('emits SSE error event and warns when updateStatus itself fails', async () => {
+      const updateStatus = vi.fn().mockRejectedValue(new Error('db unavailable'));
+      const ctx = makeFakeActionContext({
+        activeDashboardId: 'd1',
+        freshlyCreatedDashboards: new Set(['d1']),
+        store: {
+          findById: vi.fn().mockResolvedValue(undefined),
+          update: vi.fn(),
+          updatePanels: vi.fn(),
+          updateVariables: vi.fn(),
+          updateStatus,
+        } as never,
+      });
+
+      await handleDashboardAddPanels(ctx, {
+        panels: [{ title: 'p1', visualization: 'time_series', queries: [] }],
+      });
+
+      // SSE error event surfaced so the web UI doesn't sit on stale 'generating'.
+      const errorEvent = ctx.sendEvent.mock.calls
+        .map(([e]) => e as { type: string; message?: string })
+        .find((e) => e.type === 'error');
+      expect(errorEvent).toBeDefined();
+      expect(errorEvent!.message).toMatch(/db unavailable/);
+    });
   });
 
   describe('handleDashboardRemovePanels', () => {
