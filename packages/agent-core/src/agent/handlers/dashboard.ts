@@ -1,9 +1,45 @@
 import { randomUUID } from 'node:crypto';
 import { ac, AuditAction, assertWritable, ProvisionedResourceError } from '@agentic-obs/common';
-import type { PendingDashboardChange, PendingDashboardChangeOp } from '@agentic-obs/common';
+import type { PendingDashboardChange, PendingDashboardChangeOp, DashboardStatus } from '@agentic-obs/common';
+import { createLogger } from '@agentic-obs/common/logging';
 import type { ActionContext } from './_context.js';
 import { withToolEventBoundary, withWorkspaceScope } from './_shared.js';
 import { applyLayout } from '../layout-engine.js';
+
+const log = createLogger('dashboard-handler');
+
+/**
+ * Best-effort `updateStatus` write. On failure we log a structured warning
+ * AND emit an SSE `error` event so the web UI doesn't sit on a stale
+ * 'generating' badge silently. We still don't fail the caller — the
+ * dashboard itself is fine; only the status row is out of sync.
+ */
+async function tryUpdateDashboardStatus(
+  ctx: ActionContext,
+  dashboardId: string,
+  status: DashboardStatus,
+  errorMessage?: string,
+): Promise<void> {
+  if (!ctx.store.updateStatus) return;
+  try {
+    await ctx.store.updateStatus(dashboardId, status, errorMessage);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log.warn(
+      {
+        dashboardId,
+        targetStatus: status,
+        errorClass: err instanceof Error ? err.constructor.name : typeof err,
+        error: msg,
+      },
+      'dashboard updateStatus failed',
+    );
+    ctx.sendEvent({
+      type: 'error',
+      message: `Failed to update dashboard status to "${status}": ${msg}`,
+    });
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Pending-changes helper — Task 09
@@ -196,13 +232,7 @@ export async function handleDashboardClone(
       // copy over verbatim — they carry no per-connector state on their own.
       await ctx.store.updatePanels(created.id, clonedPanels);
       await ctx.store.updateVariables(created.id, source.variables ?? []);
-      if (ctx.store.updateStatus) {
-        try {
-          await ctx.store.updateStatus(created.id, 'ready');
-        } catch {
-          /* non-fatal — leaves badge at 'generating' until next status write */
-        }
-      }
+      await tryUpdateDashboardStatus(ctx, created.id, 'ready');
 
       ctx.setNavigateTo(`/dashboards/${created.id}`);
       // The freshly cloned dashboard becomes the active one (same as create).
@@ -290,6 +320,26 @@ export async function handleDashboardAddPanels(
 
   ctx.sendEvent({ type: 'tool_call', tool: 'dashboard_add_panels', args: { count: panels.length }, displayText: `Adding ${panels.length} panel(s)` });
 
+  try {
+    return await runAddPanels(ctx, dashboardId, panels);
+  } catch (err) {
+    // Critical: a throw partway through panel generation would otherwise
+    // leave the dashboard stuck at 'generating' forever (the list badge
+    // turns yellow and never resolves). Flip to 'failed' with the error
+    // message so the UI can render an actionable state, then rethrow so
+    // the orchestrator's tool_result(success: false) path still runs.
+    const msg = err instanceof Error ? err.message : String(err);
+    await tryUpdateDashboardStatus(ctx, dashboardId, 'failed', msg);
+    ctx.sendEvent({ type: 'tool_result', tool: 'dashboard_add_panels', summary: msg, success: false });
+    throw err;
+  }
+}
+
+async function runAddPanels(
+  ctx: ActionContext,
+  dashboardId: string,
+  panels: Array<Record<string, unknown>>,
+): Promise<string> {
   type CommonPanel = import('@agentic-obs/common').PanelConfig;
   // Panel sizing is NOT the agent's concern — every panel gets a viz-based
   // default from the layout-engine's panelSize(); users can drag to resize
@@ -362,15 +412,9 @@ export async function handleDashboardAddPanels(
   // Flip the dashboard out of its initial 'generating' state once it has
   // real panels — the list page shows a yellow "GENERATING" badge until
   // status becomes 'ready', which looked wrong for a dashboard the user
-  // can already open and see populated. Best-effort; older store shapes
-  // may not implement updateStatus.
-  if (ctx.store.updateStatus) {
-    try {
-      await ctx.store.updateStatus(dashboardId, 'ready');
-    } catch {
-      /* non-fatal — badge will stay 'generating' until next status write */
-    }
-  }
+  // can already open and see populated. tryUpdateDashboardStatus logs +
+  // emits an SSE error if the status write itself fails.
+  await tryUpdateDashboardStatus(ctx, dashboardId, 'ready');
 
   const observationText = `Added ${panelConfigs.length} panel(s): ${panelConfigs.map((p) => p.title).join(', ')}`;
   ctx.sendEvent({ type: 'tool_result', tool: 'dashboard_add_panels', summary: observationText, success: true });
