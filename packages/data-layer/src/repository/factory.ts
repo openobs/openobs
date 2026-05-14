@@ -23,6 +23,7 @@ import type {
   IDashboardVariableAckRepository,
   IInstanceConfigRepository,
   INotificationChannelRepository,
+  IAiSuggestionRepository,
 } from '@agentic-obs/common';
 import type { IConnectorRepository } from './types/connector.js';
 import type {
@@ -81,6 +82,8 @@ import { PostgresNotificationDispatchRepository } from './postgres/notification-
 import { SqliteLlmAuditRepository } from './sqlite/llm-audit-repository.js';
 import { PostgresLlmAuditRepository } from './postgres/llm-audit-repository.js';
 import type { ILlmAuditRepository } from './sqlite/llm-audit-repository.js';
+import { SqliteAiSuggestionRepository } from './sqlite/ai-suggestion.js';
+import { PostgresAiSuggestionRepository } from './postgres/ai-suggestion.js';
 
 /**
  * Complete repository bundle available behind every persistence backend.
@@ -116,6 +119,7 @@ export interface RepositoryBundle {
   remediationPlans: IRemediationPlanRepository;
   notificationDispatch: INotificationDispatchRepository;
   llmAudit: ILlmAuditRepository;
+  aiSuggestions: IAiSuggestionRepository;
 }
 
 export function createSqliteRepositories(db: SqliteClient): RepositoryBundle {
@@ -143,6 +147,7 @@ export function createSqliteRepositories(db: SqliteClient): RepositoryBundle {
     remediationPlans: new SqliteRemediationPlanRepository(db),
     notificationDispatch: new SqliteNotificationDispatchRepository(db),
     llmAudit: new SqliteLlmAuditRepository(db),
+    aiSuggestions: new SqliteAiSuggestionRepository(db),
   };
 }
 
@@ -172,6 +177,7 @@ export function createPostgresRepositories(db: DbClient): RepositoryBundle {
     remediationPlans: new PostgresRemediationPlanRepository(db),
     notificationDispatch: new PostgresNotificationDispatchRepository(db),
     llmAudit: new PostgresLlmAuditRepository(db),
+    aiSuggestions: new PostgresAiSuggestionRepository(db),
   };
 }
 

@@ -6,3 +6,4 @@
 export { InMemoryAlertRuleRepository } from './alert-rule.js';
 export { InMemoryDashboardRepository } from './dashboard.js';
 export { InMemoryDashboardVariableAckRepository } from './dashboard-variable-ack.js';
+export { InMemoryAiSuggestionRepository } from './ai-suggestion.js';
