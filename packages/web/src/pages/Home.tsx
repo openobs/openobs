@@ -13,6 +13,7 @@ import {
   ErrorMessage,
 } from '../components/chat/MessageComponents.js';
 import AgentActivityBlock from '../components/chat/AgentActivityBlock.js';
+import InlineChartMessage from '../components/InlineChartMessage.js';
 import { RoundsLogo } from '../components/RoundsLogo.js';
 
 // Types
@@ -410,6 +411,24 @@ export default function Home() {
                   <ErrorMessage
                     key={evt.id}
                     content={evt.content ?? 'An error occurred'}
+                  />
+                );
+              }
+              if (evt.kind === 'inline_chart' && evt.inlineChart) {
+                const c = evt.inlineChart;
+                return (
+                  <InlineChartMessage
+                    key={evt.id}
+                    id={c.id}
+                    initialQuery={c.query}
+                    initialTimeRange={c.timeRange}
+                    initialSeries={c.series}
+                    initialSummary={c.summary}
+                    metricKind={c.metricKind}
+                    datasourceId={c.datasourceId}
+                    pivotSuggestions={c.pivotSuggestions}
+                    warnings={c.warnings}
+                    onSendMessage={sendMessage}
                   />
                 );
               }
