@@ -273,9 +273,14 @@ export type DashboardSseEvent =
       metricKind: 'latency' | 'counter' | 'gauge' | 'errors';
       series: Array<{ metric: Record<string, string>; values: Array<[number, string]> }>;
       summary: { kind: 'latency' | 'counter' | 'gauge' | 'errors'; oneLine: string; stats: Record<string, number | string> };
-      // PR-C will populate pivot suggestions ("by route", "p99 only", etc).
-      // Empty array in v1 so the frontend can render the affordance shape stably.
-      pivotSuggestions: Array<{ id: string; label: string }>;
+      // Pivot chips computed by the backend — clicking sends `prompt` as a
+      // new chat message. See suggestPivots() in utils/chart-pivots.ts.
+      pivotSuggestions: Array<{ label: string; prompt: string }>;
+      /**
+       * User-facing notes about the chart (e.g. "Inherited time range from
+       * earlier chart"). Optional — empty/omitted by default.
+       */
+      warnings?: string[];
     }
   | { type: 'done'; messageId: string }
   | { type: 'error'; message: string };
