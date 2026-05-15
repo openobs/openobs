@@ -7,6 +7,7 @@ import DashboardGrid from '../components/DashboardGrid.js';
 import PanelEditor from '../components/PanelEditor.js';
 import VariableBar from '../components/VariableBar.js';
 import VariableInferenceBanner from '../components/VariableInferenceBanner.js';
+import ProvisionedBanner from '../components/ProvisionedBanner.js';
 import { useInferredVariables } from '../hooks/useInferredVariables.js';
 import InvestigationReportView from '../components/InvestigationReportView.js';
 import { useDashboardChat } from '../hooks/useDashboardChat.js';
@@ -46,6 +47,15 @@ interface Dashboard {
   updatedAt?: string;
   folder?: string;
   pendingChanges?: PendingChange[];
+  // Wave 1 PR-B — resource origin marker; used by Wave 2.5 ProvisionedBanner.
+  source?: 'manual' | 'api' | 'ai_generated' | 'provisioned_file' | 'provisioned_git';
+  provenance?: {
+    repo?: string;
+    path?: string;
+    commit?: string;
+    generatedBy?: string;
+    prompt?: string;
+  };
 }
 
 // Main
@@ -728,6 +738,40 @@ export default function DashboardWorkspace() {
               </button>
             )}
 
+            {id && (
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const res = await apiClient.post<{ id: string }>(
+                      `/resources/dashboard/${id}/fork`,
+                      {},
+                    );
+                    if (!res.error) navigate(`/dashboards/${res.data.id}`);
+                  } catch {
+                    // Best-effort; banner shows a richer error path for the
+                    // provisioned case. Plain Fork failures fall through.
+                  }
+                }}
+                className="p-1.5 rounded-lg transition-colors hover:bg-surface-high text-on-surface-variant hover:text-on-surface"
+                title="Fork to my workspace"
+              >
+                {/* Git fork icon */}
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <circle cx="6" cy="6" r="2" />
+                  <circle cx="18" cy="6" r="2" />
+                  <circle cx="12" cy="18" r="2" />
+                  <path strokeLinecap="round" d="M6 8v3a2 2 0 002 2h8a2 2 0 002-2V8M12 13v3" />
+                </svg>
+              </button>
+            )}
+
             {canDeleteDashboard && (
               <button
                 type="button"
@@ -756,6 +800,15 @@ export default function DashboardWorkspace() {
 
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 flex flex-col min-w-0">
+          {dashboard && (
+            <ProvisionedBanner
+              resourceKind="dashboard"
+              resourceId={dashboard.id}
+              source={dashboard.source}
+              provenance={dashboard.provenance}
+              onForked={(newId) => navigate(`/dashboards/${newId}`)}
+            />
+          )}
           {inferred.state.kind === 'needs-ack' && (
             <VariableInferenceBanner
               vars={inferred.state.vars}
