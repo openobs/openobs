@@ -15,7 +15,7 @@
  *     Until that scheduler exists, "send right now" beats "maybe wait,
  *     maybe lose it on restart."
  *   - Mute timings are not consulted yet.
- *   - Pagerduty / email / opsgenie / telegram senders are not implemented
+ *   - Email / opsgenie / telegram senders are not implemented
  *     (`senderFor` returns null; consumer logs + skips).
  */
 
@@ -503,4 +503,3 @@ export class NotificationConsumer {
     }
   }
 }
-

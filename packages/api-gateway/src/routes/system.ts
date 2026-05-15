@@ -18,12 +18,16 @@ import type { AuthenticatedRequest } from '../middleware/auth.js';
 import {
   ac,
   ACTIONS,
+  type ContactPoint,
+  type ContactPointIntegration,
   type NewInstanceLlmConfig,
   type NotificationChannelConfig,
+  type NotificationPolicyNode,
   type NewNotificationChannel,
   type LlmConfigWire,
   type NotificationsWire,
 } from '@agentic-obs/common';
+import type { INotificationRepository } from '@agentic-obs/data-layer';
 import type { SetupConfigService } from '../services/setup-config-service.js';
 import { createRequirePermission } from '../middleware/require-permission.js';
 import type { AccessControlSurface } from '../services/accesscontrol-holder.js';
@@ -35,7 +39,21 @@ export interface SystemRouterDeps {
    * accept the surface rather than the concrete service.
    */
   ac: AccessControlSurface;
+  /**
+   * Alerting notification store. `/api/system/notifications` is the wizard /
+   * settings entrypoint, while alert dispatch reads contact points and the
+   * policy tree. Supplying this store keeps those two surfaces in sync.
+   */
+  notificationStore?: INotificationRepository;
 }
+
+const MANAGED_SLACK_INTEGRATION_ID = 'system-slack';
+const MANAGED_PAGERDUTY_INTEGRATION_ID = 'system-pagerduty';
+const MANAGED_INTEGRATION_IDS = new Set([
+  MANAGED_SLACK_INTEGRATION_ID,
+  MANAGED_PAGERDUTY_INTEGRATION_ID,
+]);
+const MANAGED_DEFAULT_CONTACT_POINT_NAME = 'Default notifications';
 
 function actorFromReq(req: Request): { userId: string | null } {
   const ar = req as AuthenticatedRequest;
@@ -47,6 +65,102 @@ function inClusterAvailable(): boolean {
     process.env['KUBERNETES_SERVICE_HOST'] &&
     process.env['KUBERNETES_SERVICE_PORT'],
   );
+}
+
+function findManagedContactPoint(contactPoints: ContactPoint[]): ContactPoint | undefined {
+  return contactPoints.find((cp) =>
+    cp.integrations.some((integration) => MANAGED_INTEGRATION_IDS.has(integration.id)),
+  );
+}
+
+function contactPointIsReferenced(node: NotificationPolicyNode, contactPointId: string): boolean {
+  if (node.contactPointId === contactPointId) return true;
+  return node.children.some((child) => contactPointIsReferenced(child, contactPointId));
+}
+
+function contactPointNameForManagedIntegrations(
+  integrations: ContactPointIntegration[],
+): string {
+  if (integrations.length !== 1) return MANAGED_DEFAULT_CONTACT_POINT_NAME;
+  return integrations[0]!.type === 'slack' ? 'Slack' : 'PagerDuty';
+}
+
+async function syncManagedNotificationRouting(
+  notificationStore: INotificationRepository | undefined,
+  config: { slackWebhookUrl?: string; pagerDutyIntegrationKey?: string },
+): Promise<void> {
+  if (!notificationStore) return;
+
+  const contactPoints = await notificationStore.findAllContactPoints();
+  const existing = findManagedContactPoint(contactPoints);
+  const managedIntegrations: ContactPointIntegration[] = [];
+
+  if (config.slackWebhookUrl) {
+    managedIntegrations.push({
+      id: MANAGED_SLACK_INTEGRATION_ID,
+      type: 'slack',
+      name: 'Slack',
+      settings: { webhookUrl: config.slackWebhookUrl },
+    });
+  }
+  if (config.pagerDutyIntegrationKey) {
+    managedIntegrations.push({
+      id: MANAGED_PAGERDUTY_INTEGRATION_ID,
+      type: 'pagerduty',
+      name: 'PagerDuty',
+      settings: { integrationKey: config.pagerDutyIntegrationKey },
+    });
+  }
+
+  if (managedIntegrations.length === 0) {
+    if (!existing) return;
+    const tree = await notificationStore.getPolicyTree();
+    const updatedTree =
+      tree.contactPointId === existing.id
+        ? { ...tree, contactPointId: '' }
+        : tree;
+    if (updatedTree !== tree) {
+      await notificationStore.updatePolicyTree(updatedTree);
+    }
+    if (!contactPointIsReferenced(updatedTree, existing.id)) {
+      await notificationStore.deleteContactPoint(existing.id);
+    }
+    return;
+  }
+
+  const contactPointName = contactPointNameForManagedIntegrations(managedIntegrations);
+
+  const contactPoint = existing
+    ? await notificationStore.updateContactPoint(existing.id, {
+        name: existing.name || contactPointName,
+        integrations: [
+          ...existing.integrations.filter((item) => !MANAGED_INTEGRATION_IDS.has(item.id)),
+          ...managedIntegrations,
+        ],
+      })
+    : await notificationStore.createContactPoint({
+        name: contactPointName,
+        integrations: managedIntegrations,
+      });
+
+  if (!contactPoint) return;
+
+  const tree = await notificationStore.getPolicyTree();
+  const rootContactPointMissing =
+    tree.contactPointId !== ''
+      && !contactPoints.some((cp) => cp.id === tree.contactPointId)
+      && tree.contactPointId !== contactPoint.id;
+  if (
+    tree.contactPointId === ''
+    || tree.contactPointId === contactPoint.id
+    || rootContactPointMissing
+  ) {
+    await notificationStore.updatePolicyTree({
+      ...tree,
+      contactPointId: contactPoint.id,
+      isDefault: true,
+    });
+  }
 }
 
 export function createSystemRouter(deps: SystemRouterDeps): Router {
@@ -173,6 +287,10 @@ export function createSystemRouter(deps: SystemRouterDeps): Router {
         await setupConfig.deleteNotificationChannel(c.id, actor);
       }
     }
+    await syncManagedNotificationRouting(deps.notificationStore, {
+      slackWebhookUrl: dto.slack?.webhookUrl,
+      pagerDutyIntegrationKey: dto.pagerduty?.integrationKey,
+    });
     res.json({ ok: true });
   });
 
