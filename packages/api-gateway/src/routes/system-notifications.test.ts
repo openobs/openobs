@@ -150,4 +150,45 @@ describe('PUT /api/system/notifications', () => {
     expect(await ctx.notifications.findAllContactPoints()).toEqual([]);
     expect((await ctx.notifications.getPolicyTree()).contactPointId).toBe('');
   });
+
+  it('syncs PagerDuty into the default alert contact point', async () => {
+    await request(ctx.app)
+      .put('/api/system/notifications')
+      .send({
+        pagerduty: { integrationKey: 'pd-key-one' },
+      })
+      .expect(200);
+
+    const contactPoints = await ctx.notifications.findAllContactPoints();
+    expect(contactPoints).toHaveLength(1);
+    expect(contactPoints[0]!.integrations).toEqual([
+      {
+        id: 'system-pagerduty',
+        type: 'pagerduty',
+        name: 'PagerDuty',
+        settings: { integrationKey: 'pd-key-one' },
+      },
+    ]);
+    expect((await ctx.notifications.getPolicyTree()).contactPointId).toBe(
+      contactPoints[0]!.id,
+    );
+  });
+
+  it('keeps Slack and PagerDuty on one managed contact point', async () => {
+    await request(ctx.app)
+      .put('/api/system/notifications')
+      .send({
+        slack: { webhookUrl: 'https://hooks.slack.com/services/T/B/ONE' },
+        pagerduty: { integrationKey: 'pd-key-one' },
+      })
+      .expect(200);
+
+    const contactPoints = await ctx.notifications.findAllContactPoints();
+    expect(contactPoints).toHaveLength(1);
+    expect(contactPoints[0]!.name).toBe('Default notifications');
+    expect(contactPoints[0]!.integrations.map((item) => item.id)).toEqual([
+      'system-slack',
+      'system-pagerduty',
+    ]);
+  });
 });

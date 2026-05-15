@@ -4,9 +4,10 @@ import { slackSender } from './slack.js';
 import { webhookSender } from './webhook.js';
 import { discordSender } from './discord.js';
 import { teamsSender } from './teams.js';
+import { pagerDutySender } from './pagerduty.js';
 
 export type { Sender, SenderResult, AlertFiredEventPayload } from './types.js';
-export { slackSender, webhookSender, discordSender, teamsSender };
+export { slackSender, webhookSender, discordSender, teamsSender, pagerDutySender };
 export {
   postWebhook,
   buildAlertWebhookBody,
@@ -16,8 +17,8 @@ export {
 
 /**
  * Lookup table for notification senders. Returns null for integration
- * types that haven't been implemented yet (pagerduty, email, opsgenie,
- * telegram) — callers log "sender not implemented" and skip.
+ * types that haven't been implemented yet (email, opsgenie, telegram) —
+ * callers log "sender not implemented" and skip.
  */
 export function senderFor(type: ContactPointIntegrationType): Sender | null {
   switch (type) {
@@ -30,6 +31,7 @@ export function senderFor(type: ContactPointIntegrationType): Sender | null {
     case 'teams':
       return teamsSender;
     case 'pagerduty':
+      return pagerDutySender;
     case 'email':
     case 'opsgenie':
     case 'telegram':

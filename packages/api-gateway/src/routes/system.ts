@@ -48,7 +48,12 @@ export interface SystemRouterDeps {
 }
 
 const MANAGED_SLACK_INTEGRATION_ID = 'system-slack';
-const MANAGED_SLACK_CONTACT_POINT_NAME = 'Slack';
+const MANAGED_PAGERDUTY_INTEGRATION_ID = 'system-pagerduty';
+const MANAGED_INTEGRATION_IDS = new Set([
+  MANAGED_SLACK_INTEGRATION_ID,
+  MANAGED_PAGERDUTY_INTEGRATION_ID,
+]);
+const MANAGED_DEFAULT_CONTACT_POINT_NAME = 'Default notifications';
 
 function actorFromReq(req: Request): { userId: string | null } {
   const ar = req as AuthenticatedRequest;
@@ -62,9 +67,9 @@ function inClusterAvailable(): boolean {
   );
 }
 
-function findManagedSlackContactPoint(contactPoints: ContactPoint[]): ContactPoint | undefined {
+function findManagedContactPoint(contactPoints: ContactPoint[]): ContactPoint | undefined {
   return contactPoints.find((cp) =>
-    cp.integrations.some((integration) => integration.id === MANAGED_SLACK_INTEGRATION_ID),
+    cp.integrations.some((integration) => MANAGED_INTEGRATION_IDS.has(integration.id)),
   );
 }
 
@@ -73,16 +78,41 @@ function contactPointIsReferenced(node: NotificationPolicyNode, contactPointId: 
   return node.children.some((child) => contactPointIsReferenced(child, contactPointId));
 }
 
-async function syncSlackNotificationRouting(
+function contactPointNameForManagedIntegrations(
+  integrations: ContactPointIntegration[],
+): string {
+  if (integrations.length !== 1) return MANAGED_DEFAULT_CONTACT_POINT_NAME;
+  return integrations[0]!.type === 'slack' ? 'Slack' : 'PagerDuty';
+}
+
+async function syncManagedNotificationRouting(
   notificationStore: INotificationRepository | undefined,
-  webhookUrl: string | undefined,
+  config: { slackWebhookUrl?: string; pagerDutyIntegrationKey?: string },
 ): Promise<void> {
   if (!notificationStore) return;
 
   const contactPoints = await notificationStore.findAllContactPoints();
-  const existing = findManagedSlackContactPoint(contactPoints);
+  const existing = findManagedContactPoint(contactPoints);
+  const managedIntegrations: ContactPointIntegration[] = [];
 
-  if (!webhookUrl) {
+  if (config.slackWebhookUrl) {
+    managedIntegrations.push({
+      id: MANAGED_SLACK_INTEGRATION_ID,
+      type: 'slack',
+      name: 'Slack',
+      settings: { webhookUrl: config.slackWebhookUrl },
+    });
+  }
+  if (config.pagerDutyIntegrationKey) {
+    managedIntegrations.push({
+      id: MANAGED_PAGERDUTY_INTEGRATION_ID,
+      type: 'pagerduty',
+      name: 'PagerDuty',
+      settings: { integrationKey: config.pagerDutyIntegrationKey },
+    });
+  }
+
+  if (managedIntegrations.length === 0) {
     if (!existing) return;
     const tree = await notificationStore.getPolicyTree();
     const updatedTree =
@@ -98,25 +128,19 @@ async function syncSlackNotificationRouting(
     return;
   }
 
-  const integration: ContactPointIntegration = {
-    id: MANAGED_SLACK_INTEGRATION_ID,
-    type: 'slack',
-    name: MANAGED_SLACK_CONTACT_POINT_NAME,
-    settings: { webhookUrl },
-  };
+  const contactPointName = contactPointNameForManagedIntegrations(managedIntegrations);
 
   const contactPoint = existing
     ? await notificationStore.updateContactPoint(existing.id, {
-        name: existing.name || MANAGED_SLACK_CONTACT_POINT_NAME,
-        integrations: existing.integrations.some((item) => item.id === MANAGED_SLACK_INTEGRATION_ID)
-          ? existing.integrations.map((item) =>
-              item.id === MANAGED_SLACK_INTEGRATION_ID ? integration : item,
-            )
-          : [...existing.integrations, integration],
+        name: existing.name || contactPointName,
+        integrations: [
+          ...existing.integrations.filter((item) => !MANAGED_INTEGRATION_IDS.has(item.id)),
+          ...managedIntegrations,
+        ],
       })
     : await notificationStore.createContactPoint({
-        name: MANAGED_SLACK_CONTACT_POINT_NAME,
-        integrations: [integration],
+        name: contactPointName,
+        integrations: managedIntegrations,
       });
 
   if (!contactPoint) return;
@@ -263,7 +287,10 @@ export function createSystemRouter(deps: SystemRouterDeps): Router {
         await setupConfig.deleteNotificationChannel(c.id, actor);
       }
     }
-    await syncSlackNotificationRouting(deps.notificationStore, dto.slack?.webhookUrl);
+    await syncManagedNotificationRouting(deps.notificationStore, {
+      slackWebhookUrl: dto.slack?.webhookUrl,
+      pagerDutyIntegrationKey: dto.pagerduty?.integrationKey,
+    });
     res.json({ ok: true });
   });
 
