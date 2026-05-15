@@ -55,3 +55,5 @@ export type {
   ChartSummary,
   SummarySeries,
 } from './utils/chart-summary.js';
+export { suggestPivots } from './utils/chart-pivots.js';
+export type { PivotSuggestion, SuggestPivotsArgs } from './utils/chart-pivots.js';
