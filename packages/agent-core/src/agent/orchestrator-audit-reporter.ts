@@ -1,5 +1,5 @@
 import { AuditAction } from '@agentic-obs/common';
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import type { Identity } from '@agentic-obs/common';
 import type { AgentDefinition } from './agent-definition.js';
 import type { IAuditWriter, PermissionGateResult } from './types-permissions.js';

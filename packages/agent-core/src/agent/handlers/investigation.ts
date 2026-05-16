@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { ac, AuditAction } from '@agentic-obs/common';
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import type {
   Citation,
   InvestigationReportSection,

@@ -26,7 +26,7 @@ import type {
   IUserRepository,
 } from '@agentic-obs/common';
 import { EventTypes, type AlertFiredEventPayload } from '@agentic-obs/common/events';
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import {
   runBackgroundAgent,
   type BackgroundRunnerDeps,

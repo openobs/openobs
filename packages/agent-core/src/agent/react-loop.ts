@@ -6,7 +6,7 @@ import type {
   ToolCall,
   ToolDefinition,
 } from '@agentic-obs/llm-gateway'
-import { createLogger } from '@agentic-obs/common/logging'
+import { createLogger } from '@agentic-obs/server-utils/logging'
 import type { DashboardSseEvent, Identity } from '@agentic-obs/common'
 import type { IAccessControlService } from './types-permissions.js'
 import { estimateMessagesTokens, CONTEXT_WINDOW } from './token-utils.js'

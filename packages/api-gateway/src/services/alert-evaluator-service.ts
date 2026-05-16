@@ -24,7 +24,7 @@
  */
 
 import { EventEmitter } from 'node:events';
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import {
   EventTypes,
   computeAlertFingerprint,

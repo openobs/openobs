@@ -3,7 +3,7 @@
 // Accepts any ioredis-compatible client so callers can inject real or mock
 // instances without hard-coupling to the ioredis package at the call site.
 
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import type { CacheProvider } from './types.js';
 
 const log = createLogger('redis-cache');

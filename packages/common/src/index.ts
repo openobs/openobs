@@ -2,20 +2,20 @@
 //
 // BOUNDARY RULE: this barrel must be importable from the web bundle without
 // pulling Node built-ins (fs, node:async_hooks, node:crypto, …) or Node-only
-// packages (pino, ioredis, bullmq, dotenv). Anything that does is exported
-// from an explicit subpath instead — see package.json "exports":
+// packages (ioredis, bullmq, dotenv). Server-only modules previously hosted
+// here (logging, crypto, lifecycle, redis event bus) now live in
+// `@agentic-obs/server-utils`. Subpaths that remain here:
 //
 //   @agentic-obs/common              ← this file. Safe everywhere.
-//   @agentic-obs/common/logging      ← createLogger, requestLogger, correlation
-//   @agentic-obs/common/crypto       ← AES-GCM secret box, node:crypto
-//   @agentic-obs/common/queue        ← BullMQ worker queue, ioredis
-//   @agentic-obs/common/events/redis ← Redis event bus adapter
-//   @agentic-obs/common/lifecycle    ← graceful shutdown hooks (node:process)
+//   @agentic-obs/common/queue        ← BullMQ worker queue, ioredis (server only)
+//   @agentic-obs/common/events       ← pure event types + InMemory bus + fingerprint
 //
 // Tests on this file live in the corresponding sub-module directories.
 // Adding a re-export to this barrel that drags a Node module into the web
 // bundle will reintroduce the __vite-browser-external runtime crash —
-// `packages/web` will fail to load in the browser.
+// `packages/web` will fail to load in the browser. An ESLint
+// `no-restricted-imports` rule on packages/common/src/** blocks new
+// server-only imports (see .eslintrc.cjs).
 
 export * from './types.js';
 export * from './errors/index.js';
@@ -36,14 +36,11 @@ export * from './rbac/index.js';
 // notification_channels).
 export { DEFAULT_LLM_MODEL } from './config/index.js';
 
-// Lifecycle: graceful-shutdown hooks use node:process signals — server only.
-// Imported via @agentic-obs/common/lifecycle subpath.
-
 // Event bus types + constants are pure (no Node deps); the concrete
-// Redis/InMemory implementations live at @agentic-obs/common/events/redis
-// and @agentic-obs/common/events (the `factory` entry). Re-exporting just
-// the type surface here keeps consumers like `websocket/gateway` able to
-// grep EventTypes without pulling ioredis into the web bundle.
+// Redis adapter + env-driven factory live at @agentic-obs/server-utils/events.
+// Re-exporting just the type surface here keeps consumers like
+// `websocket/gateway` able to grep EventTypes without pulling ioredis into
+// the web bundle.
 export { EventTypes, type EventType, type EventEnvelope } from './events/types.js';
 export type { IEventBus, EventHandler } from './events/interface.js';
 

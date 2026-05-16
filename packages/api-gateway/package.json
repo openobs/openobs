@@ -22,6 +22,7 @@
     "@agentic-obs/adapters": "*",
     "@agentic-obs/agent-core": "*",
     "@agentic-obs/common": "*",
+    "@agentic-obs/server-utils": "*",
     "@agentic-obs/data-layer": "*",
     "@agentic-obs/llm-gateway": "*",
     "@iarna/toml": "^2.2.5",

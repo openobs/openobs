@@ -7,7 +7,7 @@
  *
  * Secret fields (apiKey, notification config secrets) are
  * stored encrypted at rest via AES-256-GCM with `SECRET_KEY` (see
- * `@agentic-obs/common/crypto`). Repository reads return plaintext;
+ * `@agentic-obs/server-utils/crypto`). Repository reads return plaintext;
  * callers pass `{ masked: true }` to receive redacted values for UI.
  */
 

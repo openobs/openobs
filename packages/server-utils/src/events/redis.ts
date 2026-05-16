@@ -11,8 +11,7 @@ import { randomUUID } from 'crypto';
 import { createLogger } from '../logging/index.js';
 
 const log = createLogger('redis-event-bus');
-import type { IEventBus, EventHandler } from './interface.js';
-import type { EventEnvelope } from './types.js';
+import type { IEventBus, EventHandler, EventEnvelope } from '@agentic-obs/common/events';
 
 const DEFAULT_STREAM_MAX_LEN = 10_000;
 

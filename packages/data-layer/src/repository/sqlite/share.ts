@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import type { SqliteClient } from '../../db/sqlite-client.js';
 import { shareLinks } from '../../db/sqlite-schema.js';
 import type { IShareLinkRepository, ShareLookupResult } from '../interfaces.js';

@@ -19,7 +19,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import type { QueryClient } from '@agentic-obs/data-layer';
 
 const log = createLogger('leader-lock');

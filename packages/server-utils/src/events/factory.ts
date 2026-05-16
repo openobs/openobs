@@ -1,7 +1,7 @@
 // EventBusFactory - selects InMemory or Redis implementation based on config
 
-import type { IEventBus } from './interface.js';
-import { InMemoryEventBus } from './memory.js';
+import type { IEventBus } from '@agentic-obs/common/events';
+import { InMemoryEventBus } from '@agentic-obs/common/events';
 import { RedisEventBus } from './redis.js';
 import type { RedisEventBusOptions } from './redis.js';
 

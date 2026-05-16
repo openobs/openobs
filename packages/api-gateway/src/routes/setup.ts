@@ -31,7 +31,7 @@
 import { Router } from 'express';
 import type { Request, RequestHandler, Response } from 'express';
 import { ac, ACTIONS } from '@agentic-obs/common';
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import type {
   IOrgRepository,
   IOrgUserRepository,

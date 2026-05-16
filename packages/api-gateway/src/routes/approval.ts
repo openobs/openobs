@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import type { ApiError, ResolvedPermission } from '@agentic-obs/common';
 import { ac, ACTIONS, approvalRowScopes, parseApprovalScope } from '@agentic-obs/common';
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 
 const log = createLogger('approval-route');
 

@@ -11,7 +11,7 @@ import {
 } from '@agentic-obs/llm-gateway';
 import type { InstanceLlmConfig, LlmApiFormat } from '@agentic-obs/common';
 import type { ILlmAuditRepository } from '@agentic-obs/data-layer';
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import { llmCallsTotal, llmLatency, llmTokensTotal } from '../metrics.js';
 
 const auditLog = createLogger('llm-audit-sink');

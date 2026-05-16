@@ -1,5 +1,5 @@
 import { getErrorMessage } from '@agentic-obs/common';
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import type { DashboardSseEvent } from '@agentic-obs/common';
 import type { AgentDefinition } from './agent-definition.js';
 import type { AgentEvent } from './agent-events.js';

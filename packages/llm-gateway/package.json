@@ -18,7 +18,8 @@
   },
   "dependencies": {
     "@agentic-obs/adapters": "*",
-    "@agentic-obs/common": "*"
+    "@agentic-obs/common": "*",
+    "@agentic-obs/server-utils": "*"
   },
   "devDependencies": {
     "typescript": "*",

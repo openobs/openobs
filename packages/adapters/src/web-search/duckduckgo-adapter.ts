@@ -2,7 +2,7 @@
  * DuckDuckGo HTML search adapter — concrete implementation of IWebSearchAdapter.
  */
 
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import type { IWebSearchAdapter, WebSearchResult } from '../interfaces.js';
 
 const log = createLogger('duckduckgo-adapter');

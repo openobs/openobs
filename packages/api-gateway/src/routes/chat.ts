@@ -5,7 +5,7 @@ import type {
   Response,
   NextFunction,
 } from 'express';
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import type { DashboardSseEvent } from '@agentic-obs/common';
 import { ac, ACTIONS } from '@agentic-obs/common';
 import { authMiddleware } from '../middleware/auth.js';

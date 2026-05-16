@@ -7,9 +7,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const { warnSpy } = vi.hoisted(() => ({ warnSpy: vi.fn() }));
-vi.mock('@agentic-obs/common/logging', async () => {
-  const actual = await vi.importActual<typeof import('@agentic-obs/common/logging')>(
-    '@agentic-obs/common/logging',
+vi.mock('@agentic-obs/server-utils/logging', async () => {
+  const actual = await vi.importActual<typeof import('@agentic-obs/server-utils/logging')>(
+    '@agentic-obs/server-utils/logging',
   );
   const stub: () => Record<string, unknown> = () => ({
     info: () => {},
