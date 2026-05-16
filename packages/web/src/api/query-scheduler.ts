@@ -37,6 +37,29 @@ type QueueItem<T> = {
   reject: (reason: unknown) => void;
 };
 
+/**
+ * Pure helper for the slot-delay formula. Exported for tests.
+ *
+ * - If `slotsPerSec > 0`, the caller has a known rate budget — space slots at
+ *   `1000 / slotsPerSec` ms apart (e.g. 2 req/s → 500 ms apart).
+ * - Otherwise, spread `totalSlots` requests evenly across `spreadMs`
+ *   (e.g. 10 slots over 2000 ms → 200 ms apart).
+ *
+ * `slot` is the zero-based index of the request inside the burst. The returned
+ * delay is `slot * stride` so slot 0 fires immediately.
+ */
+export function computeSlotDelayMs(args: {
+  slot: number;
+  slotsPerSec: number;
+  totalSlots: number;
+  spreadMs: number;
+}): number {
+  const { slot, slotsPerSec, totalSlots, spreadMs } = args;
+  const stride =
+    slotsPerSec > 0 ? 1000 / slotsPerSec : totalSlots > 0 ? spreadMs / totalSlots : 0;
+  return slot * stride;
+}
+
 export class QueryScheduler {
   private maxConcurrent: number;
   private activeCount = 0;
@@ -52,14 +75,24 @@ export class QueryScheduler {
    */
   private staggerWindowMs: number;
   private staggerSpreadMs: number;
+  private slotsPerSec: number;
+  private maxExpectedSlots: number;
   private burstStartTime: number | null = null;
   private burstCount = 0;
   private staggerTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(maxConcurrent = 6, staggerWindowMs = 200, staggerSpreadMs = 2000) {
+  constructor(
+    maxConcurrent = 6,
+    staggerWindowMs = 200,
+    staggerSpreadMs = 2000,
+    slotsPerSec = 0,
+    maxExpectedSlots = 60,
+  ) {
     this.maxConcurrent = maxConcurrent;
     this.staggerWindowMs = staggerWindowMs;
     this.staggerSpreadMs = staggerSpreadMs;
+    this.slotsPerSec = slotsPerSec;
+    this.maxExpectedSlots = maxExpectedSlots;
   }
 
   /**
@@ -108,11 +141,15 @@ export class QueryScheduler {
       }
 
       const slot = this.burstCount++;
-      // Spread slots evenly: each slot is staggerSpreadMs / maxExpectedPanels apart.
-      // Using 50 ms per slot means 30 panels finish within 1.5 s and 60 panels within 3 s,
-      // well within the 600 req/min budget on the API gateway.
-      const slotsPerSec = Math.floor(this.staggerSpreadMs / 50);
-      const delay = slot * (slotsPerSec > 0 ? this.staggerSpreadMs / 60 : 0); // ~33 ms at default 2000 ms spread
+      // Either a configured per-second rate budget or an even spread across
+      // `maxExpectedSlots` over the `staggerSpreadMs` window. See
+      // `computeSlotDelayMs` for the formula.
+      const delay = computeSlotDelayMs({
+        slot,
+        slotsPerSec: this.slotsPerSec,
+        totalSlots: this.maxExpectedSlots,
+        spreadMs: this.staggerSpreadMs,
+      });
 
       const promise = new Promise<T>((resolve, reject) => {
         setTimeout(() => {

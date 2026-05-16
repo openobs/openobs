@@ -475,7 +475,7 @@ CREATE TABLE IF NOT EXISTS incidents (
   timeline           TEXT NOT NULL DEFAULT '[]',
   assignee           TEXT,
   workspace_id       TEXT,
-  archived           INTEGER NOT NULL DEFAULT 0,
+  archived           BOOLEAN NOT NULL DEFAULT FALSE,
   resolved_at        TEXT,
   created_at         TEXT NOT NULL,
   updated_at         TEXT NOT NULL
@@ -497,7 +497,7 @@ CREATE TABLE IF NOT EXISTS feed_items (
   hypothesis_feedback TEXT,
   action_feedback     TEXT,
   investigation_id    TEXT,
-  followed_up         INTEGER NOT NULL DEFAULT 0,
+  followed_up         BOOLEAN NOT NULL DEFAULT FALSE,
   created_at          TEXT NOT NULL
 );
 
