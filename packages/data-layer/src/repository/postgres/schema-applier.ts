@@ -39,7 +39,39 @@ export async function applyPostgresSchema(db: DbClient): Promise<void> {
     for (const stmt of statements) {
       await tx.execute(sql.raw(stmt));
     }
+    // One-shot column-type fix for instances created when these columns were
+    // INTEGER NOT NULL DEFAULT 0. Drizzle declares them as boolean; the SQL
+    // type drift broke reads. The CREATE TABLE IF NOT EXISTS above does not
+    // alter existing columns, so retrofit type-by-type.
+    await fixLegacyBooleanColumns(tx);
   });
+}
+
+async function fixLegacyBooleanColumns(tx: {
+  execute: (q: ReturnType<typeof sql>) => Promise<unknown>;
+}): Promise<void> {
+  // (table, column) pairs whose Drizzle type is boolean but legacy SQL was INTEGER.
+  const targets: Array<[string, string]> = [
+    ['incidents', 'archived'],
+    ['feed_items', 'followed_up'],
+  ];
+  for (const [table, column] of targets) {
+    await tx.execute(sql.raw(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = '${table}' AND column_name = '${column}'
+            AND data_type = 'integer'
+        ) THEN
+          EXECUTE 'ALTER TABLE ${table} ALTER COLUMN ${column} DROP DEFAULT';
+          EXECUTE 'ALTER TABLE ${table} ALTER COLUMN ${column} TYPE BOOLEAN USING (${column} <> 0)';
+          EXECUTE 'ALTER TABLE ${table} ALTER COLUMN ${column} SET DEFAULT FALSE';
+        END IF;
+      END
+      $$;
+    `));
+  }
 }
 
 async function renameLegacyUserTable(tx: {
