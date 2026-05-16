@@ -2,6 +2,7 @@
   "files": [],
   "references": [
     { "path": "packages/common" },
+    { "path": "packages/server-utils" },
     { "path": "packages/api-gateway" },
     { "path": "packages/llm-gateway" },
     { "path": "packages/agent-core" },

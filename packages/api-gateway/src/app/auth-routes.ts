@@ -17,7 +17,7 @@
  */
 
 import type { Application, RequestHandler } from 'express';
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import type { IQuotaRepository } from '@agentic-obs/common';
 import { createAuthSubsystem } from '../auth/auth-manager.js';
 import type { AuthSubsystem } from '../auth/auth-manager.js';

@@ -14,7 +14,7 @@ import type {
   IOrgUserRepository,
   IUserRepository,
 } from '@agentic-obs/common';
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import { hashPassword, passwordMinLength } from './local-provider.js';
 
 const log = createLogger('seed-admin');

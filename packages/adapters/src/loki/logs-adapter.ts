@@ -1,6 +1,6 @@
 // Concrete Loki implementation of the canonical ILogsAdapter.
 
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import { AdapterError, classifyHttpError } from '../errors.js';
 import type {
   ILogsAdapter,

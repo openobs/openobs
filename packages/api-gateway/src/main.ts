@@ -5,7 +5,7 @@
 // runs. Server / websocket-gateway / secret-box imports happen inside
 // startServer, so the env is ready by the time they resolve.
 
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import { bootstrapSecretsIfNeeded } from './auth/bootstrap-secrets.js';
 import { dataDir } from './paths.js';
 

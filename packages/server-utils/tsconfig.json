@@ -5,9 +5,8 @@
     "rootDir": "src"
   },
   "include": ["src"],
-  "exclude": ["dist", "node_modules"],
+  "exclude": ["dist", "node_modules", "src/**/*.test.ts"],
   "references": [
-    { "path": "../common" },
-    { "path": "../server-utils" }
+    { "path": "../common" }
   ]
 }

@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 
 const log = createLogger('api-key-helper');
 const execFileAsync = promisify(execFile);

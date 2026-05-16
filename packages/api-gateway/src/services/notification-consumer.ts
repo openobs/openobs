@@ -34,7 +34,7 @@ import type {
   INotificationRepository,
   INotificationDispatchRepository,
 } from '@agentic-obs/data-layer';
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import { senderFor } from './notification-senders/index.js';
 import type { Sender } from './notification-senders/index.js';
 import type { ApprovalRouter, ApprovalRow } from './approval-router.js';

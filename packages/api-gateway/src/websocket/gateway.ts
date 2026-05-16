@@ -5,8 +5,8 @@ import type { Namespace, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { ac, ACTIONS, EventTypes } from '@agentic-obs/common';
 import type { Identity, IEventBus, EventEnvelope, OrgRole } from '@agentic-obs/common';
-import { createEventBusFromEnv } from '@agentic-obs/common/events';
-import { createLogger } from '@agentic-obs/common/logging';
+import { createEventBusFromEnv } from '@agentic-obs/server-utils/events';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import type {
   IFeedItemRepository,
   IGatewayApprovalStore,

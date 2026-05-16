@@ -12,7 +12,7 @@ import type { Server as HttpServer } from 'node:http';
 import {
   GracefulShutdown,
   ShutdownPriority,
-} from '@agentic-obs/common/lifecycle';
+} from '@agentic-obs/server-utils/lifecycle';
 
 interface WebSocketGatewayLike {
   close(): Promise<void> | void;

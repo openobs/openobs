@@ -13,7 +13,7 @@ import {
   type OrgRole,
   type User,
 } from '@agentic-obs/common';
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import type { LdapConfig } from './config.js';
 import { authenticate, type LdapUserRecord } from './client.js';
 import { mapGroupsToRoles } from './group-mapping.js';

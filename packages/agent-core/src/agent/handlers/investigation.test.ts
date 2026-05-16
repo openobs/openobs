@@ -4,8 +4,8 @@ import type { Investigation } from '@agentic-obs/common';
 // Capture-fail T1.1 test asserts a structured warn log; intercept the logger
 // factory so we don't have to scrape pino's stream output.
 const warnSpy = vi.fn();
-vi.mock('@agentic-obs/common/logging', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@agentic-obs/common/logging')>();
+vi.mock('@agentic-obs/server-utils/logging', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@agentic-obs/server-utils/logging')>();
   return {
     ...actual,
     createLogger: (name: string) => {

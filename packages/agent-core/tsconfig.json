@@ -8,6 +8,7 @@
   "exclude": ["dist", "node_modules"],
   "references": [
     { "path": "../common" },
+    { "path": "../server-utils" },
     { "path": "../llm-gateway" },
     { "path": "../data-layer" },
     { "path": "../adapters" }

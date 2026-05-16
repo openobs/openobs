@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { ac, AuditAction, assertWritable, ProvisionedResourceError } from '@agentic-obs/common';
 import type { PendingDashboardChange, PendingDashboardChangeOp, DashboardStatus } from '@agentic-obs/common';
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import type { ActionContext } from './_context.js';
 import { withToolEventBoundary, withWorkspaceScope } from './_shared.js';
 import { applyLayout } from '../layout-engine.js';

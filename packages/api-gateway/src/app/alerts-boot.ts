@@ -16,7 +16,7 @@
  * from chat-service.
  */
 
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import { PrometheusMetricsAdapter } from '@agentic-obs/adapters';
 import type { BackgroundRunnerDeps } from '@agentic-obs/agent-core';
 import {

@@ -26,7 +26,7 @@ import type {
   IOrgUserRepository,
   IUserRepository,
 } from '@agentic-obs/common';
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import type { RoleService } from '../services/role-service.js';
 
 /**

@@ -17,7 +17,7 @@
 //   - `us.anthropic.claude-opus-4-7-20250101-v1:0`
 // all collapse to the same `claude-opus-4-7` row.
 
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 
 const log = createLogger('llm-gateway:pricing');
 

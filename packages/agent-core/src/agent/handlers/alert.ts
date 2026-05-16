@@ -1,5 +1,5 @@
 import { ac, AuditAction, assertWritable, ProvisionedResourceError, type AlertCondition, type AlertOperator, type AlertSeverity, type ResourceSource } from '@agentic-obs/common';
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import type { ActionContext } from './_context.js';
 import { withWorkspaceScope } from './_shared.js';
 

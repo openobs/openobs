@@ -1,4 +1,4 @@
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import type {
   LLMProvider,
   LLMOptions,

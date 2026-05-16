@@ -1,6 +1,6 @@
 import { randomUUID, createHash } from 'node:crypto';
 import { getErrorMessage } from '@agentic-obs/common';
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import type { LLMProvider, LLMOptions, LLMResponse, CompletionMessage } from './types.js';
 import { ProviderError } from './types.js';
 import { ProviderCapabilityError } from './providers/capabilities.js';

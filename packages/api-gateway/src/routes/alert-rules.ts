@@ -11,7 +11,7 @@ import {
 import type { AuditWriter } from '../auth/audit-writer.js';
 import type { IAlertRuleRepository, IGatewayInvestigationStore, IGatewayFeedStore, IInvestigationReportRepository } from '@agentic-obs/data-layer';
 import { runBackgroundAgent, type BackgroundRunnerDeps } from '@agentic-obs/agent-core';
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import { authMiddleware } from '../middleware/auth.js';
 import type { AuthenticatedRequest } from '../middleware/auth.js';
 import { createRequirePermission } from '../middleware/require-permission.js';

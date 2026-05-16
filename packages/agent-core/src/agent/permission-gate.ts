@@ -15,7 +15,7 @@
  * §D3, never an exception.
  */
 
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import type { AgentDefinition } from './agent-definition.js';
 import type { AgentToolName } from './agent-types.js';
 import type { ActionContext } from './orchestrator-action-handlers.js';

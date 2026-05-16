@@ -30,7 +30,7 @@ import {
   createUserRateLimiter,
 } from './middleware/rate-limiter.js';
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
-import { createLogger, requestLogger } from '@agentic-obs/common/logging';
+import { createLogger, requestLogger } from '@agentic-obs/server-utils/logging';
 import { AccessControlHolder } from './services/accesscontrol-holder.js';
 import { SetupConfigService } from './services/setup-config-service.js';
 import { createPersistence } from './app/persistence.js';
@@ -38,7 +38,7 @@ import { buildAuthSubsystem, mountAuthRoutes } from './app/auth-routes.js';
 import { mountRbacRoutes } from './app/rbac-routes.js';
 import { mountDomainRoutes } from './app/domain-routes.js';
 import { startAlerts } from './app/alerts-boot.js';
-import { createEventBusFromEnv } from '@agentic-obs/common/events';
+import { createEventBusFromEnv } from '@agentic-obs/server-utils/events';
 import { NotificationConsumer } from './services/notification-consumer.js';
 import { PublishingApprovalRepository } from './services/publishing-approval-repository.js';
 import { ApprovalRouter } from './services/approval-router.js';
@@ -338,7 +338,7 @@ export async function startServer(port = 3000): Promise<void> {
 
   // Wrap Express app in httpServer + attach Socket.io WebSocket gateway
   const { createWebSocketGateway } = await import('./websocket/gateway.js');
-  const { createEventBusFromEnv } = await import('@agentic-obs/common/events');
+  const { createEventBusFromEnv } = await import('@agentic-obs/server-utils/events');
   const wsDeps = app.locals['websocketGatewayDeps'] as WebSocketGatewayDeps | undefined;
   const { httpServer, gateway } = createWebSocketGateway(app, createEventBusFromEnv(), wsDeps);
 

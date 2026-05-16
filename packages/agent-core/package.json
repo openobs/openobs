@@ -19,6 +19,7 @@
   "dependencies": {
     "@agentic-obs/adapters": "*",
     "@agentic-obs/common": "*",
+    "@agentic-obs/server-utils": "*",
     "@agentic-obs/llm-gateway": "*",
     "cron-parser": "^4.9.0",
     "zod": "^3.25.76"

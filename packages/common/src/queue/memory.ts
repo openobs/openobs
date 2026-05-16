@@ -1,10 +1,16 @@
 // InMemoryWorkerQueue - synchronous, in-process queue for testing
 
 import { randomUUID } from 'crypto';
-import { createLogger } from '../logging/index.js';
 import type { IWorkerQueue, JobOptions, JobRecord, JobHandler, QueueStats } from './interface.js';
 
-const log = createLogger('memory-queue');
+// Lightweight console logger — queue is server-only; avoids a package-level
+// cycle with @agentic-obs/server-utils which depends on @agentic-obs/common.
+const log = {
+  warn(meta: unknown, msg: string): void {
+    // eslint-disable-next-line no-console
+    console.warn(`[memory-queue] ${msg}`, meta);
+  },
+};
 
 interface PendingJob<T = unknown> {
   record: JobRecord<T>;

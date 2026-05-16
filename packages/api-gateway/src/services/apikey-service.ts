@@ -39,7 +39,7 @@ import {
   type OrgRole,
   type User,
 } from '@agentic-obs/common';
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import type { AuditWriter } from '../auth/audit-writer.js';
 
 export const TOKEN_PREFIX_SA = 'openobs_sa_';

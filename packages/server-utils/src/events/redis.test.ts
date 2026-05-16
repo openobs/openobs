@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { RedisEventBus } from './redis.js';
-import type { EventEnvelope } from './types.js';
+import type { EventEnvelope } from '@agentic-obs/common/events';
 
 type RedisMock = {
   duplicate: ReturnType<typeof vi.fn>;

@@ -2,7 +2,7 @@
  * Shared helpers for the instance-config repositories (W2 / T2.2).
  *
  * Encryption: secret columns are encrypted with the SECRET_KEY env var
- * via `@agentic-obs/common/crypto.encrypt`. The returned ciphertext
+ * via `@agentic-obs/server-utils/crypto.encrypt`. The returned ciphertext
  * includes the IV + auth tag so rotation at rest means re-encrypting
  * rows, not rewriting the wire format.
  *
@@ -14,7 +14,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { encrypt, decrypt, resolveSecretKey } from '@agentic-obs/common/crypto';
+import { encrypt, decrypt, resolveSecretKey } from '@agentic-obs/server-utils/crypto';
 
 export function uid(): string {
   return randomUUID();

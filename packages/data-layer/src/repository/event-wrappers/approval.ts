@@ -1,4 +1,4 @@
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import type { MaybeAsync, IApprovalRequestRepository } from '../interfaces.js';
 import type { ApprovalRequest } from '../types.js';
 import type { IGatewayApprovalStore } from '../gateway-interfaces.js';

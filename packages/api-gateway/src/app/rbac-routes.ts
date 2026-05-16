@@ -24,7 +24,7 @@
 
 import type { Application, RequestHandler } from 'express';
 import { seedRbacForOrg } from '@agentic-obs/data-layer';
-import { createLogger } from '@agentic-obs/common/logging';
+import { createLogger } from '@agentic-obs/server-utils/logging';
 import { AccessControlService } from '../services/accesscontrol-service.js';
 import { AccessControlHolder } from '../services/accesscontrol-holder.js';
 import { DashboardAclService } from '../services/dashboard-acl-service.js';

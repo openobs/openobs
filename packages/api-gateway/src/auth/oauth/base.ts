@@ -18,7 +18,7 @@ import type {
   User,
 } from '@agentic-obs/common';
 import { AuthError } from '@agentic-obs/common';
-import { encrypt } from '@agentic-obs/common/crypto';
+import { encrypt } from '@agentic-obs/server-utils/crypto';
 
 export type OAuthModule = 'oauth_github' | 'oauth_google' | 'oauth_generic';
 
