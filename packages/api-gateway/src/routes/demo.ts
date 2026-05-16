@@ -1,4 +1,5 @@
-// Demo-mode routes — only mounted when OPENOBS_DEMO=1 is set in the env.
+// Demo-mode routes — only mounted when ROUNDS_DEMO=1 (or legacy
+// OPENOBS_DEMO=1) is set in the env.
 //
 // Goals:
 //   - Surface a public `GET /api/demo/status` so the web UI can render a

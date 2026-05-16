@@ -192,11 +192,15 @@ async function createPlanCommon(
         const targetNamespace = firstOpsStep
           ? (parseKubectlArgv((firstOpsStep.paramsJson as { argv: string[] }).argv).namespace ?? null)
           : null;
-        // TODO(approvals-multi-team): resolve requesterTeamId via ctx.
-        // Needs alertRule.investigation_id → folder → team chain wired
-        // through ctx (not currently exposed in agent-core). Tracked
-        // separately; null is the safe default — wildcard `approvals:*`
-        // grants still match.
+        // FIXME(teams): wire when teams feature lands. Resolving this
+        // needs the alertRule.investigation_id → folder → team chain
+        // threaded through ctx (not currently exposed in agent-core),
+        // and the org-wide "teams" concept itself isn't yet a real
+        // first-class object. `null` is the safe default everywhere it
+        // flows downstream (approval-router, publishing-approval-repo,
+        // action-center filters, scope.ts) — wildcard `approvals:*`
+        // grants still match, and team-scoped filters treat null as
+        // "no team". Not a real TODO; intentional placeholder.
         const requesterTeamId: string | null = null;
 
         const submitted = await ctx.approvalRequests.submit({

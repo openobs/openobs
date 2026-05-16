@@ -22,16 +22,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
 
 // -- `rounds demo` subcommand -----------------------------------------
-// Zero-credential preview mode. Sets OPENOBS_DEMO=1 and uses an isolated
+// Zero-credential preview mode. Sets ROUNDS_DEMO=1 and uses an isolated
 // DATA_DIR so the demo never collides with a real install. The flag is
 // read by the api-gateway's createApp(); without it no demo routes are
-// mounted.
-//
-// TODO(rebrand): rename env var to ROUNDS_DEMO once api-gateway/server.ts is
-// updated in the env-var sweep wave. Doing both at once to avoid a window
-// where the launcher and the server disagree on the flag name.
+// mounted. The server also still honors legacy OPENOBS_DEMO=1 for
+// back-compat with pre-rebrand configs.
 if (args[0] === 'demo') {
-  process.env.OPENOBS_DEMO = '1';
+  process.env.ROUNDS_DEMO = '1';
   if (!process.env.DATA_DIR) {
     process.env.DATA_DIR = join(homedir(), '.rounds-demo');
   }

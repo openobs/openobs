@@ -86,7 +86,7 @@ async function main() {
   // `tsx bin/start.ts demo` — local-dev equivalent of `rounds demo`.
   // Sets the env var BEFORE the api-gateway child process inherits it.
   if (process.argv[2] === 'demo') {
-    process.env['OPENOBS_DEMO'] = '1';
+    process.env['ROUNDS_DEMO'] = '1';
     log('DEMO mode — fixture data, no credentials required.');
   }
 

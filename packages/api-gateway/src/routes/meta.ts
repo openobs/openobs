@@ -61,6 +61,8 @@ export async function computeQualityMetrics(
   feedStoreInstance: IGatewayFeedStore,
   orgId: string,
 ): Promise<QualityMetrics> {
+  // Investigation.workspaceId is the legacy field name for what is now
+  // the org id (see data-layer types). Filter by it to scope to this org.
   const investigations = (await investigationStore.findAll())
     .filter((inv) => inv.workspaceId === orgId);
   const totalInvestigations = investigations.length;
