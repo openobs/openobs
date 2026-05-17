@@ -4,7 +4,8 @@ import type {
   ContactPointIntegration,
   NotificationPolicyNode,
 } from '@agentic-obs/common';
-import { InMemoryEventBus, type AlertFiredEventPayload } from '@agentic-obs/common/events';
+import type { AlertFiredEventPayload } from '@agentic-obs/common/events';
+import { InMemoryEventBus } from '@agentic-obs/common/events/node';
 import type {
   INotificationRepository,
   INotificationDispatchRepository,

@@ -22,9 +22,9 @@ import type {
 import type { IEventBus } from '@agentic-obs/common';
 import {
   EventTypes,
-  createEvent,
   type ApprovalCreatedEventPayload,
 } from '@agentic-obs/common/events';
+import { createEvent } from '@agentic-obs/common/events/node';
 import { createLogger } from '@agentic-obs/server-utils/logging';
 
 const log = createLogger('publishing-approval-repo');
