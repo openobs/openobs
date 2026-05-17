@@ -27,11 +27,13 @@ import { EventEmitter } from 'node:events';
 import { createLogger } from '@agentic-obs/server-utils/logging';
 import {
   EventTypes,
-  computeAlertFingerprint,
-  createEvent,
   type IEventBus,
   type AlertFiredEventPayload,
 } from '@agentic-obs/common/events';
+import {
+  computeAlertFingerprint,
+  createEvent,
+} from '@agentic-obs/common/events/node';
 import type { LeaderLock } from './leader-lock.js';
 import type {
   AlertOperator,

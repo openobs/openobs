@@ -17,6 +17,10 @@
     "./events": {
       "import": "./dist/events/index.js",
       "types": "./dist/events/index.d.ts"
+    },
+    "./events/node": {
+      "import": "./dist/events/node.js",
+      "types": "./dist/events/node.d.ts"
     }
   },
   "scripts": {

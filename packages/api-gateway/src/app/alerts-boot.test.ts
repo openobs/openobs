@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { IAlertRuleRepository } from '@agentic-obs/data-layer';
-import { InMemoryEventBus } from '@agentic-obs/common/events';
+import { InMemoryEventBus } from '@agentic-obs/common/events/node';
 import type { SetupConfigService } from '../services/setup-config-service.js';
 import type { ConsumerInvestigationStore } from '../services/auto-investigation-consumer.js';
 import { startAlerts } from './alerts-boot.js';

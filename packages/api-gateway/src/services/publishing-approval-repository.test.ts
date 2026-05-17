@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { InMemoryEventBus, EventTypes, type ApprovalCreatedEventPayload, type EventEnvelope } from '@agentic-obs/common/events';
+import { EventTypes, type ApprovalCreatedEventPayload, type EventEnvelope } from '@agentic-obs/common/events';
+import { InMemoryEventBus } from '@agentic-obs/common/events/node';
 import type {
   ApprovalAction,
   ApprovalContext,

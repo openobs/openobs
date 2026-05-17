@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { InMemoryEventBus, type AlertFiredEventPayload } from '@agentic-obs/common/events';
+import type { AlertFiredEventPayload } from '@agentic-obs/common/events';
+import { InMemoryEventBus } from '@agentic-obs/common/events/node';
 import {
   AutoInvestigationConsumer,
   ALERT_FIRED_TOPIC,
